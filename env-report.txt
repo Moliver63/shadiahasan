@@ -1,0 +1,82 @@
+=== ENV SCANNER V2 REPORT ===
+Project root: C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan
+
+Total hits: 26
+Unique keys: 15
+
+=== process.env KEYS ===
+BUILT_IN_FORGE_API_KEY
+BUILT_IN_FORGE_API_URL
+DATABASE_URL
+FROM_EMAIL
+JWT_SECRET
+NODE_ENV
+OAUTH_SERVER_URL
+OWNER_OPEN_ID
+PORT
+RESEND_API_KEY
+SITE_URL
+
+=== import.meta.env (VITE) KEYS ===
+VITE_APP_ID
+VITE_FRONTEND_FORGE_API_KEY
+VITE_FRONTEND_FORGE_API_URL
+VITE_OAUTH_PORTAL_URL
+
+=== HITS (where each key appears) ===
+
+[BUILT_IN_FORGE_API_KEY]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\env.ts:9 (process.env)  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+
+[BUILT_IN_FORGE_API_URL]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\env.ts:8 (process.env)  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
+
+[DATABASE_URL]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\drizzle.config.ts:3 (process.env)  const connectionString = process.env.DATABASE_URL;
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\db.ts:10 (process.env)  if (!_db && process.env.DATABASE_URL) {
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\db.ts:12 (process.env)  _db = drizzle(process.env.DATABASE_URL);
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\env.ts:4 (process.env)  databaseUrl: process.env.DATABASE_URL ?? "",
+
+[FROM_EMAIL]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\email.ts:6 (process.env)  const FROM_EMAIL = process.env.FROM_EMAIL || "Shadia Hasan <noreply@shadiahasan.club>";
+
+[JWT_SECRET]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\auth.ts:4 (process.env)  const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET || "shadia-access-secret-change-in-production";
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\auth.ts:5 (process.env)  const REFRESH_TOKEN_SECRET = process.env.JWT_SECRET ? `${process.env.JWT_SECRET}-refresh` : "shadia-refresh-secret-change-in-production";
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\auth.ts:5 (process.env)  const REFRESH_TOKEN_SECRET = process.env.JWT_SECRET ? `${process.env.JWT_SECRET}-refresh` : "shadia-refresh-secret-change-in-production";
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\env.ts:3 (process.env)  cookieSecret: process.env.JWT_SECRET ?? "",
+
+[NODE_ENV]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\vite.config.ts:82 (process.env)  if (process.env.NODE_ENV === "production") {
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\auth.ts:109 (process.env)  const isProd = process.env.NODE_ENV === "production";
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\env.ts:7 (process.env)  isProduction: process.env.NODE_ENV === "production",
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\index.ts:47 (process.env)  if (process.env.NODE_ENV === "development") {
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\vite.ts:52 (process.env)  process.env.NODE_ENV === "development"
+
+[OAUTH_SERVER_URL]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\env.ts:5 (process.env)  oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
+
+[OWNER_OPEN_ID]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\env.ts:6 (process.env)  ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
+
+[PORT]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\index.ts:53 (process.env)  const preferredPort = parseInt(process.env.PORT || "3000");
+
+[RESEND_API_KEY]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\email.ts:4 (process.env)  const resend = new Resend(process.env.RESEND_API_KEY);
+
+[SITE_URL]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\email.ts:7 (process.env)  const SITE_URL = process.env.SITE_URL || "https://www.shadiahasan.club";
+
+[VITE_APP_ID]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\client\src\const.ts:6 (import.meta.env)  const appId = import.meta.env.VITE_APP_ID;
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\server\_core\env.ts:2 (process.env)  appId: process.env.VITE_APP_ID ?? "",
+
+[VITE_FRONTEND_FORGE_API_KEY]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\client\src\components\Map.tsx:89 (import.meta.env)  const API_KEY = import.meta.env.VITE_FRONTEND_FORGE_API_KEY;
+
+[VITE_FRONTEND_FORGE_API_URL]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\client\src\components\Map.tsx:91 (import.meta.env)  import.meta.env.VITE_FRONTEND_FORGE_API_URL ||
+
+[VITE_OAUTH_PORTAL_URL]
+- C:\Users\mixav\OneDrive\Área de Trabalho\shadiahasan\client\src\const.ts:5 (import.meta.env)  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;

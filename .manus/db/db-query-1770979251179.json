@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, title, slug FROM courses WHERE slug = 'autoconhecimento-inteligencia-emocional';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user SKgKZA3sbMpTEUL.1cf9ececaeec --database mS6ghTLGjzR674rsSucZ8K --execute SELECT id, title, slug FROM courses WHERE slug = 'autoconhecimento-inteligencia-emocional';",
+  "rows": [
+    {
+      "id": "30001",
+      "title": "Autoconhecimento e Inteligência Emocional",
+      "slug": "autoconhecimento-inteligencia-emocional"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tslug\n30001\tAutoconhecimento e Inteligência Emocional\tautoconhecimento-inteligencia-emocional\n",
+  "stderr": "",
+  "execution_time_ms": 48
+}

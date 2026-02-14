@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO courses (title, slug, description, thumbnail, instructorId, isPublished, createdAt, updatedAt) \nVALUES (\n  'Autoconhecimento e Inteligência Emocional',\n  'autoconhecimento-inteligencia-emocional',\n  'Descubra o poder do autoconhecimento e desenvolva sua inteligência emocional para transformar sua vida pessoal e profissional. Neste curso completo, você aprenderá técnicas práticas para identificar e gerenciar suas emoções, desenvolver empatia e construir relacionamentos mais saudáveis.',\n  'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=800&q=80',\n  1,\n  1,\n  NOW(),\n  NOW()\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user SKgKZA3sbMpTEUL.1cf9ececaeec --database mS6ghTLGjzR674rsSucZ8K --execute INSERT INTO courses (title, slug, description, thumbnail, instructorId, isPublished, createdAt, updatedAt) \nVALUES (\n  'Autoconhecimento e Inteligência Emocional',\n  'autoconhecimento-inteligencia-emocional',\n  'Descubra o poder do autoconhecimento e desenvolva sua inteligência emocional para transformar sua vida pessoal e profissional. Neste curso completo, você aprenderá técnicas práticas para identificar e gerenciar suas emoções, desenvolver empatia e construir relacionamentos mais saudáveis.',\n  'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=800&q=80',\n  1,\n  1,\n  NOW(),\n  NOW()\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 67
+}

@@ -1,0 +1,233 @@
+{
+  "root": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan",
+  "counts": {
+    "total_hits": 26,
+    "unique_keys": 15,
+    "process_env_keys": 11,
+    "vite_env_keys": 4
+  },
+  "keys": [
+    "BUILT_IN_FORGE_API_KEY",
+    "BUILT_IN_FORGE_API_URL",
+    "DATABASE_URL",
+    "FROM_EMAIL",
+    "JWT_SECRET",
+    "NODE_ENV",
+    "OAUTH_SERVER_URL",
+    "OWNER_OPEN_ID",
+    "PORT",
+    "RESEND_API_KEY",
+    "SITE_URL",
+    "VITE_APP_ID",
+    "VITE_FRONTEND_FORGE_API_KEY",
+    "VITE_FRONTEND_FORGE_API_URL",
+    "VITE_OAUTH_PORTAL_URL"
+  ],
+  "process_env_keys": [
+    "BUILT_IN_FORGE_API_KEY",
+    "BUILT_IN_FORGE_API_URL",
+    "DATABASE_URL",
+    "FROM_EMAIL",
+    "JWT_SECRET",
+    "NODE_ENV",
+    "OAUTH_SERVER_URL",
+    "OWNER_OPEN_ID",
+    "PORT",
+    "RESEND_API_KEY",
+    "SITE_URL"
+  ],
+  "vite_env_keys": [
+    "VITE_APP_ID",
+    "VITE_FRONTEND_FORGE_API_KEY",
+    "VITE_FRONTEND_FORGE_API_URL",
+    "VITE_OAUTH_PORTAL_URL"
+  ],
+  "hits_by_key": {
+    "BUILT_IN_FORGE_API_KEY": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\env.ts",
+        "kind": "process.env",
+        "line": 9,
+        "context": "forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? \"\","
+      }
+    ],
+    "BUILT_IN_FORGE_API_URL": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\env.ts",
+        "kind": "process.env",
+        "line": 8,
+        "context": "forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? \"\","
+      }
+    ],
+    "DATABASE_URL": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\drizzle.config.ts",
+        "kind": "process.env",
+        "line": 3,
+        "context": "const connectionString = process.env.DATABASE_URL;"
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\db.ts",
+        "kind": "process.env",
+        "line": 10,
+        "context": "if (!_db && process.env.DATABASE_URL) {"
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\db.ts",
+        "kind": "process.env",
+        "line": 12,
+        "context": "_db = drizzle(process.env.DATABASE_URL);"
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\env.ts",
+        "kind": "process.env",
+        "line": 4,
+        "context": "databaseUrl: process.env.DATABASE_URL ?? \"\","
+      }
+    ],
+    "FROM_EMAIL": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\email.ts",
+        "kind": "process.env",
+        "line": 6,
+        "context": "const FROM_EMAIL = process.env.FROM_EMAIL || \"Shadia Hasan <noreply@shadiahasan.club>\";"
+      }
+    ],
+    "JWT_SECRET": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\auth.ts",
+        "kind": "process.env",
+        "line": 4,
+        "context": "const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET || \"shadia-access-secret-change-in-production\";"
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\auth.ts",
+        "kind": "process.env",
+        "line": 5,
+        "context": "const REFRESH_TOKEN_SECRET = process.env.JWT_SECRET ? `${process.env.JWT_SECRET}-refresh` : \"shadia-refresh-secret-change-in-production\";"
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\auth.ts",
+        "kind": "process.env",
+        "line": 5,
+        "context": "const REFRESH_TOKEN_SECRET = process.env.JWT_SECRET ? `${process.env.JWT_SECRET}-refresh` : \"shadia-refresh-secret-change-in-production\";"
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\env.ts",
+        "kind": "process.env",
+        "line": 3,
+        "context": "cookieSecret: process.env.JWT_SECRET ?? \"\","
+      }
+    ],
+    "NODE_ENV": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\vite.config.ts",
+        "kind": "process.env",
+        "line": 82,
+        "context": "if (process.env.NODE_ENV === \"production\") {"
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\auth.ts",
+        "kind": "process.env",
+        "line": 109,
+        "context": "const isProd = process.env.NODE_ENV === \"production\";"
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\env.ts",
+        "kind": "process.env",
+        "line": 7,
+        "context": "isProduction: process.env.NODE_ENV === \"production\","
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\index.ts",
+        "kind": "process.env",
+        "line": 47,
+        "context": "if (process.env.NODE_ENV === \"development\") {"
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\vite.ts",
+        "kind": "process.env",
+        "line": 52,
+        "context": "process.env.NODE_ENV === \"development\""
+      }
+    ],
+    "OAUTH_SERVER_URL": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\env.ts",
+        "kind": "process.env",
+        "line": 5,
+        "context": "oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? \"\","
+      }
+    ],
+    "OWNER_OPEN_ID": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\env.ts",
+        "kind": "process.env",
+        "line": 6,
+        "context": "ownerOpenId: process.env.OWNER_OPEN_ID ?? \"\","
+      }
+    ],
+    "PORT": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\index.ts",
+        "kind": "process.env",
+        "line": 53,
+        "context": "const preferredPort = parseInt(process.env.PORT || \"3000\");"
+      }
+    ],
+    "RESEND_API_KEY": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\email.ts",
+        "kind": "process.env",
+        "line": 4,
+        "context": "const resend = new Resend(process.env.RESEND_API_KEY);"
+      }
+    ],
+    "SITE_URL": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\email.ts",
+        "kind": "process.env",
+        "line": 7,
+        "context": "const SITE_URL = process.env.SITE_URL || \"https://www.shadiahasan.club\";"
+      }
+    ],
+    "VITE_APP_ID": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\client\\src\\const.ts",
+        "kind": "import.meta.env",
+        "line": 6,
+        "context": "const appId = import.meta.env.VITE_APP_ID;"
+      },
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\server\\_core\\env.ts",
+        "kind": "process.env",
+        "line": 2,
+        "context": "appId: process.env.VITE_APP_ID ?? \"\","
+      }
+    ],
+    "VITE_FRONTEND_FORGE_API_KEY": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\client\\src\\components\\Map.tsx",
+        "kind": "import.meta.env",
+        "line": 89,
+        "context": "const API_KEY = import.meta.env.VITE_FRONTEND_FORGE_API_KEY;"
+      }
+    ],
+    "VITE_FRONTEND_FORGE_API_URL": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\client\\src\\components\\Map.tsx",
+        "kind": "import.meta.env",
+        "line": 91,
+        "context": "import.meta.env.VITE_FRONTEND_FORGE_API_URL ||"
+      }
+    ],
+    "VITE_OAUTH_PORTAL_URL": [
+      {
+        "file": "C:\\Users\\mixav\\OneDrive\\Área de Trabalho\\shadiahasan\\client\\src\\const.ts",
+        "kind": "import.meta.env",
+        "line": 5,
+        "context": "const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;"
+      }
+    ]
+  }
+}

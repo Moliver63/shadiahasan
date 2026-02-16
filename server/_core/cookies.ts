@@ -1,44 +1,52 @@
 import type { CookieOptions, Request } from "express";
 
-/**
- * Detect HTTPS behind a reverse proxy (Render).
- * Requires: app.set("trust proxy", 1)
- */
-function isHttps(req: Request) {
-  const xfProto = req.headers["x-forwarded-proto"];
-  if (typeof xfProto === "string")
-    return xfProto.split(",").some(p => p.trim().toLowerCase() === "https");
-  if (Array.isArray(xfProto))
-    return xfProto.some(p => p.trim().toLowerCase() === "https");
-  return req.protocol === "https";
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+function isIpAddress(host: string) {
+  // Basic IPv4 check and IPv6 presence detection.
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
+  return host.includes(":");
 }
 
-/**
- * Session cookie options tuned for Render + modern browsers.
- *
- * Default:
- *  - SameSite=Lax (best for single-domain deployments, prevents CSRF in most cases)
- *
- * If you truly need cross-site cookies (separate domains for frontend/backend), set:
- *  - AUTH_COOKIE_SAMESITE=none
- *
- * Notes:
- *  - SameSite=None REQUIRES Secure=true (Chrome/Safari will drop the cookie otherwise)
- *  - Do NOT set `domain` while using *.onrender.com; set it only after you move to your own domain.
- */
+function isSecureRequest(req: Request) {
+  if (req.protocol === "https") return true;
+
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  if (!forwardedProto) return false;
+
+  const protoList = Array.isArray(forwardedProto)
+    ? forwardedProto
+    : forwardedProto.split(",");
+
+  return protoList.some(proto => proto.trim().toLowerCase() === "https");
+}
+
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  const sameSiteEnv = (process.env.AUTH_COOKIE_SAMESITE || "lax").toLowerCase();
-  const sameSite = (sameSiteEnv === "none" ? "none" : "lax") as "lax" | "none";
+  // const hostname = req.hostname;
+  // const shouldSetDomain =
+  //   hostname &&
+  //   !LOCAL_HOSTS.has(hostname) &&
+  //   !isIpAddress(hostname) &&
+  //   hostname !== "127.0.0.1" &&
+  //   hostname !== "::1";
 
-  const secure = sameSite === "none" ? true : isHttps(req);
+  // const domain =
+  //   shouldSetDomain && !hostname.startsWith(".")
+  //     ? `.${hostname}`
+  //     : shouldSetDomain
+  //       ? hostname
+  //       : undefined;
+
+  const secure = isSecureRequest(req);
 
   return {
     httpOnly: true,
     path: "/",
-    sameSite,
+    // If we are on HTTPS we can allow cross-site (OAuth) cookies; otherwise fall back to Lax.
+    // SameSite=None requires Secure=true, otherwise browsers drop the cookie.
+    sameSite: secure ? "none" : "lax",
     secure,
-    // domain: undefined, // set only after custom domain is live, if needed
   };
 }

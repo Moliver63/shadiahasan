@@ -453,3 +453,98 @@
 - [x] Implementar validação de email único
 - [x] Adicionar confirmação antes de alterar dados sensíveis
 - [x] Testar fluxo completo de alteração
+
+## Admin: Trocar Próprio Email e Senha nas Configurações
+- [x] Criar API auth.updateOwnEmail para admin trocar seu próprio email
+- [x] Criar API auth.updateOwnPassword para admin trocar sua própria senha
+- [x] Adicionar seção de Segurança na página AdminSettings
+- [x] Implementar formulário de alteração de email com validação
+- [x] Implementar formulário de alteração de senha com confirmação
+- [x] Adicionar validação de senha atual antes de permitir mudanças
+- [x] Testar fluxo completo de alteração
+
+## Atualizar Logo da Plataforma
+- [x] Fazer upload da nova logo para S3
+- [x] Configurar VITE_APP_LOGO com URL da nova logo
+- [x] Verificar logo em todas as páginas (home, dashboard, admin)
+- [x] Testar responsividade da logo
+
+## Remover Fundo da Logo e Criar Favicon
+- [x] Remover fundo bege da logo (tornar transparente)
+- [x] Criar favicon 32x32px
+- [x] Criar favicon 16x16px
+- [x] Atualizar favicon.ico no projeto
+- [x] Testar favicon no navegador
+
+## Ajustar Login para Apenas Email/Senha
+- [ ] Substituir getLoginUrl() por navegação para /login em Home.tsx
+- [ ] Atualizar DashboardLayout para redirecionar para /login
+- [ ] Remover referências ao OAuth em outros componentes
+- [ ] Testar fluxo de login completo
+- [ ] Verificar que não há mais opções de OAuth visíveis
+
+## Implementar OAuth Google + Apple
+- [x] Instalar passport, passport-google-oauth20, passport-apple
+- [x] Criar estrutura server/auth/ (strategies, routes, controllers)
+- [x] Configurar Passport.js com estratégias Google e Apple
+- [x] Criar rotas /api/auth/google, /api/auth/google/callback
+- [x] Criar rotas /api/auth/apple, /api/auth/apple/callback
+- [x] Implementar /api/auth/me e /api/auth/logout
+- [x] Atualizar modelo User para suportar OAuth
+- [x] Implementar account linking (mesmo email, múltiplos provedores)
+- [x] Adicionar botões OAuth na página /login
+- [x] Configurar CORS com credentials: true
+- [x] Implementar cookies httpOnly, SameSite, Secure
+- [x] Adicionar proteção CSRF (state/nonce OAuth)
+- [x] Documentar setup Google Cloud Console
+- [x] Documentar setup Apple Developer
+- [x] Criar OAUTH_SETUP.md com troubleshooting completo
+- [ ] Configurar variáveis de ambiente (GOOGLE_CLIENT_ID, etc)
+- [ ] Testar login Google local
+- [ ] Testar login Apple local
+- [ ] Testar login Google produção
+- [ ] Testar login Apple produção
+
+## Adicionar OAuth na Página de Cadastro
+- [x] Adicionar botões "Continuar com Google" e "Continuar com Apple" em /signup
+- [x] Manter design consistente com página de login
+- [x] Testar fluxo completo de cadastro via OAuth
+
+## Ajustar Login para Funcionar 100%
+- [ ] Verificar API de login (auth.login)
+- [ ] Verificar redirecionamento após login bem-sucedido
+- [ ] Garantir que cookies de sessão sejam setados corretamente
+- [ ] Testar acesso ao dashboard após login
+- [ ] Verificar proteção de rotas (usuário não autenticado não acessa dashboard)
+- [ ] Testar login com email/senha
+- [ ] Testar persistência de sessão (reload da página)
+
+## Páginas Legais (Termos e Privacidade)
+- [x] Criar documento completo de Termos de Uso
+- [x] Criar documento completo de Política de Privacidade (LGPD)
+- [x] Criar página /terms com Termos de Uso
+- [x] Criar página /privacy com Política de Privacidade
+- [x] Adicionar rotas no App.tsx
+- [x] Atualizar links no rodapé
+- [x] Atualizar links nos formulários de login/cadastro
+- [x] Testar páginas e navegação
+
+## Banner de Consentimento de Cookies (LGPD)
+- [x] Criar componente CookieConsent
+- [x] Implementar lógica de persistência no localStorage
+- [x] Adicionar categorias de cookies (essenciais, funcionais, analytics)
+- [x] Criar modal de preferências detalhadas
+- [x] Integrar banner no App.tsx
+- [x] Testar aceitação, recusa e personalização
+- [x] Verificar persistência após reload
+
+## Corrigir Login Google OAuth em Produção
+- [ ] Diagnosticar erro 500 em /api/auth/google verificando logs do Render
+- [ ] Identificar variáveis de ambiente ausentes ou incorretas
+- [ ] Verificar callback URL configurado no Google Console
+- [ ] Corrigir configuração de cookies (httpOnly, secure, sameSite)
+- [ ] Validar configuração CORS com credentials
+- [ ] Testar fluxo completo: login → callback → criar/atualizar usuário → sessão → redirect dashboard
+- [ ] Criar documentação de setup Google OAuth para produção
+- [ ] Atualizar .env.example com todas as variáveis necessárias
+- [ ] Testar em produção (shadiahasan.club)

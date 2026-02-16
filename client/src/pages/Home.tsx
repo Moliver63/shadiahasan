@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookOpen, Glasses, PlayCircle, Users, Zap, Shield } from "lucide-react";
 import { Link } from "wouter";
-import { getLoginUrl } from "@/const";
+
 import UserMenu from "@/components/UserMenu";
 import AIChatWidget from "@/components/AIChatWidget";
 
@@ -17,7 +17,7 @@ export default function Home() {
         <div className="container py-4 flex items-center justify-between">
           <Link href="/">
             <img 
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/KQbMXrKxSjIsEkev.png" 
+              src="/logo.png" 
               alt="Shadia Hasan - Psicologia & Desenvolvimento Humano" 
               className="h-36 w-auto"
             />
@@ -60,9 +60,11 @@ export default function Home() {
                 <UserMenu />
               </>
             ) : (
-              <Button onClick={() => (window.location.href = getLoginUrl())}>
-                Entrar
-              </Button>
+              <Link href="/login">
+                <Button>
+                  Entrar
+                </Button>
+              </Link>
             )}
           </nav>
         </div>
@@ -271,7 +273,7 @@ export default function Home() {
                   size="lg"
                   variant="outline"
                   className="text-lg px-8"
-                  onClick={() => (window.location.href = getLoginUrl())}
+                  onClick={() => (window.location.href = '/signup')}
                 >
                   Criar Conta Gratuita
                 </Button>
@@ -323,7 +325,16 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
-            <p>© {new Date().getFullYear()} Shadia Hasan. Todos os direitos reservados.</p>
+            <p className="mb-3">© {new Date().getFullYear()} Shadia Hasan. Todos os direitos reservados.</p>
+            <div className="flex justify-center gap-4">
+              <Link href="/terms">
+                <a className="hover:text-primary transition-colors">Termos de Uso</a>
+              </Link>
+              <span>•</span>
+              <Link href="/privacy">
+                <a className="hover:text-primary transition-colors">Política de Privacidade</a>
+              </Link>
+            </div>
           </div>
         </div>
       </footer>

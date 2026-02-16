@@ -6,11 +6,80 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Settings, Globe, Bell, Shield, Palette } from "lucide-react";
+import { Settings, Globe, Bell, Shield, Palette, Mail, KeyRound } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function AdminSettings() {
+  const { user } = useAuth();
+  const [newEmail, setNewEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const updateEmailMutation = trpc.auth.updateOwnEmail.useMutation();
+  const updatePasswordMutation = trpc.auth.updateOwnPassword.useMutation();
+
   const handleSave = () => {
     toast.success("Configurações salvas com sucesso!");
+  };
+
+  const handleUpdateEmail = async () => {
+    if (!newEmail || !newEmail.includes("@")) {
+      toast.error("Email inválido");
+      return;
+    }
+
+    if (!emailPassword) {
+      toast.error("Digite sua senha atual para confirmar");
+      return;
+    }
+
+    try {
+      await updateEmailMutation.mutateAsync({
+        newEmail,
+        currentPassword: emailPassword,
+      });
+      
+      toast.success("Email atualizado com sucesso! Faça login novamente.");
+      setNewEmail("");
+      setEmailPassword("");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar email");
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!currentPassword) {
+      toast.error("Digite sua senha atual");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toast.error("A nova senha deve ter no mínimo 8 caracteres");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("As senhas não coincidem");
+      return;
+    }
+
+    try {
+      await updatePasswordMutation.mutateAsync({
+        currentPassword,
+        newPassword,
+      });
+      
+      toast.success("Senha atualizada com sucesso!");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar senha");
+    }
   };
 
   return (
@@ -143,7 +212,7 @@ export default function AdminSettings() {
                 Configurações de segurança e privacidade
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Requer aprovação para novos alunos</Label>
@@ -161,6 +230,106 @@ export default function AdminSettings() {
                   </p>
                 </div>
                 <Switch defaultChecked />
+              </div>
+
+              {/* Divider */}
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-semibold mb-4">Alterar Credenciais de Acesso</h3>
+                
+                {/* Alterar Email */}
+                <div className="space-y-4 mb-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-base font-medium">Alterar Email</Label>
+                  </div>
+                  <div className="space-y-3 pl-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="current-email" className="text-sm">Email Atual</Label>
+                      <Input
+                        id="current-email"
+                        type="email"
+                        value={user?.email || ""}
+                        disabled
+                        className="bg-muted"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-email" className="text-sm">Novo Email</Label>
+                      <Input
+                        id="new-email"
+                        type="email"
+                        placeholder="novo@exemplo.com"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email-password" className="text-sm">Senha Atual (para confirmar)</Label>
+                      <Input
+                        id="email-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={emailPassword}
+                        onChange={(e) => setEmailPassword(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleUpdateEmail}
+                      disabled={updateEmailMutation.isPending}
+                      className="w-full sm:w-auto"
+                    >
+                      {updateEmailMutation.isPending ? "Atualizando..." : "Atualizar Email"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Alterar Senha */}
+                <div className="space-y-4 border-t pt-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <KeyRound className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-base font-medium">Alterar Senha</Label>
+                  </div>
+                  <div className="space-y-3 pl-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="current-password" className="text-sm">Senha Atual</Label>
+                      <Input
+                        id="current-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password" className="text-sm">Nova Senha</Label>
+                      <Input
+                        id="new-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">Mínimo 8 caracteres</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-password" className="text-sm">Confirmar Nova Senha</Label>
+                      <Input
+                        id="confirm-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleUpdatePassword}
+                      disabled={updatePasswordMutation.isPending}
+                      className="w-full sm:w-auto"
+                    >
+                      {updatePasswordMutation.isPending ? "Atualizando..." : "Atualizar Senha"}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

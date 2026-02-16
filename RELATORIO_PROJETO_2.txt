@@ -1,0 +1,44 @@
+Arquivos analisados: 173
+
+
+## trust_proxy (1)
+- server\_core\index.ts | app\.set\(\s*['\"]trust proxy['\"]\s*,\s*1\s*\)
+
+## cookie_secure_samesite (2)
+- AUTENTICACAO.md | secure\s*:\s*true
+- server\auth.logout.test.ts | sameSite\s*:\s*['\"]none['\"]
+
+## cors (1)
+- server\_core\map.ts | origin\s*:
+
+## jwt_session (8)
+- AUTENTICACAO.md | JWT_SECRET
+- env-report.json | JWT_SECRET
+- OAUTH_SETUP.md | JWT_SECRET
+- package.json | jsonwebtoken
+- pnpm-lock.yaml | jsonwebtoken
+- todo.md | jsonwebtoken
+- server\_core\auth.ts | JWT_SECRET
+- server\_core\env.ts | JWT_SECRET
+
+## dotenv (5)
+- package.json | dotenv
+- pnpm-lock.yaml | dotenv
+- server\storage.ts | config\(\)
+- server\_core\index.ts | dotenv
+- server\_core\map.ts | config\(\)
+
+## port (2)
+- env-report.json | process\.env\.PORT
+- server\_core\index.ts | process\.env\.PORT
+
+## localhost (2)
+- OAUTH_SETUP.md | localhost:3000
+- server\_core\index.ts | http://localhost
+
+## credentials_include (1)
+- client\src\main.tsx | credentials\s*:\s*['\"]include['\"]
+
+
+AÇÕES RECOMENDADAS:
+- Remover localhost hardcoded (API_URL) e usar variável de ambiente/URL relativa.

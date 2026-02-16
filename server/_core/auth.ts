@@ -1,8 +1,16 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+
+const isProd = process.env.NODE_ENV === "production";
+
 // JWT Configuration
-const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET || "shadia-access-secret-change-in-production";
-const REFRESH_TOKEN_SECRET = process.env.JWT_SECRET ? `${process.env.JWT_SECRET}-refresh` : "shadia-refresh-secret-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (isProd && !JWT_SECRET) {
+  throw new Error("JWT_SECRET is required in production");
+}
+
+const ACCESS_TOKEN_SECRET = JWT_SECRET || "dev-access-secret";
+const REFRESH_TOKEN_SECRET = JWT_SECRET ? `${JWT_SECRET}-refresh` : "dev-refresh-secret";
 const ACCESS_TOKEN_EXPIRY = "15m"; // 15 minutes
 const REFRESH_TOKEN_EXPIRY = "30d"; // 30 days
 
@@ -52,11 +60,11 @@ export function signRefreshToken(payload: { sub: number }): string {
 export function verifyAccessToken(token: string): JWTPayload {
   try {
     const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
-    if (typeof decoded === 'string') {
+    if (typeof decoded === "string") {
       throw new Error("Invalid token format");
     }
     return decoded as unknown as JWTPayload;
-  } catch (error) {
+  } catch {
     throw new Error("Invalid or expired access token");
   }
 }
@@ -67,11 +75,11 @@ export function verifyAccessToken(token: string): JWTPayload {
 export function verifyRefreshToken(token: string): { sub: number } {
   try {
     const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET);
-    if (typeof decoded === 'string') {
+    if (typeof decoded === "string") {
       throw new Error("Invalid token format");
     }
-    return { sub: Number(decoded.sub) };
-  } catch (error) {
+    return { sub: Number((decoded as any).sub) };
+  } catch {
     throw new Error("Invalid or expired refresh token");
   }
 }
@@ -106,19 +114,20 @@ export function isValidPassword(password: string): boolean {
  * Set authentication cookies
  */
 export function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
-  const isProd = process.env.NODE_ENV === "production";
-
-  res.cookie("access_token", accessToken, {
+  const cookieBase = {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: "lax" as const,
+    path: "/",
+  };
+
+  res.cookie("access_token", accessToken, {
+    ...cookieBase,
     maxAge: 15 * 60 * 1000, // 15 minutes
   });
 
   res.cookie("refresh_token", refreshToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: "lax",
+    ...cookieBase,
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   });
 }
@@ -127,6 +136,13 @@ export function setAuthCookies(res: any, accessToken: string, refreshToken: stri
  * Clear authentication cookies
  */
 export function clearAuthCookies(res: any) {
-  res.clearCookie("access_token");
-  res.clearCookie("refresh_token");
+  const cookieBase = {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "lax" as const,
+    path: "/",
+  };
+
+  res.clearCookie("access_token", cookieBase);
+  res.clearCookie("refresh_token", cookieBase);
 }

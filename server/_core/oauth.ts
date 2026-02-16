@@ -9,6 +9,14 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function safeRedirect(path?: string) {
+  // Prevent open redirects (e.g. https://evil.com)
+  if (!path) return "/";
+  if (path.startsWith("http://") || path.startsWith("https://")) return "/";
+  if (!path.startsWith("/")) return "/";
+  return path;
+}
+
 export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
@@ -32,7 +40,7 @@ export function registerOAuthRoutes(app: Express) {
         openId: userInfo.openId,
         name: userInfo.name || undefined,
         email: userInfo.email || `user_${userInfo.openId}@temp.local`,
-        loginMethod: userInfo.loginMethod ?? userInfo.platform ?? 'oauth',
+        loginMethod: userInfo.loginMethod ?? userInfo.platform ?? "oauth",
         lastSignedIn: new Date(),
       });
 
@@ -42,9 +50,14 @@ export function registerOAuthRoutes(app: Express) {
       });
 
       const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.cookie(COOKIE_NAME, sessionToken, {
+        ...cookieOptions,
+        maxAge: ONE_YEAR_MS,
+        path: "/",
+      });
 
-      res.redirect(302, "/");
+      // Redirect back to the app. Use a safe path derived from state when possible.
+      res.redirect(302, safeRedirect(state));
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });

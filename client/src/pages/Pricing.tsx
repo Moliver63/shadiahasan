@@ -6,17 +6,18 @@ import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import UserMenu from "@/components/UserMenu";
+import { Link } from "wouter";
 
 export default function Pricing() {
   const { user, isAuthenticated } = useAuth();
-  const createCheckout = trpc.subscriptions.createCheckoutSession.useMutation();
+  const createCheckout = trpc.subscriptions.createCheckout.useMutation();
 
   const plans = [
     {
       name: "Gratuito",
       slug: "free",
       price: "R$ 0",
-      description: "Primeiro passo na sua jornada de expansão consciente",
+      description: "Comece sua jornada com apoio inicial",
       features: [
         { text: "1 curso gratuito completo", included: true },
         { text: "Acesso a conteúdos básicos", included: true },
@@ -34,7 +35,7 @@ export default function Pricing() {
       slug: "basic",
       price: "R$ 49,90",
       period: "/mês",
-      description: "Aprofunde sua evolução com ferramentas estruturadas",
+      description: "Mais recursos para sua transformação pessoal",
       features: [
         { text: "Até 3 cursos simultâneos", included: true },
         { text: "Todos os conteúdos da plataforma", included: true },
@@ -52,7 +53,7 @@ export default function Pricing() {
       slug: "premium",
       price: "R$ 99,90",
       period: "/mês",
-      description: "Transformação integral com acompanhamento contínuo",
+      description: "Apoio completo para sua evolução consciente",
       features: [
         { text: "Acesso ilimitado a todos os cursos", included: true },
         { text: "Todos os conteúdos da plataforma", included: true },
@@ -70,7 +71,7 @@ export default function Pricing() {
       slug: "vip",
       price: "R$ 299,90",
       period: "/mês",
-      description: "Mentoria estratégica personalizada para sua expansão",
+      description: "Atenção individual dedicada para você",
       features: [
         { text: "Tudo do plano Premium", included: true },
         { text: "Sessão individual mensal com Shadia", included: true },
@@ -85,7 +86,7 @@ export default function Pricing() {
     },
   ];
 
-  const handleSubscribe = async (planSlug: string) => {
+  const handleSubscribe = async (planSlug: "basic" | "premium" | "vip" | "free") => {
     if (!isAuthenticated) {
       window.location.href = getLoginUrl();
       return;
@@ -113,29 +114,36 @@ export default function Pricing() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
       {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-40">
-        <div className="container mx-auto flex h-16 items-center justify-between">
-          <a href="/">
+      <header className="border-b bg-card sticky top-0 z-50 backdrop-blur">
+        <div className="container py-4 flex items-center justify-between">
+          <Link href="/">
             <img 
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/KQbMXrKxSjIsEkev.png" 
-              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano" 
-              className="h-36 w-auto"
+              src="/logo.png" 
+              alt="Shadia Hasan" 
+              className="h-36 w-auto cursor-pointer"
             />
-          </a>
-          <nav className="flex items-center gap-6">
-            <a href="/courses" className="text-sm font-medium hover:text-purple-600 transition-colors">
-              Cursos
-            </a>
-            <a href="/pricing" className="text-sm font-medium text-purple-600">
-              Planos
-            </a>
+          </Link>
+          <nav className="flex items-center gap-4">
+            <Link href="/courses">
+              <Button variant="ghost">Programas</Button>
+            </Link>
+            <Link href="/pricing">
+              <Button variant="ghost" className="text-primary">Planos</Button>
+            </Link>
+            <Link href="/about">
+              <Button variant="ghost">Sobre</Button>
+            </Link>
+            <Link href="/contact">
+              <Button variant="ghost">Contato</Button>
+            </Link>
+            <Link href="/community/explore">
+              <Button variant="ghost">Comunidade</Button>
+            </Link>
             {isAuthenticated ? (
-              <Button asChild variant="default">
-                <a href="/my-courses">Meus Cursos</a>
-              </Button>
+              <UserMenu />
             ) : (
-              <Button asChild variant="default">
-                <a href={getLoginUrl()}>Entrar</a>
+              <Button onClick={() => (window.location.href = getLoginUrl())}>
+                Entrar
               </Button>
             )}
           </nav>
@@ -152,7 +160,7 @@ export default function Pricing() {
             </span>
           </h1>
           <p className="text-xl text-gray-600 mb-8">
-            Invista no seu desenvolvimento pessoal e emocional com acesso a cursos imersivos em realidade virtual
+            Apoio individual para sua evolução. Escolha o plano que melhor atende suas necessidades.
           </p>
         </div>
       </section>
@@ -207,7 +215,7 @@ export default function Pricing() {
                   <Button
                     className="w-full"
                     variant={plan.popular ? "default" : "outline"}
-                    onClick={() => handleSubscribe(plan.slug)}
+                    onClick={() => handleSubscribe(plan.slug as "basic" | "premium" | "vip" | "free")}
                     disabled={createCheckout.isPending}
                   >
                     {plan.cta}

@@ -7,6 +7,8 @@ import { Link, useParams, useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import UserMenu from "@/components/UserMenu";
 import { toast } from "sonner";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
 export default function CourseDetail() {
   const params = useParams();
@@ -94,14 +96,23 @@ export default function CourseDetail() {
         <div className="container py-4 flex items-center justify-between">
           <Link href="/">
             <img 
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/KQbMXrKxSjIsEkev.png" 
+              src="/logo.png" 
               alt="Shadia Hasan - Psicologia & Desenvolvimento Humano" 
               className="h-36 w-auto"
             />
           </Link>
           <nav className="flex items-center gap-4">
             <Link href="/courses">
-              <Button variant="ghost">Cursos</Button>
+              <Button variant="ghost">Programas</Button>
+            </Link>
+            <Link href="/about">
+              <Button variant="ghost">Sobre</Button>
+            </Link>
+            <Link href="/contact">
+              <Button variant="ghost">Contato</Button>
+            </Link>
+            <Link href="/community/explore">
+              <Button variant="ghost">Comunidade</Button>
             </Link>
             {isAuthenticated ? (
                 <UserMenu />
@@ -115,6 +126,15 @@ export default function CourseDetail() {
       </header>
 
       <div className="container py-8">
+        {course && (
+          <Breadcrumbs 
+            items={getBreadcrumbs(`/courses/${course.id}`, { 
+              courseId: course.id.toString(), 
+              courseTitle: course.title 
+            })} 
+          />
+        )}
+
         <Link href="/courses">
           <Button variant="ghost" size="sm" className="mb-6">
             <ArrowLeft className="h-4 w-4 mr-2" />

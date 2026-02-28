@@ -1,5 +1,11 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,10 +31,10 @@ import { toast } from "sonner";
 import { useState } from "react";
 
 export default function AdminModeration() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
-  
+
   const { data: reports, isLoading } = trpc.admin.getReports.useQuery();
   const reviewMutation = trpc.admin.reviewReport.useMutation({
     onSuccess: () => {
@@ -42,7 +48,17 @@ export default function AdminModeration() {
     },
   });
 
-  const [selectedAction, setSelectedAction] = useState<string>("");
+  // Mapa de ação por report id (evita estado compartilhado entre cards)
+  const [selectedActions, setSelectedActions] = useState<Record<number, string>>({});
+
+  // Aguarda resolução do estado de autenticação
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   // Controle de acesso: apenas admins
   if (!user || user.role !== "admin") {
@@ -50,7 +66,10 @@ export default function AdminModeration() {
     return null;
   }
 
-  const handleReview = async (reportId: number, action: "resolved" | "dismissed") => {
+  const handleReview = async (
+    reportId: number,
+    action: "resolved" | "dismissed"
+  ) => {
     try {
       await reviewMutation.mutateAsync({ reportId, action });
     } catch (error: any) {
@@ -58,7 +77,12 @@ export default function AdminModeration() {
     }
   };
 
-  const handleModerate = async (userId: number, action: string, reason: string) => {
+  const handleModerate = async (
+    reportId: number,
+    userId: number,
+    reason: string
+  ) => {
+    const action = selectedActions[reportId];
     if (!action) {
       toast.error("Selecione uma ação de moderação");
       return;
@@ -69,24 +93,47 @@ export default function AdminModeration() {
         userId,
         action: action as any,
         reason,
-        duration: action === "suspend" ? 7 : undefined, // 7 dias de suspensão
+        duration: action === "suspend" ? 7 : undefined,
+      });
+      // Limpa a seleção do card após aplicar
+      setSelectedActions((prev) => {
+        const next = { ...prev };
+        delete next[reportId];
+        return next;
       });
     } catch (error: any) {
       toast.error(error.message || "Erro ao aplicar moderação");
     }
   };
 
-  const pendingReports = reports?.filter((r: any) => r.status === "pending") || [];
-  const reviewedReports = reports?.filter((r: any) => r.status !== "pending") || [];
+  const pendingReports =
+    reports?.filter((r: any) => r.status === "pending") || [];
+  const reviewedReports =
+    reports?.filter((r: any) => r.status !== "pending") || [];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="secondary"><Clock className="mr-1 h-3 w-3" />Pendente</Badge>;
+        return (
+          <Badge variant="secondary">
+            <Clock className="mr-1 h-3 w-3" />
+            Pendente
+          </Badge>
+        );
       case "resolved":
-        return <Badge variant="default"><CheckCircle className="mr-1 h-3 w-3" />Resolvido</Badge>;
+        return (
+          <Badge variant="default">
+            <CheckCircle className="mr-1 h-3 w-3" />
+            Resolvido
+          </Badge>
+        );
       case "dismissed":
-        return <Badge variant="outline"><XCircle className="mr-1 h-3 w-3" />Arquivado</Badge>;
+        return (
+          <Badge variant="outline">
+            <XCircle className="mr-1 h-3 w-3" />
+            Arquivado
+          </Badge>
+        );
       default:
         return <Badge>{status}</Badge>;
     }
@@ -194,14 +241,18 @@ export default function AdminModeration() {
                       <CardContent className="space-y-4">
                         <div className="grid gap-4 md:grid-cols-2">
                           <div>
-                            <div className="text-sm font-medium mb-1">Denunciante</div>
+                            <div className="text-sm font-medium mb-1">
+                              Denunciante
+                            </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <User className="h-4 w-4" />
                               Usuário #{report.reporterId}
                             </div>
                           </div>
                           <div>
-                            <div className="text-sm font-medium mb-1">Usuário Denunciado</div>
+                            <div className="text-sm font-medium mb-1">
+                              Usuário Denunciado
+                            </div>
                             <div className="flex items-center gap-2 text-sm text-destructive">
                               <User className="h-4 w-4" />
                               Usuário #{report.reportedUserId}
@@ -211,7 +262,9 @@ export default function AdminModeration() {
 
                         <div>
                           <div className="text-sm font-medium mb-1">Motivo</div>
-                          <Badge variant="outline">{getReasonLabel(report.reason)}</Badge>
+                          <Badge variant="outline">
+                            {getReasonLabel(report.reason)}
+                          </Badge>
                         </div>
 
                         {report.description && (
@@ -227,25 +280,47 @@ export default function AdminModeration() {
                         )}
 
                         <div className="border-t pt-4 space-y-3">
-                          <div className="text-sm font-medium">Ações de Moderação</div>
+                          <div className="text-sm font-medium">
+                            Ações de Moderação
+                          </div>
                           <div className="flex items-center gap-2">
-                            <Select onValueChange={setSelectedAction}>
+                            {/* Cada card tem seu próprio valor de seleção */}
+                            <Select
+                              value={selectedActions[report.id] ?? ""}
+                              onValueChange={(val) =>
+                                setSelectedActions((prev) => ({
+                                  ...prev,
+                                  [report.id]: val,
+                                }))
+                              }
+                            >
                               <SelectTrigger className="w-[200px]">
                                 <SelectValue placeholder="Selecione ação" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="warning">Advertência</SelectItem>
-                                <SelectItem value="suspend">Suspender (7 dias)</SelectItem>
-                                <SelectItem value="ban">Banir Permanentemente</SelectItem>
+                                <SelectItem value="warning">
+                                  Advertência
+                                </SelectItem>
+                                <SelectItem value="suspend">
+                                  Suspender (7 dias)
+                                </SelectItem>
+                                <SelectItem value="ban">
+                                  Banir Permanentemente
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                             <Button
-                              onClick={() => handleModerate(
-                                report.reportedUserId,
-                                selectedAction,
-                                `Denúncia #${report.id}: ${report.reason}`
-                              )}
-                              disabled={!selectedAction || moderateMutation.isPending}
+                              onClick={() =>
+                                handleModerate(
+                                  report.id,
+                                  report.reportedUserId,
+                                  `Denúncia #${report.id}: ${report.reason}`
+                                )
+                              }
+                              disabled={
+                                !selectedActions[report.id] ||
+                                moderateMutation.isPending
+                              }
                             >
                               Aplicar Ação
                             </Button>
@@ -298,9 +373,18 @@ export default function AdminModeration() {
                               Denúncia #{report.id}
                             </CardTitle>
                             <CardDescription>
-                              Criada em {new Date(report.createdAt).toLocaleString("pt-BR")}
+                              Criada em{" "}
+                              {new Date(report.createdAt).toLocaleString(
+                                "pt-BR"
+                              )}
                               {report.reviewedAt && (
-                                <> • Revisada em {new Date(report.reviewedAt).toLocaleString("pt-BR")}</>
+                                <>
+                                  {" "}
+                                  • Revisada em{" "}
+                                  {new Date(report.reviewedAt).toLocaleString(
+                                    "pt-BR"
+                                  )}
+                                </>
                               )}
                             </CardDescription>
                           </div>
@@ -310,16 +394,28 @@ export default function AdminModeration() {
                       <CardContent className="space-y-3">
                         <div className="grid gap-4 md:grid-cols-3 text-sm">
                           <div>
-                            <span className="text-muted-foreground">Denunciante:</span>
-                            <div className="font-medium">Usuário #{report.reporterId}</div>
+                            <span className="text-muted-foreground">
+                              Denunciante:
+                            </span>
+                            <div className="font-medium">
+                              Usuário #{report.reporterId}
+                            </div>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Denunciado:</span>
-                            <div className="font-medium">Usuário #{report.reportedUserId}</div>
+                            <span className="text-muted-foreground">
+                              Denunciado:
+                            </span>
+                            <div className="font-medium">
+                              Usuário #{report.reportedUserId}
+                            </div>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Motivo:</span>
-                            <div className="font-medium">{getReasonLabel(report.reason)}</div>
+                            <span className="text-muted-foreground">
+                              Motivo:
+                            </span>
+                            <div className="font-medium">
+                              {getReasonLabel(report.reason)}
+                            </div>
                           </div>
                         </div>
                         {report.description && (

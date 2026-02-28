@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>E2E Audit – Shadia Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#080a0f;--s1:#0f1117;--s2:#161920;--border:#232530;--text:#dde1eb;--muted:#5c6270;
+       --red:#f43f5e;--yellow:#fbbf24;--blue:#60a5fa;--green:#22c55e;--purple:#a78bfa}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{padding:48px 60px 36px;background:var(--s1);border-bottom:1px solid var(--border);position:relative;overflow:hidden}
+header::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 90% 50%,rgba(167,139,250,.07),transparent);pointer-events:none}
+.tag{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--purple);margin-bottom:10px}
+h1{font-family:'Syne',sans-serif;font-size:clamp(26px,3.5vw,40px);font-weight:800;letter-spacing:-1px;line-height:1.1}
+h1 em{color:var(--purple);font-style:normal}
+.meta{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);margin-top:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;padding:32px 60px;background:var(--s2);border-bottom:1px solid var(--border)}
+.sc{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:20px 16px;text-align:center;transition:border-color .2s}
+.sc:hover{border-color:var(--purple)}
+.sn{font-family:'Syne',sans-serif;font-size:38px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:4px}
+.sl{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+.table-wrap{padding:36px 60px 60px}
+.section-label{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 14px;border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+tbody tr:hover{background:var(--s2)}
+td{padding:12px 14px;vertical-align:top}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-family:'DM Mono',monospace;font-size:11px;white-space:nowrap}
+.mode-tag{display:inline-block;padding:2px 9px;border-radius:99px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.5px;text-transform:uppercase}
+.mode-visitor{background:rgba(96,165,250,.1);color:var(--blue);border:1px solid rgba(96,165,250,.2)}
+.mode-user{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.2)}
+.mode-admin{background:rgba(167,139,250,.1);color:var(--purple);border:1px solid rgba(167,139,250,.2)}
+.url{font-family:'DM Mono',monospace;font-size:12px;color:var(--purple);background:rgba(167,139,250,.06);padding:2px 6px;border-radius:4px}
+.msg{font-size:13px;line-height:1.5;margin-bottom:4px}
+.hint{font-size:12px;color:var(--muted);margin-top:4px}
+.details{font-size:11px;font-family:'DM Mono',monospace;background:var(--s1);border:1px solid var(--border);border-radius:6px;padding:8px;margin-top:8px;overflow:auto;max-height:120px;color:#8b9ab0;white-space:pre-wrap}
+.msg-cell{max-width:520px}
+@media(max-width:768px){header,.stats,.table-wrap{padding-left:20px;padding-right:20px}.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="tag">// E2E UX Audit</div>
+  <h1>Shadia <em>Platform</em><br>Relatório E2E</h1>
+  <div class="meta">http://localhost:3001 &nbsp;·&nbsp; 28/02/2026 14:54 &nbsp;·&nbsp; 212.6s</div>
+</header>
+<div class="stats">
+  <div class="sc"><div class="sn" style="color:var(--text)">105</div><div class="sl">Total findings</div></div>
+  <div class="sc"><div class="sn" style="color:var(--red)">97</div><div class="sl">Erros</div></div>
+  <div class="sc"><div class="sn" style="color:var(--yellow)">6</div><div class="sl">Avisos</div></div>
+  <div class="sc"><div class="sn" style="color:var(--blue)">2</div><div class="sl">Info</div></div>
+</div>
+<div class="table-wrap">
+  <div class="section-label">// Detalhamento</div>
+  <table>
+    <thead><tr><th>Severidade</th><th>Modo</th><th>Página</th><th>Detalhe</th></tr></thead>
+    <tbody>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/</code></td>
+          <td class="msg-cell"><div class="msg">Timeout ao carregar a página</div><div class="hint">💡 Verifique se a rota existe e o servidor está estável.</div></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/courses</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'",
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/pricing</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/pricing</code></td>
+          <td class="msg-cell"><div class="msg">1 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "[API Query Error] TRPCClientError: Failed to fetch\n    at TRPCClientError2.from (http://localhost:3001/@fs/C:/Users/mixav/Downloads/shadia_platf/node_modules/.vite/deps/chunk-MUZS2R5K.js?v=ad793b71:2030:12)\n    at http://localhost:3001/@fs/C:/Users/mixav/Downloads/shadia_platf/node_modules/.vite/dep"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/faq</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/faq</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/about</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/about</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/contact</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/contact</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/signup</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/signup</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/forgot-password</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/forgot-password</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/admin/dashboard</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#fbbf24 15%,transparent);color:#fbbf24;border:1px solid color-mix(in srgb,#fbbf24 30%,transparent)">⚠️ warn</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/admin/dashboard</code></td>
+          <td class="msg-cell"><div class="msg">Painel admin sem botão de logout visível</div><div class="hint">💡 Adicione botão de logout no header do admin.</div></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/terms</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#fbbf24 15%,transparent);color:#fbbf24;border:1px solid color-mix(in srgb,#fbbf24 30%,transparent)">⚠️ warn</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/terms</code></td>
+          <td class="msg-cell"><div class="msg">Sem link de login/logout visível</div><div class="hint">💡 O Header deve exibir Login (visitante) ou Logout (autenticado).</div></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-visitor">visitor</span></td>
+          <td><code class="url">/privacy</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#60a5fa 15%,transparent);color:#60a5fa;border:1px solid color-mix(in srgb,#60a5fa 30%,transparent)">ℹ️ info</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Login não executado (variáveis de ambiente não definidas)</div><div class="hint">💡 Defina AUDIT_USER_EMAIL e AUDIT_USER_PASS.</div></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/courses</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/pricing</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/faq</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/faq</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/about</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/about</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/contact</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/contact</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/signup</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/signup</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/forgot-password</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/forgot-password</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/admin/dashboard</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#fbbf24 15%,transparent);color:#fbbf24;border:1px solid color-mix(in srgb,#fbbf24 30%,transparent)">⚠️ warn</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/admin/dashboard</code></td>
+          <td class="msg-cell"><div class="msg">Painel admin sem botão de logout visível</div><div class="hint">💡 Adicione botão de logout no header do admin.</div></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/terms</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#fbbf24 15%,transparent);color:#fbbf24;border:1px solid color-mix(in srgb,#fbbf24 30%,transparent)">⚠️ warn</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/terms</code></td>
+          <td class="msg-cell"><div class="msg">Sem link de login/logout visível</div><div class="hint">💡 O Header deve exibir Login (visitante) ou Logout (autenticado).</div></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/privacy</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/courses/intro-vr</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/courses/mindfulness</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/courses/pnl-basico</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/courses/ie-avancado</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/courses/lideranca</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-user">user</span></td>
+          <td><code class="url">/courses/cnv-pratica</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#60a5fa 15%,transparent);color:#60a5fa;border:1px solid color-mix(in srgb,#60a5fa 30%,transparent)">ℹ️ info</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Login não executado (variáveis de ambiente não definidas)</div><div class="hint">💡 Defina AUDIT_ADMIN_EMAIL e AUDIT_ADMIN_PASS.</div></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/courses</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/pricing</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/faq</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/faq</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/about</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/about</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/contact</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/contact</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/signup</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/signup</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/forgot-password</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/forgot-password</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\">\n      <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n        <TooltipProviderProvider scope={undefined} isOpenDelayedR",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/admin/dashboard</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#fbbf24 15%,transparent);color:#fbbf24;border:1px solid color-mix(in srgb,#fbbf24 30%,transparent)">⚠️ warn</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/admin/dashboard</code></td>
+          <td class="msg-cell"><div class="msg">Painel admin sem botão de logout visível</div><div class="hint">💡 Adicione botão de logout no header do admin.</div></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/login</code></td>
+          <td class="msg-cell"><div class="msg">2 erro(s) no console</div><div class="hint">💡 Verifique imports faltando, API calls e componentes quebrados.</div><pre class="details">{
+  "errors": [
+    "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <a> a \n\n  ...\n    <TooltipProvider data-loc=\"client\\src...\" data-slot=\"tooltip-pr...\" delayDuration={0}>\n      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} onOpen={funct",
+    "<%s> cannot contain a nested %s.\nSee this log for the ancestor stack trace. a <a>"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/terms</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#fbbf24 15%,transparent);color:#fbbf24;border:1px solid color-mix(in srgb,#fbbf24 30%,transparent)">⚠️ warn</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/terms</code></td>
+          <td class="msg-cell"><div class="msg">Sem link de login/logout visível</div><div class="hint">💡 O Header deve exibir Login (visitante) ou Logout (autenticado).</div></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/privacy</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/courses/intro-vr</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/courses/mindfulness</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/courses/pnl-basico</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/courses/ie-avancado</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/courses/lideranca</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:color-mix(in srgb,#f43f5e 15%,transparent);color:#f43f5e;border:1px solid color-mix(in srgb,#f43f5e 30%,transparent)">❌ error</span></td>
+          <td><span class="mode-tag mode-admin">admin</span></td>
+          <td><code class="url">/courses/cnv-pratica</code></td>
+          <td class="msg-cell"><div class="msg">Erro de execução JavaScript detectado</div><div class="hint">💡 Corrija exceptions (undefined, hooks, render crash).</div><pre class="details">{
+  "errors": [
+    "Unexpected token '<'"
+  ]
+}</pre></td>
+        </tr></tbody>
+  </table>
+</div>
+</body>
+</html>

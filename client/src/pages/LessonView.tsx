@@ -9,16 +9,21 @@ import { useState } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
 export default function LessonView() {
   const params = useParams();
   const lessonId = parseInt(params.id || "0");
   const [, setLocation] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const [showVR, setShowVR] = useState(false);
 
   const { data: lesson, isLoading: lessonLoading } =
-    trpc.lessons.getById.useQuery({ id: lessonId });
+    trpc.lessons.getById.useQuery(
+      { id: lessonId },
+      { enabled: isAuthenticated && lessonId > 0 }
+    );
 
   const { data: course } = trpc.courses.getById.useQuery(
     { id: lesson?.courseId || 0 },
@@ -41,7 +46,6 @@ export default function LessonView() {
 
   const handleProgress = (progress: number) => {
     if (lesson && isEnrolled && progress > 90) {
-      // Mark as completed when 90% watched
       updateProgressMutation.mutate({
         courseId: lesson.courseId,
         progress: 100,
@@ -53,7 +57,6 @@ export default function LessonView() {
   const handleComplete = () => {
     if (lesson && isEnrolled) {
       toast.success("Aula concluída!");
-      // Navigate to next lesson if available
       const currentIndex = allLessons?.findIndex((l) => l.id === lessonId);
       if (
         currentIndex !== undefined &&
@@ -66,6 +69,15 @@ export default function LessonView() {
       }
     }
   };
+
+  // Aguarda resolução do estado de autenticação antes de redirecionar
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     window.location.href = getLoginUrl();
@@ -120,7 +132,8 @@ export default function LessonView() {
     allLessons && currentIndex < allLessons.length - 1
       ? allLessons[currentIndex + 1]
       : null;
-  const prevLesson = allLessons && currentIndex > 0 ? allLessons[currentIndex - 1] : null;
+  const prevLesson =
+    allLessons && currentIndex > 0 ? allLessons[currentIndex - 1] : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -128,10 +141,10 @@ export default function LessonView() {
       <header className="border-b bg-card">
         <div className="container py-4 flex items-center justify-between">
           <Link href="/">
-            <img 
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/KQbMXrKxSjIsEkev.png" 
-              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano" 
-              className="h-12 w-auto"
+            <img
+              src="/logo.png"
+              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano"
+              className="h-36 w-auto"
             />
           </Link>
           <nav className="flex items-center gap-4">
@@ -143,6 +156,17 @@ export default function LessonView() {
       </header>
 
       <div className="container py-8">
+        {lesson && course && (
+          <Breadcrumbs
+            items={getBreadcrumbs(`/lesson/${lessonId}`, {
+              lessonId: lessonId.toString(),
+              lessonTitle: lesson.title,
+              courseId: course.id.toString(),
+              courseTitle: course.title,
+            })}
+          />
+        )}
+
         <Link href={`/courses/${course?.slug}`}>
           <Button variant="ghost" size="sm" className="mb-6">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -156,9 +180,7 @@ export default function LessonView() {
             <div>
               <h1 className="text-3xl font-bold mb-2">{lesson.title}</h1>
               {course && (
-                <p className="text-muted-foreground">
-                  Curso: {course.title}
-                </p>
+                <p className="text-muted-foreground">Curso: {course.title}</p>
               )}
             </div>
 
@@ -276,7 +298,10 @@ export default function LessonView() {
       {/* Footer */}
       <footer className="border-t bg-card mt-12">
         <div className="container py-8 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Shadia VR Platform. Todos os direitos reservados.</p>
+          <p>
+            © {new Date().getFullYear()} Shadia VR Platform. Todos os direitos
+            reservados.
+          </p>
         </div>
       </footer>
     </div>

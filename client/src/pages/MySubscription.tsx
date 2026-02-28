@@ -1,9 +1,17 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Link, useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
 import {
   ArrowLeft,
   Crown,
@@ -14,39 +22,89 @@ import {
   X,
   Check,
   AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 
+const PLAN_LABELS: Record<string, string> = {
+  free: "Gratuito",
+  basic: "Básico",
+  premium: "Premium",
+  vip: "VIP",
+};
+
+const PLAN_PRICES: Record<string, string> = {
+  free: "R$ 0,00",
+  basic: "R$ 49,90",
+  premium: "R$ 99,90",
+  vip: "R$ 299,90",
+};
+
 export default function MySubscription() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [, navigate] = useLocation();
 
-  // Controle de acesso
+  const { data: subscription, isLoading: loadingSubscription } =
+    trpc.subscriptions.getByUserId.useQuery(
+      { userId: user?.id ?? 0 },
+      { enabled: !!user?.id }
+    );
+
+  const { data: paymentHistory, isLoading: loadingPayments } =
+    trpc.subscriptions.getPaymentHistory.useQuery(
+      { userId: user?.id ?? 0 },
+      { enabled: !!user?.id }
+    );
+
+  const getPortalUrl = trpc.subscriptions.getPortalUrl.useMutation({
+    onSuccess: ({ url }) => {
+      window.open(url, "_blank");
+    },
+    onError: (err) => {
+      toast.error("Erro ao abrir portal de pagamento: " + err.message);
+    },
+  });
+
+  // Aguarda resolução do estado de autenticação
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   if (!user) {
     navigate("/");
     return null;
   }
 
-  const isPremium = user.plan === 'premium';
-  const nextBillingDate = "15 de Março de 2026";
-  const monthlyPrice = isPremium ? "R$ 97,00" : "R$ 0,00";
+  const plan = subscription?.plan ?? user.plan ?? "free";
+  const isPaid = plan !== "free";
+  const planLabel = PLAN_LABELS[plan] ?? plan;
+  const planPrice = PLAN_PRICES[plan] ?? "—";
+  const isActive = subscription?.status === "active";
 
-  const paymentHistory = [
-    { id: 1, date: "15/02/2026", amount: "R$ 97,00", status: "Pago", method: "Cartão •••• 4242" },
-    { id: 2, date: "15/01/2026", amount: "R$ 97,00", status: "Pago", method: "Cartão •••• 4242" },
-    { id: 3, date: "15/12/2025", amount: "R$ 97,00", status: "Pago", method: "Cartão •••• 4242" },
-  ];
+  const handleUpgrade = () => navigate("/pricing");
 
-  const handleUpgrade = () => {
-    navigate("/pricing");
+  const handleManagePortal = () => {
+    if (!subscription?.stripeCustomerId) {
+      toast.error(
+        "Nenhuma assinatura ativa encontrada. Faça upgrade primeiro."
+      );
+      return;
+    }
+    toast.loading("Abrindo portal de pagamento...");
+    getPortalUrl.mutate();
   };
 
-  const handleDowngrade = () => {
-    toast.info("O downgrade será aplicado no próximo ciclo de cobrança");
-  };
-
-  const handleCancel = () => {
-    toast.error("Tem certeza que deseja cancelar sua assinatura?");
+  const formatDate = (d: string | Date | null | undefined) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
   };
 
   return (
@@ -82,121 +140,173 @@ export default function MySubscription() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
-                      {isPremium && <Crown className="h-5 w-5 text-yellow-500" />}
+                      {isPaid && (
+                        <Crown className="h-5 w-5 text-yellow-500" />
+                      )}
                       Plano Atual
                     </CardTitle>
                     <CardDescription>
-                      {isPremium ? "Você tem acesso completo à plataforma" : "Acesso limitado aos recursos básicos"}
+                      {isPaid
+                        ? "Você tem acesso completo à plataforma"
+                        : "Acesso limitado aos recursos básicos"}
                     </CardDescription>
                   </div>
-                  <Badge variant={isPremium ? "default" : "secondary"} className="text-lg px-4 py-2">
-                    {isPremium ? "Premium" : "Gratuito"}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Valor Mensal</p>
-                    <p className="text-2xl font-bold">{monthlyPrice}</p>
-                  </div>
-                  {isPremium && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Próxima Cobrança</p>
-                      <p className="text-lg font-semibold flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        {nextBillingDate}
-                      </p>
+                  {loadingSubscription ? (
+                    <Skeleton className="h-8 w-24" />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={isPaid ? "default" : "secondary"}
+                        className="text-lg px-4 py-2"
+                      >
+                        {planLabel}
+                      </Badge>
+                      {isActive && (
+                        <Badge
+                          variant="outline"
+                          className="text-green-600 border-green-300"
+                        >
+                          Ativo
+                        </Badge>
+                      )}
                     </div>
                   )}
                 </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {loadingSubscription ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-8 w-32" />
+                    <Skeleton className="h-5 w-48" />
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Valor Mensal
+                      </p>
+                      <p className="text-2xl font-bold">{planPrice}</p>
+                    </div>
+                    {isPaid && subscription?.endDate && (
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Próxima Cobrança
+                        </p>
+                        <p className="text-lg font-semibold flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          {formatDate(subscription.endDate)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <Separator />
 
                 <div>
                   <h4 className="font-semibold mb-3">Recursos Inclusos</h4>
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Check className="h-4 w-4 text-green-500" />
-                      <span>Acesso à comunidade</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Check className="h-4 w-4 text-green-500" />
-                      <span>Certificados de conclusão</span>
-                    </div>
-                    {isPremium ? (
-                      <>
-                        <div className="flex items-center gap-2 text-sm">
+                    {[
+                      { label: "Acesso à comunidade", included: true },
+                      { label: "Certificados de conclusão", included: true },
+                      {
+                        label: "Todos os cursos e programas",
+                        included: isPaid,
+                      },
+                      {
+                        label: "Experiência VR completa",
+                        included:
+                          plan === "vip" || plan === "premium",
+                      },
+                      {
+                        label: "Suporte prioritário",
+                        included:
+                          plan === "premium" || plan === "vip",
+                      },
+                      {
+                        label: "Lives com Shadia",
+                        included:
+                          plan === "premium" || plan === "vip",
+                      },
+                      {
+                        label: "Sessão individual mensal",
+                        included: plan === "vip",
+                      },
+                    ].map(({ label, included }) => (
+                      <div
+                        key={label}
+                        className={`flex items-center gap-2 text-sm ${
+                          !included ? "text-muted-foreground" : ""
+                        }`}
+                      >
+                        {included ? (
                           <Check className="h-4 w-4 text-green-500" />
-                          <span>Todos os cursos e programas</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-green-500" />
-                          <span>Mensagens ilimitadas</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-green-500" />
-                          <span>Acesso a lives exclusivas</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-green-500" />
-                          <span>Suporte prioritário</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        ) : (
                           <X className="h-4 w-4" />
-                          <span>Cursos premium (bloqueados)</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <X className="h-4 w-4" />
-                          <span>Mensagens apenas para admin</span>
-                        </div>
-                      </>
-                    )}
+                        )}
+                        <span className={!included ? "line-through" : ""}>
+                          {label}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Ações de Gerenciamento */}
+            {/* Gerenciar Plano */}
             <Card>
               <CardHeader>
                 <CardTitle>Gerenciar Plano</CardTitle>
                 <CardDescription>
-                  Faça upgrade, downgrade ou cancele sua assinatura
+                  Faça upgrade ou gerencie sua assinatura
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {!isPremium ? (
-                  <Button onClick={handleUpgrade} className="w-full" size="lg">
+                {!isPaid ? (
+                  <Button
+                    onClick={handleUpgrade}
+                    className="w-full"
+                    size="lg"
+                  >
                     <TrendingUp className="mr-2 h-4 w-4" />
-                    Fazer Upgrade para Premium
+                    Fazer Upgrade
                   </Button>
                 ) : (
                   <>
-                    <Button onClick={handleDowngrade} variant="outline" className="w-full">
+                    <Button
+                      onClick={handleUpgrade}
+                      variant="outline"
+                      className="w-full"
+                    >
                       <TrendingDown className="mr-2 h-4 w-4" />
-                      Downgrade para Plano Gratuito
+                      Mudar de Plano
                     </Button>
-                    <Button onClick={handleCancel} variant="destructive" className="w-full">
-                      <X className="mr-2 h-4 w-4" />
-                      Cancelar Assinatura
+                    <Button
+                      onClick={handleManagePortal}
+                      variant="outline"
+                      className="w-full"
+                      disabled={getPortalUrl.isPending}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      {getPortalUrl.isPending
+                        ? "Abrindo..."
+                        : "Gerenciar no Stripe (cancelar, trocar cartão)"}
                     </Button>
                   </>
                 )}
-                
-                {isPremium && (
+
+                {isPaid && (
                   <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mt-4">
                     <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-yellow-800">
-                      <p className="font-medium">Importante sobre downgrade e cancelamento:</p>
-                      <ul className="list-disc list-inside mt-1 space-y-1">
-                        <li>Downgrade será aplicado no próximo ciclo de cobrança</li>
-                        <li>Seu progresso e certificados serão mantidos</li>
-                        <li>Conteúdo premium será bloqueado após o downgrade</li>
-                      </ul>
+                      <p className="font-medium">
+                        Para cancelar ou trocar cartão:
+                      </p>
+                      <p className="mt-1">
+                        Use o botão "Gerenciar no Stripe" acima. Seu acesso
+                        continua até o fim do período pago.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -204,69 +314,67 @@ export default function MySubscription() {
             </Card>
 
             {/* Histórico de Pagamentos */}
-            {isPremium && (
+            {isPaid && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CreditCard className="h-5 w-5" />
                     Histórico de Pagamentos
                   </CardTitle>
-                  <CardDescription>
-                    Suas transações recentes
-                  </CardDescription>
+                  <CardDescription>Suas transações recentes</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {paymentHistory.map((payment) => (
-                      <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex-1">
-                          <p className="font-medium">{payment.amount}</p>
-                          <p className="text-sm text-muted-foreground">{payment.date}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
+                  {loadingPayments ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-16 w-full" />
+                      ))}
+                    </div>
+                  ) : !paymentHistory || paymentHistory.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-6">
+                      Nenhum pagamento registrado ainda.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {paymentHistory.map((payment) => (
+                        <div
+                          key={payment.id}
+                          className="flex items-center justify-between p-3 border rounded-lg"
+                        >
+                          <div>
+                            <p className="font-medium">
+                              R${" "}
+                              {(payment.amount / 100).toLocaleString("pt-BR", {
+                                minimumFractionDigits: 2,
+                              })}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {formatDate(payment.createdAt)}
+                            </p>
+                          </div>
                           <div className="text-right">
-                            <p className="text-sm">{payment.method}</p>
-                            <Badge variant="outline" className="mt-1">
-                              {payment.status}
+                            <p className="text-sm text-muted-foreground">
+                              {payment.description ||
+                                payment.paymentMethod ||
+                                "Stripe"}
+                            </p>
+                            <Badge
+                              variant={
+                                payment.status === "completed"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                              className="mt-1"
+                            >
+                              {payment.status === "completed"
+                                ? "Pago"
+                                : payment.status}
                             </Badge>
                           </div>
-                          <Button variant="ghost" size="sm">
-                            Ver Recibo
-                          </Button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  <Button variant="outline" className="w-full mt-4">
-                    Ver Histórico Completo
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Método de Pagamento */}
-            {isPremium && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Método de Pagamento</CardTitle>
-                  <CardDescription>
-                    Gerencie seus cartões e formas de pagamento
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <CreditCard className="h-8 w-8 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">Visa •••• 4242</p>
-                        <p className="text-sm text-muted-foreground">Expira em 12/2027</p>
-                      </div>
+                      ))}
                     </div>
-                    <Button variant="outline">Atualizar</Button>
-                  </div>
-                  <Button variant="ghost" className="w-full mt-3">
-                    + Adicionar Novo Cartão
-                  </Button>
+                  )}
                 </CardContent>
               </Card>
             )}

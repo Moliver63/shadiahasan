@@ -1,8 +1,13 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
 import { Link, useLocation } from "wouter";
 import {
@@ -18,10 +23,23 @@ import {
 } from "lucide-react";
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [, navigate] = useLocation();
-  const { data: enrollments, isLoading: enrollmentsLoading } = trpc.enrollments.myEnrollments.useQuery();
-  const { data: certificates, isLoading: certificatesLoading } = trpc.certificates.getUserCertificates.useQuery();
+  const { data: enrollments, isLoading: enrollmentsLoading } =
+    trpc.enrollments.myEnrollments.useQuery(undefined, { enabled: !!user });
+  const { data: certificates, isLoading: certificatesLoading } =
+    trpc.certificates.getUserCertificates.useQuery(undefined, {
+      enabled: !!user,
+    });
+
+  // Aguarda resolução do estado de autenticação
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   // Controle de acesso: redireciona se não autenticado
   if (!user) {
@@ -29,8 +47,11 @@ export default function Profile() {
     return null;
   }
 
-  const completedCourses = enrollments?.filter((e: any) => e.progress === 100).length || 0;
-  const inProgressCourses = enrollments?.filter((e: any) => e.progress > 0 && e.progress < 100).length || 0;
+  const completedCourses =
+    enrollments?.filter((e: any) => e.progress === 100).length || 0;
+  const inProgressCourses =
+    enrollments?.filter((e: any) => e.progress > 0 && e.progress < 100)
+      .length || 0;
   const totalCertificates = certificates?.length || 0;
 
   return (
@@ -64,7 +85,9 @@ export default function Profile() {
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h1 className="text-3xl font-bold">{user.name || "Usuário"}</h1>
+                      <h1 className="text-3xl font-bold">
+                        {user.name || "Usuário"}
+                      </h1>
                       <div className="flex items-center gap-4 mt-2 text-muted-foreground">
                         <div className="flex items-center gap-2">
                           <Mail className="h-4 w-4" />
@@ -86,19 +109,27 @@ export default function Profile() {
                         </Button>
                       </Link>
                       <Link href="/my-subscription">
-                        <Button variant="default">
-                          Minha Assinatura
-                        </Button>
+                        <Button variant="default">Minha Assinatura</Button>
                       </Link>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 mt-4">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Calendar className="h-4 w-4" />
-                      <span>Membro desde {new Date(user.createdAt).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</span>
+                      <span>
+                        Membro desde{" "}
+                        {new Date(user.createdAt).toLocaleDateString("pt-BR", {
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </span>
                     </div>
-                    <Badge variant={user.plan === 'premium' ? 'default' : 'secondary'}>
-                      {user.plan === 'premium' ? '👑 Premium' : 'Gratuito'}
+                    <Badge
+                      variant={
+                        user.plan === "premium" ? "default" : "secondary"
+                      }
+                    >
+                      {user.plan === "premium" ? "👑 Premium" : "Gratuito"}
                     </Badge>
                   </div>
                 </div>
@@ -172,15 +203,29 @@ export default function Profile() {
                   {enrollments.map((enrollment: any) => (
                     <div key={enrollment.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold">{enrollment.course?.title || "Programa"}</h3>
-                        <Badge variant={enrollment.progress === 100 ? "default" : "secondary"}>
-                          {enrollment.progress === 100 ? "Concluído" : "Em andamento"}
+                        <h3 className="font-semibold">
+                          {enrollment.course?.title || "Programa"}
+                        </h3>
+                        <Badge
+                          variant={
+                            enrollment.progress === 100
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {enrollment.progress === 100
+                            ? "Concluído"
+                            : "Em andamento"}
                         </Badge>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Progresso</span>
-                          <span className="font-medium">{enrollment.progress}%</span>
+                          <span className="text-muted-foreground">
+                            Progresso
+                          </span>
+                          <span className="font-medium">
+                            {enrollment.progress}%
+                          </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
@@ -190,11 +235,16 @@ export default function Profile() {
                         </div>
                         <div className="flex items-center justify-between pt-2">
                           <span className="text-xs text-muted-foreground">
-                            Matriculado em {new Date(enrollment.enrolledAt).toLocaleDateString("pt-BR")}
+                            Matriculado em{" "}
+                            {new Date(
+                              enrollment.enrolledAt
+                            ).toLocaleDateString("pt-BR")}
                           </span>
                           <Link href={`/courses/${enrollment.course?.slug}`}>
                             <Button variant="outline" size="sm">
-                              {enrollment.progress === 100 ? "Revisar" : "Continuar"}
+                              {enrollment.progress === 100
+                                ? "Revisar"
+                                : "Continuar"}
                             </Button>
                           </Link>
                         </div>
@@ -232,16 +282,27 @@ export default function Profile() {
               ) : certificates && certificates.length > 0 ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   {certificates.map((certificate: any) => (
-                    <div key={certificate.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div
+                      key={certificate.id}
+                      className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                    >
                       <div className="flex items-start gap-3">
                         <Award className="h-8 w-8 text-yellow-600 flex-shrink-0" />
                         <div className="flex-1">
-                          <h4 className="font-semibold">{certificate.course?.title}</h4>
+                          <h4 className="font-semibold">
+                            {certificate.course?.title}
+                          </h4>
                           <p className="text-sm text-muted-foreground mt-1">
-                            Emitido em {new Date(certificate.issuedAt).toLocaleDateString("pt-BR")}
+                            Emitido em{" "}
+                            {new Date(
+                              certificate.issuedAt
+                            ).toLocaleDateString("pt-BR")}
                           </p>
                           <Link href={`/certificates/${certificate.id}`}>
-                            <Button variant="link" className="p-0 h-auto mt-2">
+                            <Button
+                              variant="link"
+                              className="p-0 h-auto mt-2"
+                            >
                               Ver Certificado →
                             </Button>
                           </Link>

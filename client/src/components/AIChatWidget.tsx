@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { X, MessageCircle, Send, Sparkles } from "lucide-react";
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 
 interface Message {
   role: "user" | "assistant";
@@ -13,6 +13,7 @@ interface Message {
 
 export default function AIChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  const [, setLocation] = useLocation();
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -25,7 +26,7 @@ export default function AIChatWidget() {
 
   const chatMutation = trpc.ai.chat.useMutation({
     onSuccess: (data) => {
-      const content = typeof data.message === 'string' ? data.message : JSON.stringify(data.message);
+      const content = typeof data.message === "string" ? data.message : JSON.stringify(data.message);
       setMessages((prev) => [...prev, { role: "assistant", content }]);
       setIsTyping(false);
     },
@@ -67,19 +68,22 @@ export default function AIChatWidget() {
     }
   };
 
-  // Extract course links from message
+  // FIX: antes era <Link><Button variant="link"> → <a><a> = hydration error
+  // Agora: <button onClick={() => setLocation(href)> → sem aninhamento de links
   const renderMessage = (content: string) => {
     const linkRegex = /\[Link: (\/courses\/[^\]]+)\]/g;
     const parts = content.split(linkRegex);
-    
+
     return parts.map((part, index) => {
       if (part.startsWith("/courses/")) {
         return (
-          <Link key={index} href={part}>
-            <Button variant="link" className="p-0 h-auto text-purple-600 hover:text-purple-700">
-              Ver Curso →
-            </Button>
-          </Link>
+          <button
+            key={index}
+            onClick={() => setLocation(part)}
+            className="p-0 h-auto text-purple-600 hover:text-purple-700 underline underline-offset-2 text-sm"
+          >
+            Ver Curso →
+          </button>
         );
       }
       return <span key={index}>{part}</span>;
@@ -143,7 +147,7 @@ export default function AIChatWidget() {
             </div>
           </div>
         ))}
-        
+
         {isTyping && (
           <div className="flex justify-start">
             <div className="bg-white text-gray-800 rounded-lg p-3 shadow-sm border border-gray-200">
@@ -155,7 +159,7 @@ export default function AIChatWidget() {
             </div>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 

@@ -1,6 +1,12 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { Award, Download, Share2, CheckCircle } from "lucide-react";
 import { Link } from "wouter";
@@ -8,17 +14,25 @@ import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
 
 export default function MyCertificates() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
 
-  const { data: certificates, isLoading } = trpc.certificates.getUserCertificates.useQuery(
-    undefined,
-    { enabled: isAuthenticated }
-  );
+  const { data: certificates, isLoading } =
+    trpc.certificates.getUserCertificates.useQuery(undefined, {
+      enabled: isAuthenticated,
+    });
 
-  const { data: badges } = trpc.badges.getUserBadges.useQuery(
-    undefined,
-    { enabled: isAuthenticated }
-  );
+  const { data: badges } = trpc.badges.getUserBadges.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+
+  // Aguarda resolução do estado de autenticação
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     window.location.href = getLoginUrl();
@@ -46,21 +60,30 @@ export default function MyCertificates() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">
             <img
-              src="https://s3.us-west-1.amazonaws.com/assets.manus.space/c1bc5f76-ceb4-450b-a303-c33f43dd75ad.png"
+              src="/logo.png"
               alt="Shadia Hasan"
               className="h-36 cursor-pointer"
             />
           </Link>
           <nav className="flex items-center gap-6">
-            <Link href="/my-courses" className="text-gray-700 hover:text-blue-600 transition">
+            <Link
+              href="/my-courses"
+              className="text-gray-700 hover:text-blue-600 transition"
+            >
               Meus Cursos
             </Link>
-            <Link href="/certificates" className="text-blue-600 font-semibold">
+            <Link
+              href="/certificates"
+              className="text-blue-600 font-semibold"
+            >
               Certificados
             </Link>
-            <Link href="/admin">
-              <Button>Admin</Button>
-            </Link>
+            {/* Link Admin apenas para administradores */}
+            {user?.role === "admin" && (
+              <Link href="/admin">
+                <Button>Admin</Button>
+              </Link>
+            )}
           </nav>
         </div>
       </header>
@@ -76,7 +99,8 @@ export default function MyCertificates() {
             Meus Certificados e Badges
           </h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Acompanhe suas conquistas e compartilhe seus certificados com o mundo!
+            Acompanhe suas conquistas e compartilhe seus certificados com o
+            mundo!
           </p>
         </div>
 
@@ -89,7 +113,10 @@ export default function MyCertificates() {
             </h2>
             <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-4">
               {badges.map((badge) => (
-                <Card key={badge.id} className="text-center hover:shadow-lg transition">
+                <Card
+                  key={badge.id}
+                  className="text-center hover:shadow-lg transition"
+                >
                   <CardHeader>
                     <div className="text-5xl mb-2">{badge.badgeIcon}</div>
                     <CardTitle className="text-lg">{badge.badgeName}</CardTitle>
@@ -97,7 +124,8 @@ export default function MyCertificates() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-gray-500">
-                      Conquistada em {new Date(badge.earnedAt).toLocaleDateString('pt-BR')}
+                      Conquistada em{" "}
+                      {new Date(badge.earnedAt).toLocaleDateString("pt-BR")}
                     </p>
                   </CardContent>
                 </Card>
@@ -115,7 +143,10 @@ export default function MyCertificates() {
           {certificates && certificates.length > 0 ? (
             <div className="grid md:grid-cols-2 gap-6">
               {certificates.map((cert) => (
-                <Card key={cert.id} className="hover:shadow-xl transition-all duration-300">
+                <Card
+                  key={cert.id}
+                  className="hover:shadow-xl transition-all duration-300"
+                >
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div>
@@ -131,7 +162,8 @@ export default function MyCertificates() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-gray-600 mb-4">
-                      Emitido em {new Date(cert.issuedAt).toLocaleDateString('pt-BR')}
+                      Emitido em{" "}
+                      {new Date(cert.issuedAt).toLocaleDateString("pt-BR")}
                     </p>
                     <div className="flex gap-2">
                       <Button

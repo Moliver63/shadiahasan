@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 
 export default function Login() {
@@ -11,6 +13,31 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
+
+  // Detect OAuth errors from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('error');
+    
+    if (error) {
+      const errorMessages: Record<string, string> = {
+        'google_auth_failed': 'Falha na autenticação com Google. Tente novamente.',
+        'google_access_denied': 'Acesso negado. Você cancelou o login com Google.',
+        'passport_error': 'Erro no processo de autenticação. Tente novamente.',
+        'no_user': 'Não foi possível criar sua conta. Entre em contato com o suporte.',
+        'auth_error': 'Erro ao processar autenticação. Tente novamente.',
+      };
+      
+      setOauthError(errorMessages[error] || 'Erro desconhecido. Tente novamente.');
+      
+      // Clear error from URL after 5 seconds
+      setTimeout(() => {
+        window.history.replaceState({}, '', '/login');
+        setOauthError(null);
+      }, 5000);
+    }
+  }, []);
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
@@ -58,6 +85,13 @@ export default function Login() {
 
         {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-purple-100">
+          {/* OAuth Error Alert */}
+          {oauthError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{oauthError}</AlertDescription>
+            </Alert>
+          )}
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-6">
             <Button
@@ -146,10 +180,8 @@ export default function Login() {
 
             {/* Forgot Password Link */}
             <div className="text-right">
-              <Link href="/forgot-password">
-                <a className="text-sm text-purple-600 hover:underline">
-                  Esqueceu sua senha?
-                </a>
+              <Link href="/forgot-password" className="text-sm text-purple-600 hover:underline">
+                Esqueceu sua senha?
               </Link>
             </div>
 

@@ -16,7 +16,10 @@ export default function Contact() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    subject: "",
+    phone: "",
+    subject: "Agendamento de Sessão",
+    preferredDate: "",
+    preferredTime: "",
     message: "",
   });
 
@@ -24,14 +27,14 @@ export default function Contact() {
     e.preventDefault();
     
     // Criar mensagem para WhatsApp
-    const whatsappMessage = `*Contato via Site*%0A%0A*Nome:* ${formData.name}%0A*Email:* ${formData.email}%0A*Assunto:* ${formData.subject}%0A*Mensagem:*%0A${formData.message}`;
+    const whatsappMessage = `*Agendamento de Sessão*%0A%0A*Nome:* ${formData.name}%0A*Email:* ${formData.email}%0A*Telefone:* ${formData.phone}%0A*Data Preferida:* ${formData.preferredDate}%0A*Horário Preferido:* ${formData.preferredTime}%0A*Mensagem:*%0A${formData.message}`;
     const whatsappUrl = `https://wa.me/5547991426662?text=${whatsappMessage}`;
     
     window.open(whatsappUrl, "_blank");
     toast.success("Redirecionando para WhatsApp...");
     
     // Limpar formulário
-    setFormData({ name: "", email: "", subject: "", message: "" });
+    setFormData({ name: "", email: "", phone: "", subject: "Agendamento de Sessão", preferredDate: "", preferredTime: "", message: "" });
   };
 
   return (
@@ -41,20 +44,23 @@ export default function Contact() {
         <div className="container py-4 flex items-center justify-between">
           <Link href="/">
             <img 
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/KQbMXrKxSjIsEkev.png" 
+              src="/logo.png" 
               alt="Shadia Hasan" 
               className="h-36 w-auto"
             />
           </Link>
           <nav className="flex items-center gap-4">
             <Link href="/courses">
-              <Button variant="ghost">Cursos</Button>
-            </Link>
-            <Link href="/pricing">
-              <Button variant="ghost">Planos</Button>
+              <Button variant="ghost">Programas</Button>
             </Link>
             <Link href="/about">
               <Button variant="ghost">Sobre</Button>
+            </Link>
+            <Link href="/contact">
+              <Button variant="ghost" className="text-primary">Contato</Button>
+            </Link>
+            <Link href="/community/explore">
+              <Button variant="ghost">Comunidade</Button>
             </Link>
             {isAuthenticated ? (
                 <UserMenu />
@@ -84,9 +90,9 @@ export default function Contact() {
           <div>
             <Card>
               <CardHeader>
-                <CardTitle>Envie uma Mensagem</CardTitle>
+                <CardTitle className="text-2xl">Agende sua Sessão</CardTitle>
                 <CardDescription>
-                  Preencha o formulário abaixo e entraremos em contato o mais breve possível.
+                  Preencha o formulário abaixo para agendar sua sessão personalizada com Shadia Hasan. Entraremos em contato via WhatsApp para confirmar.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -115,14 +121,38 @@ export default function Contact() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="subject">Assunto</Label>
+                    <Label htmlFor="phone">Telefone/WhatsApp</Label>
                     <Input
-                      id="subject"
-                      placeholder="Sobre o que você gostaria de falar?"
-                      value={formData.subject}
-                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                      id="phone"
+                      type="tel"
+                      placeholder="(00) 00000-0000"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       required
                     />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="preferredDate">Data Preferida</Label>
+                      <Input
+                        id="preferredDate"
+                        type="date"
+                        value={formData.preferredDate}
+                        onChange={(e) => setFormData({ ...formData, preferredDate: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="preferredTime">Horário Preferido</Label>
+                      <Input
+                        id="preferredTime"
+                        type="time"
+                        value={formData.preferredTime}
+                        onChange={(e) => setFormData({ ...formData, preferredTime: e.target.value })}
+                        required
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -137,9 +167,9 @@ export default function Contact() {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full" size="lg">
-                    <Send className="h-5 w-5 mr-2" />
-                    Enviar Mensagem
+                  <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700" size="lg">
+                    <MessageCircle className="h-5 w-5 mr-2" />
+                    Confirmar Agendamento via WhatsApp
                   </Button>
                 </form>
               </CardContent>

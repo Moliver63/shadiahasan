@@ -39,14 +39,10 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
-  const secure = isSecureRequest(req);
-
   return {
     httpOnly: true,
     path: "/",
-    // If we are on HTTPS we can allow cross-site (OAuth) cookies; otherwise fall back to Lax.
-    // SameSite=None requires Secure=true, otherwise browsers drop the cookie.
-    sameSite: secure ? "none" : "lax",
-    secure,
+    sameSite: "lax", // "lax" é mais seguro e funciona para login com redirect
+    secure: isSecureRequest(req),
   };
 }

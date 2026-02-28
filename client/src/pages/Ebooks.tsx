@@ -5,6 +5,9 @@ import { trpc } from "@/lib/trpc";
 import { BookOpen, Download, Eye, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
+import UserMenu from "@/components/UserMenu";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
 export default function Ebooks() {
   const { isAuthenticated } = useAuth();
@@ -25,34 +28,30 @@ export default function Ebooks() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">
             <img
-              src="https://s3.us-west-1.amazonaws.com/assets.manus.space/c1bc5f76-ceb4-450b-a303-c33f43dd75ad.png"
+              src="/logo.png"
               alt="Shadia Hasan"
               className="h-36 cursor-pointer"
             />
           </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/courses" className="text-gray-700 hover:text-blue-600 transition">
-              Cursos
+          <nav className="flex items-center gap-4">
+            <Link href="/courses">
+              <Button variant="ghost">Programas</Button>
             </Link>
-            <Link href="/ebooks" className="text-blue-600 font-semibold">
-              Ebooks
+            <Link href="/about">
+              <Button variant="ghost">Sobre</Button>
             </Link>
-            <Link href="/pricing" className="text-gray-700 hover:text-blue-600 transition">
-              Planos
+            <Link href="/contact">
+              <Button variant="ghost">Contato</Button>
+            </Link>
+            <Link href="/community/explore">
+              <Button variant="ghost">Comunidade</Button>
             </Link>
             {isAuthenticated ? (
-              <>
-                <Link href="/my-courses">
-                  <Button variant="outline">Meus Cursos</Button>
-                </Link>
-                <Link href="/admin">
-                  <Button>Admin</Button>
-                </Link>
-              </>
+              <UserMenu />
             ) : (
-              <a href={getLoginUrl()}>
-                <Button>Entrar</Button>
-              </a>
+              <Button onClick={() => (window.location.href = getLoginUrl())}>
+                Entrar
+              </Button>
             )}
           </nav>
         </div>
@@ -61,6 +60,7 @@ export default function Ebooks() {
       {/* Hero Section */}
       <section className="py-20 text-center">
         <div className="container">
+          <Breadcrumbs items={getBreadcrumbs('/ebooks')} />
           <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full mb-6">
             <BookOpen className="h-5 w-5" />
             <span className="font-medium">Biblioteca Digital</span>

@@ -1,0 +1,73 @@
+# render.yaml — Configuração de deploy no Render.com
+# Gerado por Shadia Doctor v2.1 em 2026-02-26 10:11
+# Docs: https://render.com/docs/render-yaml
+
+services:
+  - type: web
+    name: shadia-hasan-club
+    env: node
+    region: ohio  # ou: oregon, frankfurt, singapore
+    plan: starter  # ou: free (limitado), standard
+    buildCommand: pnpm install && pnpm build
+    startCommand: node dist/server/index.js
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+
+      # ── URLs ──
+      - key: SITE_URL
+        value: https://shadiahasan.club
+      - key: API_URL
+        value: https://shadiahasan.club
+      - key: OAUTH_SERVER_URL
+        value: https://shadiahasan.club
+
+      # ── Frontend ──
+      - key: VITE_APP_NAME
+        value: "Shadia Hasan Club"
+      - key: VITE_APP_URL
+        value: https://shadiahasan.club
+      - key: VITE_API_URL
+        value: https://shadiahasan.club
+
+      # ── Secrets (configure manualmente no dashboard Render) ──
+      - key: DATABASE_URL
+        sync: false  # preencher manualmente no dashboard
+      - key: JWT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        value: https://shadiahasan.club/api/auth/google/callback
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+
+      # ── Stripe plans ──
+      - key: STRIPE_PRICE_BASICO
+        value: price_1T2dWmBF3gDHpFo0CbnGQAFU
+      - key: STRIPE_PRICE_PREMIUM
+        value: price_1T2dh5BF3gDHpFo0OrbgiaKa
+      - key: STRIPE_PRICE_VIP
+        value: price_1T2dhqBF3gDHpFo0iDlwBfyo
+
+      # ── Cookies ──
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: none
+      - key: COOKIE_DOMAIN
+        value: shadiahasan.club

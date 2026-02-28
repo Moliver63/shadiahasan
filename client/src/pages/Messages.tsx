@@ -1,34 +1,41 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { trpc } from "@/lib/trpc";
 import { Link, useLocation } from "wouter";
-import {
-  MessageCircle,
-  Send,
-  ArrowLeft,
-  Crown,
-  Lock,
-} from "lucide-react";
+import { MessageCircle, Send, ArrowLeft, Crown, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 
 export default function Messages() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [, navigate] = useLocation();
-  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    number | null
+  >(null);
   const [messageText, setMessageText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  const { data: conversations, isLoading: conversationsLoading } = trpc.messaging.getConversations.useQuery();
-  const { data: messages, isLoading: messagesLoading } = trpc.messaging.getMessages.useQuery(
-    { conversationId: selectedConversationId! },
-    { enabled: !!selectedConversationId }
-  );
-  
+
+  const {
+    data: conversations,
+    isLoading: conversationsLoading,
+  } = trpc.messaging.getConversations.useQuery(undefined, {
+    enabled: !!user,
+  });
+  const { data: messages, isLoading: messagesLoading } =
+    trpc.messaging.getMessages.useQuery(
+      { conversationId: selectedConversationId! },
+      { enabled: !!selectedConversationId }
+    );
+
   const utils = trpc.useUtils();
   const sendMutation = trpc.messaging.sendMessage.useMutation({
     onSuccess: () => {
@@ -41,23 +48,13 @@ export default function Messages() {
       toast.error(error.message);
     },
   });
-  
+
   const markAsReadMutation = trpc.messaging.markAsRead.useMutation({
     onSuccess: () => {
       utils.messaging.getConversations.invalidate();
       utils.messaging.getUnreadCount.invalidate();
     },
   });
-
-  // Controle de acesso
-  if (!user) {
-    navigate("/");
-    return null;
-  }
-
-  const selectedConversation = conversations?.find(c => c.id === selectedConversationId);
-  const isFreeUser = user.plan === 'free';
-  const canSendMessage = !isFreeUser || (selectedConversation?.otherUser as any)?.role === 'admin';
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -66,19 +63,47 @@ export default function Messages() {
 
   // Mark as read when conversation is selected
   useEffect(() => {
-    if (selectedConversationId && (selectedConversation?.unreadCount || 0) > 0) {
+    if (
+      selectedConversationId &&
+      (selectedConversation?.unreadCount || 0) > 0
+    ) {
       markAsReadMutation.mutate({ conversationId: selectedConversationId });
     }
   }, [selectedConversationId]);
 
+  // Aguarda resolução do estado de autenticação
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Controle de acesso
+  if (!user) {
+    navigate("/");
+    return null;
+  }
+
+  const selectedConversation = conversations?.find(
+    (c) => c.id === selectedConversationId
+  );
+  const isFreeUser = user.plan === "free";
+  const canSendMessage =
+    !isFreeUser ||
+    (selectedConversation?.otherUser as any)?.role === "admin";
+
   const handleSendMessage = async () => {
     if (!messageText.trim() || !selectedConversation) return;
-    
+
     if (!canSendMessage) {
-      toast.error("Usuários do plano gratuito só podem enviar mensagens para administradores. Faça upgrade para o plano premium!");
+      toast.error(
+        "Usuários do plano gratuito só podem enviar mensagens para administradores. Faça upgrade para o plano premium!"
+      );
       return;
     }
-    
+
     try {
       await sendMutation.mutateAsync({
         receiverId: selectedConversation.otherUser.id,
@@ -122,13 +147,20 @@ export default function Messages() {
                 <div className="flex items-start gap-3">
                   <Lock className="h-5 w-5 text-yellow-600 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-yellow-900">Plano Gratuito</h3>
+                    <h3 className="font-semibold text-yellow-900">
+                      Plano Gratuito
+                    </h3>
                     <p className="text-sm text-yellow-700 mt-1">
-                      Você pode receber mensagens de qualquer pessoa, mas só pode enviar mensagens para administradores.
-                      Faça upgrade para o plano premium para conversar com todos os usuários.
+                      Você pode receber mensagens de qualquer pessoa, mas só
+                      pode enviar mensagens para administradores. Faça upgrade
+                      para o plano premium para conversar com todos os usuários.
                     </p>
                     <Link href="/pricing">
-                      <Button variant="outline" size="sm" className="mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                      >
                         <Crown className="mr-2 h-4 w-4" />
                         Ver Planos Premium
                       </Button>
@@ -161,22 +193,29 @@ export default function Messages() {
                           key={conv.id}
                           onClick={() => setSelectedConversationId(conv.id)}
                           className={`w-full p-4 text-left hover:bg-muted/50 transition-colors ${
-                            selectedConversationId === conv.id ? 'bg-muted' : ''
+                            selectedConversationId === conv.id ? "bg-muted" : ""
                           }`}
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold flex-shrink-0">
-                                  {conv.otherUser.name?.charAt(0) || 'U'}
+                                  {conv.otherUser.name?.charAt(0) || "U"}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
                                     <h4 className="font-semibold truncate">
-                                      {conv.otherUser.name || `Usuário #${conv.otherUser.id}`}
+                                      {conv.otherUser.name ||
+                                        `Usuário #${conv.otherUser.id}`}
                                     </h4>
-                                    {(conv.otherUser as any).role === 'admin' && (
-                                      <Badge variant="secondary" className="text-xs">Admin</Badge>
+                                    {(conv.otherUser as any).role ===
+                                      "admin" && (
+                                      <Badge
+                                        variant="secondary"
+                                        className="text-xs"
+                                      >
+                                        Admin
+                                      </Badge>
                                     )}
                                   </div>
                                   {conv.lastMessage && (
@@ -213,12 +252,14 @@ export default function Messages() {
                   <CardHeader className="border-b">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
-                        {selectedConversation.otherUser.name?.charAt(0) || 'U'}
+                        {selectedConversation.otherUser.name?.charAt(0) || "U"}
                       </div>
                       <div>
                         <CardTitle className="flex items-center gap-2">
-                          {selectedConversation.otherUser.name || `Usu\u00e1rio #${selectedConversation.otherUser.id}`}
-                          {(selectedConversation.otherUser as any).role === 'admin' && (
+                          {selectedConversation.otherUser.name ||
+                            `Usuário #${selectedConversation.otherUser.id}`}
+                          {(selectedConversation.otherUser as any).role ===
+                            "admin" && (
                             <Badge variant="secondary">Admin</Badge>
                           )}
                         </CardTitle>
@@ -241,20 +282,30 @@ export default function Messages() {
                             return (
                               <div
                                 key={msg.id}
-                                className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                                className={`flex ${
+                                  isMe ? "justify-end" : "justify-start"
+                                }`}
                               >
                                 <div
                                   className={`max-w-[70%] rounded-lg p-3 ${
                                     isMe
-                                      ? 'bg-primary text-primary-foreground'
-                                      : 'bg-muted'
+                                      ? "bg-primary text-primary-foreground"
+                                      : "bg-muted"
                                   }`}
                                 >
                                   <p className="text-sm">{msg.content}</p>
-                                  <p className={`text-xs mt-1 ${isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                                    {new Date(msg.createdAt).toLocaleTimeString('pt-BR', {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
+                                  <p
+                                    className={`text-xs mt-1 ${
+                                      isMe
+                                        ? "text-primary-foreground/70"
+                                        : "text-muted-foreground"
+                                    }`}
+                                  >
+                                    {new Date(
+                                      msg.createdAt
+                                    ).toLocaleTimeString("pt-BR", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
                                     })}
                                   </p>
                                 </div>
@@ -277,7 +328,7 @@ export default function Messages() {
                             value={messageText}
                             onChange={(e) => setMessageText(e.target.value)}
                             onKeyPress={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
+                              if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();
                                 handleSendMessage();
                               }
@@ -285,7 +336,9 @@ export default function Messages() {
                           />
                           <Button
                             onClick={handleSendMessage}
-                            disabled={!messageText.trim() || sendMutation.isPending}
+                            disabled={
+                              !messageText.trim() || sendMutation.isPending
+                            }
                           >
                             <Send className="h-4 w-4" />
                           </Button>
@@ -294,7 +347,8 @@ export default function Messages() {
                         <div className="text-center p-4 bg-muted rounded-lg">
                           <Lock className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                           <p className="text-sm text-muted-foreground">
-                            Você não pode enviar mensagens para este usuário no plano gratuito
+                            Você não pode enviar mensagens para este usuário no
+                            plano gratuito
                           </p>
                           <Link href="/pricing">
                             <Button size="sm" className="mt-3">

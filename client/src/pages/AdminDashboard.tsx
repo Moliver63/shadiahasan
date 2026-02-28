@@ -1,125 +1,252 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Users, Calendar, DollarSign, TrendingUp, Activity, BookOpen, PlayCircle, Settings, AlertCircle } from "lucide-react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, PlayCircle, Users, TrendingUp } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AdminDashboard() {
-  const { data: stats, isLoading } = trpc.courses.stats.useQuery();
+  // Buscar dados reais do backend
+  const { data: stats, isLoading: statsLoading } = trpc.admin.getStats.useQuery();
+  const { data: users, isLoading: usersLoading } = trpc.admin.listUsers.useQuery();
+  const { data: appointmentStats, isLoading: appointmentsLoading } = trpc.appointments.getStats.useQuery();
 
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((i) => (
-              <Card key={i}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Carregando...
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-8 w-20 bg-muted animate-pulse rounded"></div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  const isLoading = statsLoading || usersLoading || appointmentsLoading;
 
-  const statsCards = [
-    {
-      title: "Total de Cursos",
-      value: stats?.totalCourses || 0,
-      icon: BookOpen,
-      description: "Cursos cadastrados",
-    },
-    {
-      title: "Total de Aulas",
-      value: stats?.totalLessons || 0,
-      icon: PlayCircle,
-      description: "Aulas disponíveis",
-    },
-    {
-      title: "Matrículas",
-      value: stats?.totalEnrollments || 0,
-      icon: Users,
-      description: "Alunos matriculados",
-    },
-  ];
+  // Calcular métricas
+  const totalUsers = users?.length || 0;
+  const totalAppointments = appointmentStats?.total || 0;
+  const scheduledAppointments = appointmentStats?.scheduled || 0;
+  const completedAppointments = appointmentStats?.completed || 0;
+  const totalCourses = stats?.totalCourses || 0;
+  const totalEnrollments = stats?.totalEnrollments || 0;
+
+  const formatCurrency = (cents: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(cents / 100);
+  };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-2">
-            Visão geral da plataforma de cursos
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Dashboard Administrativo</h1>
+          <p className="text-muted-foreground">
+            Visão geral das métricas e atividades da plataforma Shadia VR
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {statsCards.map((card) => {
-            const Icon = card.icon;
-            return (
-              <Card key={card.title}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {card.title}
-                  </CardTitle>
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{card.value}</div>
+        {/* Métricas principais */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {/* Total de Usuários */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{totalUsers}</div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {card.description}
+                    Usuários registrados na plataforma
                   </p>
-                </CardContent>
-              </Card>
-            );
-          })}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Sessões Agendadas */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Sessões VR</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{totalAppointments}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <span className="text-blue-600 font-medium">{scheduledAppointments}</span> agendadas •{" "}
+                    <span className="text-green-600 font-medium">{completedAppointments}</span> concluídas
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Cursos */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Cursos</CardTitle>
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{totalCourses}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <span className="text-primary font-medium">{totalEnrollments}</span> matrículas ativas
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Engajamento */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Engajamento</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">
+                    {totalUsers > 0 ? Math.round((totalEnrollments / totalUsers) * 100) : 0}%
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Taxa de engajamento em cursos
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Bem-vindo ao Painel Administrativo
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-muted-foreground">
-              Use o menu lateral para navegar entre as diferentes seções do
-              painel administrativo:
-            </p>
-            <ul className="space-y-2 text-sm">
-              <li className="flex items-start gap-2">
-                <BookOpen className="h-4 w-4 mt-0.5 text-primary" />
+        {/* Ações Rápidas */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Ações Rápidas</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Link href="/admin/users">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full hover:border-primary/50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    <CardTitle>Gerenciar Usuários</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Visualizar, editar e gerenciar todos os usuários da plataforma
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <span className="text-sm text-primary hover:underline font-medium">
+                    Acessar gerenciamento →
+                  </span>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/admin/appointments">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full hover:border-primary/50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    <CardTitle>Calendário de Sessões</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Visualizar e gerenciar todas as sessões VR agendadas
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <span className="text-sm text-primary hover:underline font-medium">
+                    Ver calendário →
+                  </span>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/admin/programs">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full hover:border-primary/50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <PlayCircle className="h-5 w-5 text-primary" />
+                    <CardTitle>Programas VR</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Gerenciar programas e experiências de realidade virtual
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <span className="text-sm text-primary hover:underline font-medium">
+                    Ver programas →
+                  </span>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/admin/financeiro">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full hover:border-primary/50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                    <CardTitle>Relatórios Financeiros</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Acompanhar receitas, assinaturas e transações
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <span className="text-sm text-primary hover:underline font-medium">
+                    Ver relatórios →
+                  </span>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/admin/courses">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full hover:border-primary/50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-primary" />
+                    <CardTitle>Cursos Educacionais</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Criar e editar cursos e conteúdo educacional
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <span className="text-sm text-primary hover:underline font-medium">
+                    Acessar cursos →
+                  </span>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+        </div>
+
+        {/* Alerta sobre Stripe */}
+        {!isLoading && (
+          <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-500 mt-0.5" />
                 <div>
-                  <strong>Cursos:</strong> Gerencie todos os cursos da
-                  plataforma, crie novos cursos e edite informações existentes.
+                  <p className="text-sm font-medium mb-1 text-amber-900 dark:text-amber-100">
+                    Configuração do Stripe Pendente
+                  </p>
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    Para processar pagamentos, adicione os Price IDs do Stripe em{" "}
+                    <code className="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded text-xs">
+                      shared/stripe-config.ts
+                    </code>
+                    {" "}e configure a Secret Key nas configurações.
+                  </p>
                 </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <PlayCircle className="h-4 w-4 mt-0.5 text-primary" />
-                <div>
-                  <strong>Aulas:</strong> Adicione e organize aulas dentro dos
-                  cursos, faça upload de vídeos e configure conteúdo.
-                </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <Users className="h-4 w-4 mt-0.5 text-primary" />
-                <div>
-                  <strong>Alunos:</strong> Visualize estatísticas de alunos e
-                  matrículas na plataforma.
-                </div>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );

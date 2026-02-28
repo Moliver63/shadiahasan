@@ -96,10 +96,8 @@ export default function CookieConsent() {
                   Utilizamos cookies para melhorar sua experiência, personalizar conteúdo e analisar o tráfego do site. 
                   Cookies essenciais são necessários para o funcionamento básico da plataforma. 
                   Você pode escolher quais categorias aceitar ou{" "}
-                  <Link href="/privacy">
-                    <a className="text-purple-600 hover:underline font-medium">
-                      ler nossa Política de Privacidade
-                    </a>
+                  <Link href="/privacy" className="text-purple-600 hover:underline font-medium">
+                    ler nossa Política de Privacidade
                   </Link>
                   .
                 </p>

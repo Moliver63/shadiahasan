@@ -29,9 +29,7 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
     user,
     req: {
       protocol: "https",
-      headers: {
-        "x-forwarded-proto": "https",
-      },
+      headers: {},
     } as TrpcContext["req"],
     res: {
       clearCookie: (name: string, options: Record<string, unknown>) => {
@@ -45,28 +43,20 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
 
 describe("auth.logout", () => {
   it("clears the session cookie and reports success", async () => {
-    const prev = process.env.AUTH_COOKIE_SAMESITE;
-    process.env.AUTH_COOKIE_SAMESITE = "none";
+    const { ctx, clearedCookies } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
 
-    try {
-      const { ctx, clearedCookies } = createAuthContext();
-      const caller = appRouter.createCaller(ctx);
+    const result = await caller.auth.logout();
 
-      const result = await caller.auth.logout();
-
-      expect(result).toEqual({ success: true });
-      expect(clearedCookies).toHaveLength(1);
-      expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
-      expect(clearedCookies[0]?.options).toMatchObject({
-        maxAge: -1,
-        secure: true,
-        sameSite: "none",
-        httpOnly: true,
-        path: "/",
-      });
-    } finally {
-      if (prev === undefined) delete process.env.AUTH_COOKIE_SAMESITE;
-      else process.env.AUTH_COOKIE_SAMESITE = prev;
-    }
+    expect(result).toEqual({ success: true });
+    expect(clearedCookies).toHaveLength(1);
+    expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
+    expect(clearedCookies[0]?.options).toMatchObject({
+      maxAge: -1,
+      secure: true,
+      sameSite: "none",
+      httpOnly: true,
+      path: "/",
+    });
   });
 });

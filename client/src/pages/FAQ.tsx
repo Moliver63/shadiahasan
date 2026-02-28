@@ -126,20 +126,23 @@ export default function FAQ() {
         <div className="container py-4 flex items-center justify-between">
           <Link href="/">
             <img 
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/KQbMXrKxSjIsEkev.png" 
+              src="/logo.png" 
               alt="Shadia Hasan" 
               className="h-36 w-auto"
             />
           </Link>
           <nav className="flex items-center gap-4">
             <Link href="/courses">
-              <Button variant="ghost">Cursos</Button>
-            </Link>
-            <Link href="/pricing">
-              <Button variant="ghost">Planos</Button>
+              <Button variant="ghost">Programas</Button>
             </Link>
             <Link href="/about">
               <Button variant="ghost">Sobre</Button>
+            </Link>
+            <Link href="/contact">
+              <Button variant="ghost">Contato</Button>
+            </Link>
+            <Link href="/community/explore">
+              <Button variant="ghost">Comunidade</Button>
             </Link>
             {isAuthenticated ? (
                 <UserMenu />

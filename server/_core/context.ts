@@ -16,7 +16,10 @@ export async function createContext(
   try {
     user = await sdk.authenticateRequest(opts.req);
   } catch (error) {
-    // Authentication is optional for public procedures.
+    // FIX: autenticação é opcional para rotas públicas — não re-lança o erro.
+    // O sdk.authenticateRequest lança ForbiddenError quando não há sessão válida,
+    // o que é comportamento esperado para visitantes não autenticados.
+    // Procedures protegidas devem verificar ctx.user e lançar erro elas mesmas.
     user = null;
   }
 

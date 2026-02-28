@@ -1,6 +1,23 @@
+import { Link } from "wouter";
+
 export default function Privacy() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-purple-100">
+      {/* Header */}
+      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/">
+            <img 
+              src="/logo.png" 
+              alt="Shadia Hasan" 
+              className="h-36 w-auto cursor-pointer"
+            />
+          </Link>
+          <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
+            Voltar para Home
+          </Link>
+        </div>
+      </header>
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8 md:p-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Política de Privacidade</h1>

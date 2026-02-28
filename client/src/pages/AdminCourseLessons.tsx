@@ -17,6 +17,8 @@ import { Plus, Edit, Trash2, ArrowLeft, Eye, EyeOff, PlayCircle } from "lucide-r
 import { useState } from "react";
 import { toast } from "sonner";
 import { Link, useParams } from "wouter";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
 export default function AdminCourseLessons() {
   const params = useParams();
@@ -139,6 +141,15 @@ export default function AdminCourseLessons() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {course && (
+          <Breadcrumbs 
+            items={getBreadcrumbs(`/admin/courses/${courseId}/lessons`, { 
+              courseId: courseId.toString(),
+              courseTitle: course.title
+            })} 
+          />
+        )}
+
         <div>
           <Link href="/admin/courses">
             <Button variant="ghost" size="sm" className="mb-4">

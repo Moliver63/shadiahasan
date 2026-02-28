@@ -5,6 +5,8 @@ import { trpc } from "@/lib/trpc";
 import { BookOpen, PlayCircle, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
 export default function MyCourses() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -13,14 +15,17 @@ export default function MyCourses() {
       enabled: isAuthenticated,
     });
 
-  // Fetch course details for each enrollment
-  const enrolledCourses = enrollments?.map((enrollment) => {
-    const { data: course } = trpc.courses.getById.useQuery({
-      id: enrollment.courseId,
-    });
-    return { ...enrollment, course };
-  });
+  // Busca todos os cursos matriculados de uma vez (evita hook dentro de .map)
+  const courseIds = enrollments?.map((e) => e.courseId) ?? [];
+  const { data: coursesData } = trpc.courses.getByIds.useQuery(
+    { ids: courseIds },
+    { enabled: courseIds.length > 0 }
+  );
 
+  // Monta mapa id -> curso para acesso rápido
+  const courseMap = new Map(coursesData?.map((c) => [c.id, c]) ?? []);
+
+  // Aguarda estado de autenticação ser resolvido antes de redirecionar
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -43,10 +48,10 @@ export default function MyCourses() {
       <header className="border-b bg-card">
         <div className="container py-4 flex items-center justify-between">
           <Link href="/">
-            <img 
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/KQbMXrKxSjIsEkev.png" 
-              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano" 
-              className="h-12 w-auto"
+            <img
+              src="/logo.png"
+              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano"
+              className="h-36 w-auto"
             />
           </Link>
           <nav className="flex items-center gap-4">
@@ -61,6 +66,8 @@ export default function MyCourses() {
       </header>
 
       <div className="container py-12">
+        <Breadcrumbs items={getBreadcrumbs("/my-courses")} />
+
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Meus Cursos</h1>
           <p className="text-lg text-muted-foreground">
@@ -82,10 +89,10 @@ export default function MyCourses() {
               </Card>
             ))}
           </div>
-        ) : enrolledCourses && enrolledCourses.length > 0 ? (
+        ) : enrollments && enrollments.length > 0 ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {enrolledCourses.map((enrollment) => {
-              const course = enrollment.course;
+            {enrollments.map((enrollment) => {
+              const course = courseMap.get(enrollment.courseId);
               if (!course) return null;
 
               return (
@@ -103,9 +110,7 @@ export default function MyCourses() {
                         />
                       </div>
                     )}
-                    <CardTitle className="line-clamp-2">
-                      {course.title}
-                    </CardTitle>
+                    <CardTitle className="line-clamp-2">{course.title}</CardTitle>
                     {course.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
                         {course.description}
@@ -117,9 +122,7 @@ export default function MyCourses() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Progresso</span>
-                        <span className="font-medium">
-                          {enrollment.progress}%
-                        </span>
+                        <span className="font-medium">{enrollment.progress}%</span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div

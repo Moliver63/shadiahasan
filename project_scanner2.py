@@ -1,172 +1,175 @@
-import os
+#!/usr/bin/env python3
+"""
+project_scanner2.py (v3)
+Scans the repository for structure, risky patterns, and deployment footguns.
+Outputs a JSON + TXT report under reports/.
+
+Usage:
+  python project_scanner2.py --help
+"""
+
+from __future__ import annotations
+
+import argparse
 import re
+from dataclasses import asdict
 from pathlib import Path
+from typing import Dict, List, Set, Tuple
+
+from common import (
+    Finding, ensure_reports_dir, findings_summary, hr, log, now_iso,
+    safe_rel, write_json, write_text, exit_for_strict,
+)
 
 ROOT = Path(".").resolve()
 
-IGNORE_DIRS = {
+DEFAULT_IGNORE_DIRS: Set[str] = {
     "node_modules", ".git", "dist", "build", ".next", ".cache", ".turbo",
-    ".vercel", ".output", "coverage", "tmp", "temp", ".pytest_cache"
+    ".vercel", ".output", "coverage", "tmp", "temp", ".pytest_cache", "reports"
 }
-IGNORE_FILES_SUFFIX = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".zip", ".mp4", ".mov", ".log"}
+IGNORE_FILES_SUFFIX = {".png",".jpg",".jpeg",".gif",".webp",".ico",".pdf",".zip",".mp4",".mov",".log"}
 
-TEXT_EXT = {".js", ".ts", ".tsx", ".jsx", ".json", ".env", ".mjs", ".cjs", ".yaml", ".yml", ".md"}
+TEXT_EXT = {".js",".ts",".tsx",".jsx",".json",".mjs",".cjs",".env",".md",".yml",".yaml",".toml",".py"}
 
-def should_ignore_dir(dir_name: str) -> bool:
-    return dir_name in IGNORE_DIRS
+RE_LOCALHOST = re.compile(r"\b(localhost|127\.0\.0\.1)\b", re.IGNORECASE)
+RE_PORT_HARDCODE = re.compile(r"\b(3000|3001|5173|8080)\b")
 
-def should_ignore_file(path: Path) -> bool:
-    if path.suffix.lower() in IGNORE_FILES_SUFFIX:
-        return True
-    # ignora arquivos gigantes (ex: bundles) acima de 3MB
-    try:
-        if path.stat().st_size > 3 * 1024 * 1024:
-            return True
-    except:
-        return True
-    return False
-
-def is_text_candidate(path: Path) -> bool:
-    if path.suffix.lower() in TEXT_EXT:
-        return True
-    # permite ler arquivos sem extensão comuns
-    if path.name in {"Dockerfile", "Procfile"}:
-        return True
-    return False
-
-def read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except:
-        return ""
-
-files = []
-for root, dirs, fs in os.walk(ROOT):
-    # filtra dirs ignoradas
-    dirs[:] = [d for d in dirs if not should_ignore_dir(d)]
-    for f in fs:
-        p = Path(root) / f
-        if should_ignore_file(p):
+def iter_files(root: Path, ignore_dirs: Set[str]) -> List[Path]:
+    out: List[Path] = []
+    for p in root.rglob("*"):
+        if p.is_dir():
             continue
-        if is_text_candidate(p):
-            files.append(p)
+        if any(part in ignore_dirs for part in p.parts):
+            continue
+        if p.suffix.lower() in IGNORE_FILES_SUFFIX:
+            continue
+        if p.suffix.lower() not in TEXT_EXT and p.name not in {"package.json","pnpm-lock.yaml","yarn.lock","package-lock.json"}:
+            continue
+        out.append(p)
+    return out
 
-print(f"\n📂 Arquivos de texto analisáveis (sem node_modules/dist/etc): {len(files)}\n")
+def detect_structure() -> Dict[str, bool]:
+    return {
+        "has_client_dir": (ROOT / "client").is_dir(),
+        "has_server_dir": (ROOT / "server").is_dir(),
+        "has_src_dir": (ROOT / "src").is_dir(),
+        "has_package_json": (ROOT / "package.json").exists(),
+        "has_vite": (ROOT / "vite.config.ts").exists() or (ROOT / "vite.config.js").exists(),
+        "has_render_yaml": (ROOT / "render.yaml").exists(),
+        "has_procfile": (ROOT / "Procfile").exists(),
+    }
 
-# --- Encontrar package.json principais
-pkg_files = [p for p in files if p.name == "package.json"]
-print("📦 package.json encontrados:")
-for p in pkg_files[:30]:
-    print(" -", p.relative_to(ROOT))
-if len(pkg_files) > 30:
-    print(f" ... +{len(pkg_files)-30} outros")
-
-def find_patterns(patterns, label):
-    hits = []
-    for p in files:
-        txt = read_text(p)
-        for pat in patterns:
-            if re.search(pat, txt, flags=re.IGNORECASE):
-                hits.append((p, pat))
-                break
-    if hits:
-        print(f"\n✅ {label}: {len(hits)} arquivo(s)")
-        for p, _ in hits[:25]:
-            print(" -", p.relative_to(ROOT))
-        if len(hits) > 25:
-            print(f" ... +{len(hits)-25} outros")
-    else:
-        print(f"\n❌ {label}: nenhum encontrado")
+def scan_patterns(files: List[Path]) -> Dict[str, List[Dict]]:
+    hits = {
+        "localhost": [],
+        "hardcoded_ports": [],
+    }
+    for fp in files:
+        try:
+            txt = fp.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        for m in RE_LOCALHOST.finditer(txt):
+            line = txt.count("\n", 0, m.start()) + 1
+            hits["localhost"].append({"file": safe_rel(fp), "line": line, "match": m.group(0)})
+        for m in RE_PORT_HARDCODE.finditer(txt):
+            line = txt.count("\n", 0, m.start()) + 1
+            hits["hardcoded_ports"].append({"file": safe_rel(fp), "line": line, "match": m.group(0)})
     return hits
 
-# --- Checks de AUTH/DEPLOY (os que mais quebram login no Render)
-hits_trust_proxy = find_patterns(
-    [r"app\.set\(\s*['\"]trust proxy['\"]\s*,\s*1\s*\)"],
-    "Express trust proxy (necessário no Render p/ cookies/sessão)"
-)
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Project scanner (structure + risky patterns).")
+    ap.add_argument("--reports-dir", default="reports", help="Where to write reports/")
+    ap.add_argument("--strict", action="store_true", help="Exit non-zero if critical fails are found.")
+    ap.add_argument("--json", action="store_true", help="Also print JSON to stdout.")
+    ap.add_argument("--ignore-dir", action="append", default=[], help="Additional dir names to ignore (repeatable).")
+    args = ap.parse_args()
 
-hits_cookie_secure = find_patterns(
-    [r"sameSite\s*:\s*['\"]none['\"]", r"secure\s*:\s*true", r"cookie\s*:\s*\{"],
-    "Config de cookie (secure/sameSite/httpOnly)"
-)
+    ignore_dirs = set(DEFAULT_IGNORE_DIRS) | set(args.ignore_dir)
 
-hits_cors = find_patterns(
-    [r"cors\(", r"Access-Control-Allow-Origin", r"origin\s*:"],
-    "CORS configurado"
-)
+    log("step", "Passo 1: varrer estrutura do projeto")
+    structure = detect_structure()
+    if not structure["has_package_json"]:
+        log("fail", "package.json não encontrado na raiz. Este toolkit assume Node/JS na raiz.")
+    else:
+        log("ok", "package.json encontrado.")
 
-hits_jwt = find_patterns(
-    [r"JWT_SECRET", r"jwt\.sign\(", r"jsonwebtoken", r"SESSION_SECRET"],
-    "JWT/Session secret"
-)
+    files = iter_files(ROOT, ignore_dirs)
+    log("info", f"Arquivos de texto analisados: {len(files)}")
 
-hits_dotenv = find_patterns(
-    [r"dotenv", r"config\(\)"],
-    "dotenv carregado"
-)
+    log("step", "Passo 2: procurar padrões perigosos (localhost/portas hardcoded)")
+    hits = scan_patterns(files)
 
-hits_port = find_patterns(
-    [r"process\.env\.PORT", r"listen\(\s*process\.env\.PORT", r"PORT\s*\|\|"],
-    "Uso correto de PORT (Render exige process.env.PORT)"
-)
+    findings: List[Finding] = []
 
-hits_localhost = find_patterns(
-    [r"localhost:3000", r"localhost:5173", r"http://localhost", r"https?://127\.0\.0\.1"],
-    "URLs hardcoded de localhost (quebram em produção)"
-)
+    # localhost
+    if hits["localhost"]:
+        findings.append(Finding(
+            level="warn",
+            code="LOCALHOST_HARDCODE",
+            message="Encontradas referências a localhost/127.0.0.1. Para deploy, use variáveis de ambiente.",
+            details={"count": len(hits["localhost"]), "samples": hits["localhost"][:25]},
+        ))
+        log("warn", f"localhost/127.0.0.1 encontrados: {len(hits['localhost'])}")
+    else:
+        findings.append(Finding(level="ok", code="NO_LOCALHOST", message="Nenhum localhost hardcoded encontrado.", details={}))
+        log("ok", "Nenhum localhost hardcoded.")
 
-hits_credentials_include = find_patterns(
-    [r"credentials\s*:\s*['\"]include['\"]", r"withCredentials\s*:\s*true"],
-    "Frontend enviando cookies (credentials/include ou axios withCredentials)"
-)
+    # hardcoded ports
+    if hits["hardcoded_ports"]:
+        findings.append(Finding(
+            level="warn",
+            code="HARDCODED_PORTS",
+            message="Possíveis portas hardcoded detectadas. Preferir process.env.PORT / VITE_*.",
+            details={"count": len(hits["hardcoded_ports"]), "samples": hits["hardcoded_ports"][:25]},
+        ))
+        log("warn", f"Possíveis portas hardcoded: {len(hits['hardcoded_ports'])}")
+    else:
+        findings.append(Finding(level="ok", code="NO_HARDCODED_PORTS", message="Nenhuma porta hardcoded óbvia encontrada.", details={}))
+        log("ok", "Nenhuma porta hardcoded óbvia.")
 
-# --- Sugestão de arquivos para ajustar (prioridade)
-to_fix = []
+    # render config presence (not mandatory, but recommended)
+    if structure["has_render_yaml"] or structure["has_procfile"]:
+        findings.append(Finding(level="ok", code="HAS_RENDER_CONFIG", message="Config de deploy (render.yaml/Procfile) encontrada.", details=structure))
+        log("ok", "render.yaml/Procfile encontrado.")
+    else:
+        findings.append(Finding(level="warn", code="MISSING_RENDER_CONFIG", message="Sem render.yaml/Procfile. Recomendado adicionar para deploy consistente.", details=structure))
+        log("warn", "Sem render.yaml/Procfile (recomendado).")
 
-if not hits_trust_proxy:
-    to_fix.append("Adicionar app.set('trust proxy', 1) no arquivo principal do servidor (server.js/index.js).")
+    report = {
+        "tool": "project_scanner2.py",
+        "version": "v3",
+        "generated_at": now_iso(),
+        "structure": structure,
+        "hits": hits,
+        "findings": [asdict(f) for f in findings],
+        "summary": findings_summary(findings),
+    }
 
-if not hits_port:
-    to_fix.append("Garantir que o server usa process.env.PORT no listen().")
+    reports_dir = ensure_reports_dir(Path(args.reports_dir))
+    write_json(reports_dir / "project-scan.json", report)
 
-if not hits_jwt:
-    to_fix.append("Verificar JWT_SECRET/SESSION_SECRET: se não existir, login pode falhar com 500/401.")
+    txt_lines = []
+    txt_lines.append("PROJECT SCAN REPORT\n")
+    txt_lines.append(f"Generated: {report['generated_at']}\n")
+    txt_lines.append("\nStructure:\n")
+    for k,v in structure.items():
+        txt_lines.append(f"  - {k}: {v}\n")
+    txt_lines.append("\nFindings:\n")
+    for f in findings:
+        txt_lines.append(f"  [{f.level.upper()}] {f.code} - {f.message}\n")
+    txt_lines.append("\nTips:\n")
+    txt_lines.append("  - Substitua URLs hardcoded por env vars (SITE_URL, API_URL, VITE_API_URL, etc.).\n")
+    txt_lines.append("  - No Render, garanta que o backend use process.env.PORT.\n")
 
-if hits_localhost:
-    to_fix.append("Remover localhost hardcoded (API_URL) e usar variável de ambiente/URL relativa.")
+    write_text(reports_dir / "project-scan.txt", "".join(txt_lines))
 
-if not hits_credentials_include:
-    to_fix.append("No frontend: fetch/axios precisa enviar cookies (credentials:'include' ou withCredentials:true), se auth usa cookie.")
+    if args.json:
+        import json
+        print(json.dumps(report, ensure_ascii=False, indent=2))
 
-print("\n==============================")
-print("🎯 AÇÕES RECOMENDADAS (prioridade):")
-if to_fix:
-    for i, item in enumerate(to_fix, 1):
-        print(f"{i}. {item}")
-else:
-    print("Nenhuma ação óbvia detectada — precisamos olhar logs/erros específicos do login.")
-print("==============================\n")
+    exit_for_strict(findings, args.strict)
+    log("ok", "Project scan concluído. Veja reports/project-scan.*")
 
-# --- Salvar relatório
-report_path = ROOT / "RELATORIO_PROJETO_2.txt"
-with open(report_path, "w", encoding="utf-8") as f:
-    f.write(f"Arquivos analisados: {len(files)}\n\n")
-    for line in [
-        ("trust_proxy", hits_trust_proxy),
-        ("cookie_secure_samesite", hits_cookie_secure),
-        ("cors", hits_cors),
-        ("jwt_session", hits_jwt),
-        ("dotenv", hits_dotenv),
-        ("port", hits_port),
-        ("localhost", hits_localhost),
-        ("credentials_include", hits_credentials_include),
-    ]:
-        name, hits = line
-        f.write(f"\n## {name} ({len(hits)})\n")
-        for p, pat in hits:
-            f.write(f"- {p.relative_to(ROOT)} | {pat}\n")
-    f.write("\n\nAÇÕES RECOMENDADAS:\n")
-    for item in to_fix:
-        f.write(f"- {item}\n")
-
-print(f"📄 Relatório salvo em: {report_path.name}")
+if __name__ == "__main__":
+    main()

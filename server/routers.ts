@@ -1,7 +1,10 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import { adminRouter } from "./routers/admin";
+import { subscriptionsRouter } from "./routers/subscriptions";
+import { referralsRouter } from "./routers/referrals";
+import { publicProcedure, router, protectedProcedure, superAdminProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "./db";
@@ -55,11 +58,17 @@ export const appRouter = router({
         try {
           const user = await db.loginUser(input.email, input.password);
           
-          // Set session cookie (reuse existing Manus OAuth cookie logic)
+          // Set session cookie with user data
           const cookieOptions = getSessionCookieOptions(ctx.req);
-          ctx.res.cookie(COOKIE_NAME, JSON.stringify(user), cookieOptions);
+          const userData = {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          };
+          ctx.res.cookie(COOKIE_NAME, JSON.stringify(userData), cookieOptions);
           
-          return { success: true, user };
+          return { success: true, user: userData };
         } catch (error) {
           throw new TRPCError({
             code: 'UNAUTHORIZED',
@@ -111,6 +120,42 @@ export const appRouter = router({
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message: error instanceof Error ? error.message : 'Password reset failed',
+          });
+        }
+      }),
+    
+    // Update own email (protected)
+    updateOwnEmail: protectedProcedure
+      .input(z.object({
+        newEmail: z.string().email(),
+        currentPassword: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const result = await db.updateOwnEmail(ctx.user.id, input.newEmail, input.currentPassword);
+          return result;
+        } catch (error) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: error instanceof Error ? error.message : 'Email update failed',
+          });
+        }
+      }),
+    
+    // Update own password (protected)
+    updateOwnPassword: protectedProcedure
+      .input(z.object({
+        currentPassword: z.string(),
+        newPassword: z.string().min(8),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const result = await db.updateOwnPassword(ctx.user.id, input.currentPassword, input.newPassword);
+          return result;
+        } catch (error) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: error instanceof Error ? error.message : 'Password update failed',
           });
         }
       }),
@@ -268,20 +313,75 @@ export const appRouter = router({
       return await db.getUserSubscription(ctx.user.id);
     }),
     
-    createCheckoutSession: protectedProcedure
-      .input(z.object({ planSlug: z.string() }))
+    createCheckout: protectedProcedure
+      .input(z.object({ planSlug: z.enum(["basic", "premium", "vip"]) }))
       .mutation(async ({ input, ctx }) => {
-        const plan = await db.getPlanBySlug(input.planSlug);
-        if (!plan || !plan.stripePriceId) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
-        }
+        const { createCheckoutSession, isStripeConfigured } = await import('./stripe');
+        const { getStripePriceId, isPlanStripeConfigured } = await import('../shared/stripe-config');
         
-        // TODO: Implement Stripe checkout session creation
-        // For now, return a placeholder
+        if (!isStripeConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Stripe não está configurado. Entre em contato com o suporte.",
+          });
+        }
+
+        const priceId = getStripePriceId(input.planSlug);
+        
+        if (!priceId || !isPlanStripeConfigured(input.planSlug)) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Plano ${input.planSlug} não está configurado no Stripe. Entre em contato com o suporte.`,
+          });
+        }
+
+        const origin = ctx.req.headers.origin || 'https://shadia-vr-platform.manus.space';
+        
+        const session = await createCheckoutSession({
+          priceId,
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          userName: ctx.user.name || undefined,
+          successUrl: origin + "/checkout/success?session_id={CHECKOUT_SESSION_ID}",
+          cancelUrl: `${origin}/pricing`,
+          metadata: {
+            plan_slug: input.planSlug,
+          },
+        });
+
         return {
-          url: `https://checkout.stripe.com/placeholder?plan=${plan.slug}`,
+          sessionId: session.id,
+          url: session.url,
         };
       }),
+    
+    getPortalUrl: protectedProcedure.mutation(async ({ ctx }) => {
+      const { createCustomerPortalSession, isStripeConfigured } = await import('./stripe');
+      
+      if (!isStripeConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Stripe não está configurado.",
+        });
+      }
+
+      const subscription = await db.getSubscriptionByUserId(ctx.user.id);
+      
+      if (!subscription?.stripeCustomerId) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Você ainda não possui uma assinatura ativa.",
+        });
+      }
+
+      const origin = ctx.req.headers.origin || 'https://shadia-vr-platform.manus.space';
+      const portalUrl = await createCustomerPortalSession(
+        subscription.stripeCustomerId,
+        `${origin}/dashboard`
+      );
+
+      return { url: portalUrl };
+    }),
   }),
 
   enrollments: router({
@@ -692,6 +792,87 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         return await db.updateUserPassword(input.userId, input.password);
       }),
+    
+    // Update user plan
+    updateUserPlan: adminProcedure
+      .input(z.object({
+        userId: z.number(),
+        plan: z.enum(['free', 'premium']),
+      }))
+      .mutation(async ({ input }) => {
+        return await db.updateUserData(input.userId, { plan: input.plan });
+      }),
+
+    // Update user role — any admin can promote/demote regular users
+    // Superadmin promotion still requires superAdminProcedure (promoteToAdmin)
+    updateUserRole: adminProcedure
+      .input(z.object({
+        userId: z.number(),
+        role: z.enum(['user', 'admin']),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // Prevent self-modification
+        if (input.userId === ctx.user.id) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Você não pode alterar seu próprio role.' });
+        }
+        // Prevent demoting superadmins (only superadmin can do that)
+        const target = await db.getUserById(input.userId);
+        if (target?.role === 'superadmin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Apenas superadmins podem alterar o role de outros superadmins.' });
+        }
+        await db.updateUserRole(input.userId, input.role);
+        return { success: true };
+      }),
+    
+    // List all admins and superadmins
+    listAdmins: superAdminProcedure.query(async () => {
+      return await db.listAllAdminsAndSuperAdmins();
+    }),
+    
+    // Promote user to admin
+    promoteToAdmin: superAdminProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const ip = ctx.req.headers['x-forwarded-for'] as string || ctx.req.socket.remoteAddress;
+        const userAgent = ctx.req.headers['user-agent'];
+        
+        await db.promoteToAdmin(input.userId, ctx.user.id, ip, userAgent);
+        return { success: true };
+      }),
+    
+    // Demote admin to user
+    demoteFromAdmin: superAdminProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        // Prevent self-demotion
+        if (input.userId === ctx.user.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Cannot demote yourself' });
+        }
+        
+        const ip = ctx.req.headers['x-forwarded-for'] as string || ctx.req.socket.remoteAddress;
+        const userAgent = ctx.req.headers['user-agent'];
+        
+        await db.demoteFromAdmin(input.userId, ctx.user.id, ip, userAgent);
+        return { success: true };
+      }),
+    
+    // Promote admin to superadmin
+    promoteToSuperAdmin: superAdminProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const ip = ctx.req.headers['x-forwarded-for'] as string || ctx.req.socket.remoteAddress;
+        const userAgent = ctx.req.headers['user-agent'];
+        
+        await db.promoteToSuperAdmin(input.userId, ctx.user.id, ip, userAgent);
+        return { success: true };
+      }),
+    
+    // Get admin audit logs
+    getAuditLogs: superAdminProcedure
+      .input(z.object({ limit: z.number().optional().default(100) }))
+      .query(async ({ input }) => {
+        return await db.getAdminAuditLogs(input.limit);
+      }),
   }),
 
   // Plans management (admin only)
@@ -815,6 +996,156 @@ Seja breve e direta nas respostas (m\u00e1ximo 3-4 linhas por mensagem).`;
         };
       }),
   }),
+
+  // Appointments management (admin)
+  appointments: router({
+    // List all appointments
+    listAll: adminProcedure
+      .input(z.object({
+        status: z.enum(['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show']).optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        const { db: database } = await import('./db');
+        const { appointments } = await import('../drizzle/schema');
+        const { eq, and, gte, lte } = await import('drizzle-orm');
+        
+        let query = database.select().from(appointments);
+        const conditions = [];
+        
+        if (input?.status) {
+          conditions.push(eq(appointments.status, input.status));
+        }
+        if (input?.startDate) {
+          conditions.push(gte(appointments.startTime, new Date(input.startDate)));
+        }
+        if (input?.endDate) {
+          conditions.push(lte(appointments.startTime, new Date(input.endDate)));
+        }
+        
+        if (conditions.length > 0) {
+          query = query.where(and(...conditions));
+        }
+        
+        return await query.orderBy(appointments.startTime);
+      }),
+    
+    // Get appointment by ID
+    getById: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const { db: database } = await import('./db');
+        const { appointments } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        
+        const result = await database.select().from(appointments).where(eq(appointments.id, input.id));
+        return result[0] || null;
+      }),
+    
+    // Create appointment
+    create: adminProcedure
+      .input(z.object({
+        userId: z.number(),
+        title: z.string(),
+        description: z.string().optional(),
+        programType: z.string().optional(),
+        startTime: z.string(),
+        endTime: z.string(),
+        duration: z.number(),
+        location: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { db: database } = await import('./db');
+        const { appointments } = await import('../drizzle/schema');
+        
+        const result = await database.insert(appointments).values({
+          ...input,
+          startTime: new Date(input.startTime),
+          endTime: new Date(input.endTime),
+          status: 'scheduled',
+        });
+        
+        return { success: true, id: result[0].insertId };
+      }),
+    
+    // Update appointment
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        programType: z.string().optional(),
+        startTime: z.string().optional(),
+        endTime: z.string().optional(),
+        duration: z.number().optional(),
+        status: z.enum(['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show']).optional(),
+        location: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { db: database } = await import('./db');
+        const { appointments } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        
+        const { id, ...updates } = input;
+        const updateData: any = { ...updates };
+        
+        if (updates.startTime) {
+          updateData.startTime = new Date(updates.startTime);
+        }
+        if (updates.endTime) {
+          updateData.endTime = new Date(updates.endTime);
+        }
+        
+        await database.update(appointments).set(updateData).where(eq(appointments.id, id));
+        return { success: true };
+      }),
+    
+    // Delete appointment
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const { db: database } = await import('./db');
+        const { appointments } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        
+        await database.delete(appointments).where(eq(appointments.id, input.id));
+        return { success: true };
+      }),
+    
+    // Get statistics
+    getStats: adminProcedure.query(async () => {
+      const { db: database } = await import('./db');
+      const { appointments } = await import('../drizzle/schema');
+      const { eq, count, and, gte } = await import('drizzle-orm');
+      
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      const allAppointments = await database.select().from(appointments);
+      const recentAppointments = allAppointments.filter(a => new Date(a.createdAt) >= thirtyDaysAgo);
+      
+      return {
+        total: allAppointments.length,
+        scheduled: allAppointments.filter(a => a.status === 'scheduled').length,
+        confirmed: allAppointments.filter(a => a.status === 'confirmed').length,
+        completed: allAppointments.filter(a => a.status === 'completed').length,
+        cancelled: allAppointments.filter(a => a.status === 'cancelled').length,
+        recentCount: recentAppointments.length,
+      };
+    }),
+  }),
+
+  // Admin management router
+  adminManagement: adminRouter,
+  
+  // Subscriptions management router
+  subscriptionManagement: subscriptionsRouter,
+  
+  // Referrals system router
+  referrals: referralsRouter,
 });
 
 export type AppRouter = typeof appRouter;

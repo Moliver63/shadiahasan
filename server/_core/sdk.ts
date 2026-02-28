@@ -201,8 +201,7 @@ class SDKServer {
     cookieValue: string | undefined | null
   ): Promise<{ openId: string; appId: string; name: string } | null> {
     if (!cookieValue) {
-      console.warn("[Auth] Missing session cookie");
-      return null;
+      return null; // Cookie ausente — rota pública, comportamento normal
     }
 
     try {
@@ -260,6 +259,24 @@ class SDKServer {
     // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
+    
+    // Try to parse as JSON first (custom email/password login)
+    if (sessionCookie) {
+      try {
+        const parsed = JSON.parse(sessionCookie);
+        if (parsed.id && parsed.email) {
+          // Custom email/password session
+          const user = await db.getUserById(parsed.id);
+          if (user && user.email === parsed.email) {
+            return user;
+          }
+        }
+      } catch (e) {
+        // Not JSON, try JWT verification below
+      }
+    }
+    
+    // Try JWT verification (Manus OAuth)
     const session = await this.verifySession(sessionCookie);
 
     if (!session) {

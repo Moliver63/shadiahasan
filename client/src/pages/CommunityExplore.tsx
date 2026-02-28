@@ -14,6 +14,9 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useEffect } from "react";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
 export default function CommunityExplore() {
   const { user } = useAuth();
@@ -22,11 +25,7 @@ export default function CommunityExplore() {
   const { data: myProfile } = trpc.profiles.getMyProfile.useQuery();
   const sendRequestMutation = trpc.community.sendRequest.useMutation();
 
-  // Controle de acesso
-  if (!user) {
-    navigate("/");
-    return null;
-  }
+  // Página acessível a todos - usuários não logados verão CTA para login
 
   const handleConnect = async (userId: number, userName: string) => {
     try {
@@ -76,6 +75,8 @@ export default function CommunityExplore() {
 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
+          <Breadcrumbs items={getBreadcrumbs('/community/explore')} />
+
           {/* Cabeçalho */}
           <div className="text-center space-y-4">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 rounded-full text-purple-700 text-sm font-medium">

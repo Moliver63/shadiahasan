@@ -1,6 +1,6 @@
-import { eq, ne, or } from "drizzle-orm";
+import { eq, ne, or, and, gte, desc, isNull, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, subscriptions, paymentHistory, referrals, pointsTransactions, cashbackRequests, adminAuditLogs, adminInvites } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -117,7 +117,7 @@ export async function getUserByOpenId(openId: string) {
 }
 
 import { courses, courseModules, lessons, enrollments, Course, CourseModule, Lesson, Enrollment, InsertCourse, InsertCourseModule, InsertLesson, InsertEnrollment } from "../drizzle/schema";
-import { desc, and, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 // ============ COURSES ============
 
@@ -1008,6 +1008,63 @@ export async function updateUserPassword(userId: number, newPassword: string) {
   return { success: true };
 }
 
+// Update own email (requires current password verification)
+export async function updateOwnEmail(userId: number, newEmail: string, currentPassword: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get user
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) throw new Error("User not found");
+  
+  // Verify current password
+  const bcrypt = await import('bcryptjs');
+  if (!user.passwordHash) throw new Error("Password authentication not enabled for this user");
+  
+  const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!isValid) throw new Error("Current password is incorrect");
+  
+  // Check if email is already in use
+  const [existing] = await db.select().from(users).where(eq(users.email, newEmail)).limit(1);
+  if (existing && existing.id !== userId) {
+    throw new Error("Email already in use");
+  }
+  
+  // Update email
+  await db.update(users)
+    .set({ email: newEmail } as any)
+    .where(eq(users.id, userId));
+  
+  return { success: true };
+}
+
+// Update own password (requires current password verification)
+export async function updateOwnPassword(userId: number, currentPassword: string, newPassword: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get user
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) throw new Error("User not found");
+  
+  // Verify current password
+  const bcrypt = await import('bcryptjs');
+  if (!user.passwordHash) throw new Error("Password authentication not enabled for this user");
+  
+  const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!isValid) throw new Error("Current password is incorrect");
+  
+  // Hash new password
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  
+  // Update password
+  await db.update(users)
+    .set({ passwordHash } as any)
+    .where(eq(users.id, userId));
+  
+  return { success: true };
+}
+
 export async function updateUserData(userId: number, data: { name?: string; email?: string; plan?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1019,6 +1076,21 @@ export async function updateUserData(userId: number, data: { name?: string; emai
   
   await db.update(users)
     .set(updateData)
+    .where(eq(users.id, userId));
+  
+  return { success: true };
+}
+
+/**
+ * Update user role — used by admin to promote/demote regular users
+ * Superadmin promotion is handled separately
+ */
+export async function updateUserRole(userId: number, role: "user" | "admin") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(users)
+    .set({ role } as any)
     .where(eq(users.id, userId));
   
   return { success: true };
@@ -1111,6 +1183,13 @@ export async function registerUser(email: string, password: string, name: string
   // Hash password
   const passwordHash = await hashPassword(password);
 
+  // Generate unique referral code
+  const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let referralCode = "";
+  for (let i = 0; i < 8; i++) {
+    referralCode += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+
   // Create user
   await db.insert(users).values({
     email,
@@ -1119,6 +1198,7 @@ export async function registerUser(email: string, password: string, name: string
     emailVerified: 0,
     role: "user",
     plan: "free",
+    referralCode,
   });
   
   // Get the newly created user
@@ -1165,10 +1245,10 @@ export async function loginUser(email: string, password: string) {
     throw new Error("Invalid email or password");
   }
 
-  // Check if email is verified
-  if (!user.emailVerified) {
-    throw new Error("Please verify your email before logging in");
-  }
+  // Check if email is verified (optional - commented out for now)
+  // if (!user.emailVerified) {
+  //   throw new Error("Please verify your email before logging in");
+  // }
 
   return {
     id: user.id,
@@ -1243,10 +1323,17 @@ export async function requestPasswordReset(email: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Find user
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  // Find user (case-insensitive)
+  const normalizedEmail = email.toLowerCase().trim();
+  const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
   if (!user) {
     // Don't reveal if email exists or not (security)
+    return { success: true };
+  }
+
+  // Check if user has password (OAuth-only users can't reset password)
+  if (!user.passwordHash) {
+    // Don't reveal if user is OAuth-only (security)
     return { success: true };
   }
 
@@ -1294,6 +1381,11 @@ export async function resetPassword(token: string, newPassword: string) {
     throw new Error("Reset token has expired");
   }
 
+  // Check if already used
+  if (resetToken.used) {
+    throw new Error("Reset token has already been used");
+  }
+
   // Get user
   const [user] = await db
     .select()
@@ -1311,8 +1403,8 @@ export async function resetPassword(token: string, newPassword: string) {
   // Update password
   await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
 
-  // Delete used token
-  await db.delete(passwordResetTokens).where(eq(passwordResetTokens.token, token));
+  // Mark token as used instead of deleting (for audit trail)
+  await db.update(passwordResetTokens).set({ used: 1 }).where(eq(passwordResetTokens.token, token));
 
   return { success: true, email: user.email };
 }
@@ -1442,4 +1534,1285 @@ export async function getCoursePurchaseByStripePaymentIntent(stripePaymentIntent
     .where(eq(coursePurchases.stripePaymentIntentId, stripePaymentIntentId))
     .limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+// ============================================
+// OAUTH PROVIDER AUTHENTICATION
+// ============================================
+
+/**
+ * Find or create user by OAuth provider
+ * Implements account linking: if email exists, links the new provider
+ */
+export async function findOrCreateUserByProvider(data: {
+  provider: 'google' | 'apple';
+  providerId: string;
+  email: string;
+  name: string;
+}) {
+  // Normalize email to lowercase to prevent duplicates
+  const normalizedEmail = data.email.toLowerCase().trim();
+  console.log('[OAuth] findOrCreateUserByProvider - Start:', { provider: data.provider, email: normalizedEmail });
+  const db = await getDb();
+  if (!db) {
+    console.error('[OAuth] Database not available');
+    throw new Error("Database not available");
+  }
+
+  // Check if user exists by email (account linking)
+  console.log('[OAuth] Checking if user exists by email...');
+  const existingUser = await getUserByEmail(normalizedEmail);
+  console.log('[OAuth] Existing user:', existingUser ? { id: existingUser.id, email: existingUser.email } : null);
+
+  if (existingUser) {
+    // Update login method if it's still 'email' (first OAuth login)
+    if (existingUser.loginMethod === 'email') {
+      await db.update(users)
+        .set({
+          loginMethod: data.provider,
+          emailVerified: 1, // OAuth providers verify email
+          lastSignedIn: new Date(),
+        })
+        .where(eq(users.id, existingUser.id));
+    } else {
+      // Just update last signed in
+      await db.update(users)
+        .set({ lastSignedIn: new Date() })
+        .where(eq(users.id, existingUser.id));
+    }
+
+    console.log('[OAuth] Returning existing user');
+    return existingUser;
+  }
+
+  // Create new user
+  console.log('[OAuth] Creating new user...');
+  
+  // Generate unique referral code
+  const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let referralCode = "";
+  for (let i = 0; i < 8; i++) {
+    referralCode += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  console.log('[OAuth] Generated referral code:', referralCode);
+  
+  const result = await db.insert(users).values({
+    email: normalizedEmail,
+    name: data.name,
+    loginMethod: data.provider,
+    emailVerified: 1, // OAuth providers verify email
+    role: 'user',
+    plan: 'free',
+    referralCode,
+    lastSignedIn: new Date(),
+  });
+
+  const newUser = await getUserById(result[0].insertId);
+  if (!newUser) {
+    console.error('[OAuth] Failed to create user');
+    throw new Error("Failed to create user");
+  }
+
+  console.log('[OAuth] New user created:', { id: newUser.id, email: newUser.email });
+  return newUser;
+}
+
+// ============================================================================
+// ADMIN MANAGEMENT
+// ============================================================================
+
+import { adminPermissions, AdminPermission, InsertAdminPermission } from "../drizzle/schema";
+
+/**
+ * Get admin permissions for a user
+ */
+export async function getAdminPermissions(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [permissions] = await db
+    .select()
+    .from(adminPermissions)
+    .where(eq(adminPermissions.userId, userId));
+  return permissions || null;
+}
+
+/**
+ * List all admins with their permissions
+ */
+export async function listAllAdmins() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const admins = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      createdAt: users.createdAt,
+      permissions: adminPermissions,
+    })
+    .from(users)
+    .leftJoin(adminPermissions, eq(users.id, adminPermissions.userId))
+    .where(eq(users.role, 'admin'));
+  
+  return admins;
+}
+
+/**
+ * Add new admin with permissions
+ */
+export async function addNewAdmin(
+  email: string,
+  name: string,
+  permissions: {
+    manageCourses: boolean;
+    manageStudents: boolean;
+    manageContent: boolean;
+    manageAdmins: boolean;
+    manageSettings: boolean;
+    viewAnalytics: boolean;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if user already exists
+  const [existingUser] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email));
+
+  let userId: number;
+
+  if (existingUser) {
+    // Upgrade existing user to admin
+    if (existingUser.role === 'admin') {
+      throw new Error('User is already an admin');
+    }
+    
+    await db
+      .update(users)
+      .set({ role: 'admin' })
+      .where(eq(users.id, existingUser.id));
+    
+    userId = existingUser.id;
+  } else {
+    // Create new user as admin (no password, will need to set via password reset)
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        email,
+        name,
+        role: 'admin',
+        emailVerified: 0,
+        loginMethod: 'email',
+      });
+    
+    userId = newUser.insertId;
+  }
+
+  // Create permissions record
+  await db
+    .insert(adminPermissions)
+    .values({
+      userId,
+      manageCourses: permissions.manageCourses ? 1 : 0,
+      manageStudents: permissions.manageStudents ? 1 : 0,
+      manageContent: permissions.manageContent ? 1 : 0,
+      manageAdmins: permissions.manageAdmins ? 1 : 0,
+      manageSettings: permissions.manageSettings ? 1 : 0,
+      viewAnalytics: permissions.viewAnalytics ? 1 : 0,
+    });
+
+  return { success: true, userId };
+}
+
+/**
+ * Update admin permissions
+ */
+export async function updateAdminPermissions(
+  userId: number,
+  permissions: {
+    manageCourses: boolean;
+    manageStudents: boolean;
+    manageContent: boolean;
+    manageAdmins: boolean;
+    manageSettings: boolean;
+    viewAnalytics: boolean;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Verify user is an admin
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId));
+
+  if (!user || user.role !== 'admin') {
+    throw new Error('User is not an admin');
+  }
+
+  // Update permissions
+  await db
+    .update(adminPermissions)
+    .set({
+      manageCourses: permissions.manageCourses ? 1 : 0,
+      manageStudents: permissions.manageStudents ? 1 : 0,
+      manageContent: permissions.manageContent ? 1 : 0,
+      manageAdmins: permissions.manageAdmins ? 1 : 0,
+      manageSettings: permissions.manageSettings ? 1 : 0,
+      viewAnalytics: permissions.viewAnalytics ? 1 : 0,
+    })
+    .where(eq(adminPermissions.userId, userId));
+
+  return { success: true };
+}
+
+/**
+ * Remove admin (downgrade to user)
+ */
+export async function removeAdmin(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Downgrade to user role
+  await db
+    .update(users)
+    .set({ role: 'user' })
+    .where(eq(users.id, userId));
+
+  // Delete permissions record
+  await db
+    .delete(adminPermissions)
+    .where(eq(adminPermissions.userId, userId));
+
+  return { success: true };
+}
+
+/**
+ * Update admin's own email
+ */
+export async function updateAdminEmail(
+  userId: number,
+  newEmail: string,
+  password: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get current user
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId));
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Verify password if user has one
+  if (user.passwordHash) {
+    const bcrypt = await import('bcrypt');
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isValid) {
+      throw new Error('Invalid password');
+    }
+  }
+
+  // Check if new email is already in use
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, newEmail));
+
+  if (existing && existing.id !== userId) {
+    throw new Error('Email already in use');
+  }
+
+  // Update email
+  await db
+    .update(users)
+    .set({ 
+      email: newEmail,
+      emailVerified: 0, // Reset verification status
+    })
+    .where(eq(users.id, userId));
+
+  return { success: true };
+}
+
+
+// ============================================================================
+// Subscription Management Functions
+// ============================================================================
+
+/**
+ * Get all subscriptions with user information
+ */
+export async function getAllSubscriptions() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select({
+      subscription: subscriptions,
+      user: {
+        id: users.id,
+        name: users.name,
+        email: users.email,
+      },
+    })
+    .from(subscriptions)
+    .leftJoin(users, eq(subscriptions.userId, users.id))
+    .orderBy(desc(subscriptions.createdAt));
+
+  return result;
+}
+
+/**
+ * Get subscription by user ID
+ */
+export async function getSubscriptionByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [subscription] = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId));
+
+  return subscription || null;
+}
+
+/**
+ * Create or update subscription
+ */
+export async function upsertSubscription(data: {
+  userId: number;
+  plan: string;
+  status: string;
+  startDate?: Date;
+  endDate?: Date | null;
+  trialEndDate?: Date | null;
+  autoRenew?: number;
+  stripeSubscriptionId?: string | null;
+  stripePriceId?: string | null;
+  stripeCustomerId?: string | null;
+  notes?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Check if subscription exists
+  const existing = await getSubscriptionByUserId(data.userId);
+
+  if (existing) {
+    // Update existing subscription
+    await db
+      .update(subscriptions)
+      .set({
+        plan: data.plan as any,
+        status: data.status as any,
+        endDate: data.endDate,
+        trialEndDate: data.trialEndDate,
+        autoRenew: data.autoRenew ?? existing.autoRenew,
+        stripeSubscriptionId: data.stripeSubscriptionId,
+        stripePriceId: data.stripePriceId,
+        stripeCustomerId: data.stripeCustomerId,
+        notes: data.notes,
+      })
+      .where(eq(subscriptions.id, existing.id));
+
+    return { id: existing.id, isNew: false };
+  } else {
+    // Create new subscription
+    const [result] = await db.insert(subscriptions).values({
+      userId: data.userId,
+      plan: data.plan as any,
+      status: data.status as any,
+      startDate: data.startDate || new Date(),
+      endDate: data.endDate,
+      trialEndDate: data.trialEndDate,
+      autoRenew: data.autoRenew ?? 1,
+      stripeSubscriptionId: data.stripeSubscriptionId,
+      stripePriceId: data.stripePriceId,
+      stripeCustomerId: data.stripeCustomerId,
+      notes: data.notes,
+    });
+
+    return { id: result.insertId, isNew: true };
+  }
+}
+
+/**
+ * Update subscription status
+ */
+export async function updateSubscriptionStatus(
+  subscriptionId: number,
+  status: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(subscriptions)
+    .set({ status: status as any })
+    .where(eq(subscriptions.id, subscriptionId));
+
+  return { success: true };
+}
+
+/**
+ * Get payment history for a user
+ */
+export async function getPaymentHistoryByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const payments = await db
+    .select()
+    .from(paymentHistory)
+    .where(eq(paymentHistory.userId, userId))
+    .orderBy(desc(paymentHistory.createdAt));
+
+  return payments;
+}
+
+/**
+ * Get all payment history
+ */
+export async function getAllPaymentHistory() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select({
+      payment: paymentHistory,
+      user: {
+        id: users.id,
+        name: users.name,
+        email: users.email,
+      },
+    })
+    .from(paymentHistory)
+    .leftJoin(users, eq(paymentHistory.userId, users.id))
+    .orderBy(desc(paymentHistory.createdAt));
+
+  return result;
+}
+
+/**
+ * Create payment record
+ */
+export async function createPaymentRecord(data: {
+  userId: number;
+  subscriptionId?: number | null;
+  amount: number;
+  currency?: string;
+  status: string;
+  paymentMethod?: string | null;
+  stripePaymentIntentId?: string | null;
+  stripeInvoiceId?: string | null;
+  description?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [result] = await db.insert(paymentHistory).values({
+    userId: data.userId,
+    subscriptionId: data.subscriptionId,
+    amount: data.amount,
+    currency: data.currency || "BRL",
+    status: data.status as any,
+    paymentMethod: data.paymentMethod,
+    stripePaymentIntentId: data.stripePaymentIntentId,
+    stripeInvoiceId: data.stripeInvoiceId,
+    description: data.description,
+  });
+
+  return { id: result.insertId };
+}
+
+// ============================================================================
+// REFERRAL SYSTEM FUNCTIONS
+// ============================================================================
+
+/**
+ * Generate unique referral code for user
+ */
+export async function generateReferralCode(userId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Generate a unique 8-character code
+  const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Excluding similar chars
+  let code = "";
+  let isUnique = false;
+
+  while (!isUnique) {
+    code = "";
+    for (let i = 0; i < 8; i++) {
+      code += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+
+    // Check if code already exists
+    const existing = await db
+      .select()
+      .from(users)
+      .where(eq(users.referralCode, code))
+      .limit(1);
+
+    if (existing.length === 0) {
+      isUnique = true;
+    }
+  }
+
+  // Update user with new referral code
+  await db.update(users).set({ referralCode: code }).where(eq(users.id, userId));
+
+  return code;
+}
+
+/**
+ * Get user by referral code
+ */
+export async function getUserByReferralCode(code: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.referralCode, code))
+    .limit(1);
+
+  return user || null;
+}
+
+/**
+ * Get referrals by referrer ID
+ */
+export async function getReferralsByReferrerId(referrerId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select()
+    .from(referrals)
+    .where(eq(referrals.referrerId, referrerId))
+    .orderBy(desc(referrals.createdAt));
+
+  return result;
+}
+
+/**
+ * Get monthly referral count for user
+ */
+export async function getMonthlyReferralCount(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const result = await db
+    .select()
+    .from(referrals)
+    .where(
+      and(
+        eq(referrals.referrerId, userId),
+        eq(referrals.status, "confirmed"),
+        gte(referrals.confirmedAt, startOfMonth)
+      )
+    );
+
+  return result.length;
+}
+
+/**
+ * Create referral record
+ */
+export async function createReferral(data: {
+  referrerId: number;
+  referredUserId?: number;
+  referralCode: string;
+  status?: string;
+  planPurchased?: string;
+  pointsAwarded?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [result] = await db.insert(referrals).values({
+    referrerId: data.referrerId,
+    referredUserId: data.referredUserId,
+    referralCode: data.referralCode,
+    status: (data.status as any) || "pending",
+    planPurchased: data.planPurchased as any,
+    pointsAwarded: data.pointsAwarded || 0,
+  });
+
+  return { id: result.insertId };
+}
+
+/**
+ * Confirm referral and award points
+ */
+export async function confirmReferral(referralId: number, planPurchased: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get referral
+  const [referral] = await db
+    .select()
+    .from(referrals)
+    .where(eq(referrals.id, referralId))
+    .limit(1);
+
+  if (!referral) {
+    throw new Error("Referral not found");
+  }
+
+  // Calculate points based on plan
+  const pointsConfig: Record<string, number> = {
+    basic: 100,
+    premium: 200,
+    vip: 600,
+  };
+
+  const basePoints = pointsConfig[planPurchased.toLowerCase()] || 0;
+
+  // Get monthly referral count to calculate bonus
+  const monthlyCount = await getMonthlyReferralCount(referral.referrerId);
+  let bonusPoints = 0;
+
+  if (monthlyCount >= 5) {
+    bonusPoints = 250; // 5th+ referral
+  } else if (monthlyCount === 4) {
+    bonusPoints = 200; // 4th referral
+  } else if (monthlyCount === 3) {
+    bonusPoints = 150; // 3rd referral
+  }
+
+  const totalPoints = basePoints + bonusPoints;
+
+  // Update referral
+  await db
+    .update(referrals)
+    .set({
+      status: "confirmed",
+      planPurchased: planPurchased as any,
+      pointsAwarded: totalPoints,
+      confirmedAt: new Date(),
+    })
+    .where(eq(referrals.id, referralId));
+
+  // Award points to referrer
+  await updateUserPoints(referral.referrerId, totalPoints);
+
+  // Create points transaction
+  await createPointsTransaction({
+    userId: referral.referrerId,
+    amount: totalPoints,
+    type: "referral_bonus",
+    description: `Referral confirmed - ${planPurchased} plan (${basePoints} base + ${bonusPoints} bonus)`,
+    referralId,
+  });
+
+  // Check if user should get free month (2 referrals this month)
+  const updatedMonthlyCount = await getMonthlyReferralCount(referral.referrerId);
+  if (updatedMonthlyCount % 2 === 0) {
+    // Every 2 referrals = 1 free month
+    await grantFreeMonth(referral.referrerId);
+  }
+
+  return { pointsAwarded: totalPoints, bonusPoints };
+}
+
+/**
+ * Update user points balance
+ */
+export async function updateUserPoints(userId: number, pointsDelta: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get current balance
+  const [user] = await db
+    .select({ pointsBalance: users.pointsBalance })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  const currentBalance = user?.pointsBalance || 0;
+  const newBalance = Math.max(0, currentBalance + pointsDelta); // Never go negative
+
+  await db
+    .update(users)
+    .set({ pointsBalance: newBalance })
+    .where(eq(users.id, userId));
+
+  return newBalance;
+}
+
+/**
+ * Get user by Stripe customer ID
+ */
+export async function getUserByStripeCustomerId(stripeCustomerId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.stripeCustomerId, stripeCustomerId))
+    .limit(1);
+
+  return user || null;
+}
+
+/**
+ * Increment free months remaining for user
+ */
+export async function incrementFreeMonths(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get current free months
+  const [user] = await db
+    .select({ freeMonthsRemaining: users.freeMonthsRemaining })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  const currentFreeMonths = user?.freeMonthsRemaining || 0;
+
+  await db
+    .update(users)
+    .set({ freeMonthsRemaining: currentFreeMonths + 1 })
+    .where(eq(users.id, userId));
+
+  return currentFreeMonths + 1;
+}
+
+/**
+ * Grant free month to user
+ */
+export async function grantFreeMonth(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get current free months
+  const [user] = await db
+    .select({ freeMonthsRemaining: users.freeMonthsRemaining })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  const currentFreeMonths = user?.freeMonthsRemaining || 0;
+
+  await db
+    .update(users)
+    .set({ freeMonthsRemaining: currentFreeMonths + 1 })
+    .where(eq(users.id, userId));
+
+  // Create points transaction record
+  await createPointsTransaction({
+    userId,
+    amount: 0, // Free month doesn't affect points
+    type: "free_month_applied",
+    description: "Free month earned from 2 referrals",
+  });
+
+  return currentFreeMonths + 1;
+}
+
+/**
+ * Create points transaction record
+ */
+export async function createPointsTransaction(data: {
+  userId: number;
+  amount: number;
+  type: string;
+  description?: string;
+  referralId?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [result] = await db.insert(pointsTransactions).values({
+    userId: data.userId,
+    amount: data.amount,
+    type: data.type as any,
+    description: data.description,
+    referralId: data.referralId,
+  });
+
+  return { id: result.insertId };
+}
+
+/**
+ * Get points transactions by user ID
+ */
+export async function getPointsTransactionsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select()
+    .from(pointsTransactions)
+    .where(eq(pointsTransactions.userId, userId))
+    .orderBy(desc(pointsTransactions.createdAt))
+    .limit(50);
+
+  return result;
+}
+
+/**
+ * Create cashback request
+ */
+export async function createCashbackRequest(data: {
+  userId: number;
+  pointsAmount: number;
+  cashAmount: number;
+  paymentMethod: string;
+  pixKey?: string;
+  bankDetails?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [result] = await db.insert(cashbackRequests).values({
+    userId: data.userId,
+    pointsAmount: data.pointsAmount,
+    cashAmount: data.cashAmount,
+    paymentMethod: data.paymentMethod as any,
+    pixKey: data.pixKey,
+    bankDetails: data.bankDetails,
+    status: "pending",
+  });
+
+  return result.insertId;
+}
+
+/**
+ * Get all cashback requests (admin)
+ */
+export async function getAllCashbackRequests(status?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (status) {
+    return await db
+      .select()
+      .from(cashbackRequests)
+      .where(eq(cashbackRequests.status, status as any))
+      .orderBy(desc(cashbackRequests.createdAt));
+  }
+
+  return await db
+    .select()
+    .from(cashbackRequests)
+    .orderBy(desc(cashbackRequests.createdAt));
+}
+
+/**
+ * Get cashback request by ID
+ */
+export async function getCashbackRequestById(requestId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [request] = await db
+    .select()
+    .from(cashbackRequests)
+    .where(eq(cashbackRequests.id, requestId));
+
+  return request;
+}
+
+/**
+ * Update cashback request status (admin)
+ */
+export async function updateCashbackRequestStatus(
+  requestId: number,
+  status: string,
+  adminId: number,
+  adminNotes?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get the request first
+  const [request] = await db
+    .select()
+    .from(cashbackRequests)
+    .where(eq(cashbackRequests.id, requestId))
+    .limit(1);
+
+  if (!request) {
+    throw new Error("Cashback request not found");
+  }
+
+  // If rejected, refund points to user
+  if (status === "rejected") {
+    await updateUserPoints(request.userId, request.pointsAmount);
+    await createPointsTransaction({
+      userId: request.userId,
+      amount: request.pointsAmount,
+      type: "admin_adjustment",
+      description: `Cashback request #${requestId} rejected - points refunded`,
+    });
+  }
+
+  // Update request
+  await db
+    .update(cashbackRequests)
+    .set({
+      status: status as any,
+      processedAt: new Date(),
+      processedBy: adminId,
+      adminNotes,
+    })
+    .where(eq(cashbackRequests.id, requestId));
+
+  return { success: true };
+}
+
+// ============================================================================
+// ADMIN MANAGEMENT & AUDIT FUNCTIONS
+// ============================================================================
+
+/**
+ * Log admin action for audit trail
+ */
+export async function logAdminAction(data: {
+  action: "PROMOTE_ADMIN" | "DEMOTE_ADMIN" | "PROMOTE_SUPERADMIN" | "DEMOTE_SUPERADMIN";
+  performedByUserId: number;
+  targetUserId: number;
+  ip?: string;
+  userAgent?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  await db.insert(adminAuditLogs).values(data);
+}
+
+/**
+ * Get admin audit logs (latest first)
+ */
+export async function getAdminAuditLogs(limit = 100) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  return await db
+    .select({
+      id: adminAuditLogs.id,
+      action: adminAuditLogs.action,
+      performedByUserId: adminAuditLogs.performedByUserId,
+      performedByName: users.name,
+      performedByEmail: users.email,
+      targetUserId: adminAuditLogs.targetUserId,
+      targetName: sql<string>`target.name`,
+      targetEmail: sql<string>`target.email`,
+      ip: adminAuditLogs.ip,
+      userAgent: adminAuditLogs.userAgent,
+      createdAt: adminAuditLogs.createdAt,
+    })
+    .from(adminAuditLogs)
+    .leftJoin(users, eq(adminAuditLogs.performedByUserId, users.id))
+    .leftJoin(sql`users as target`, sql`${adminAuditLogs.targetUserId} = target.id`)
+    .orderBy(desc(adminAuditLogs.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Promote user to admin
+ */
+export async function promoteToAdmin(
+  targetUserId: number,
+  performedByUserId: number,
+  ip?: string,
+  userAgent?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  
+  // Update user role
+  await db
+    .update(users)
+    .set({ role: "admin" })
+    .where(eq(users.id, targetUserId));
+  
+  // Log action
+  await logAdminAction({
+    action: "PROMOTE_ADMIN",
+    performedByUserId,
+    targetUserId,
+    ip,
+    userAgent,
+  });
+}
+
+/**
+ * Demote admin to user
+ */
+export async function demoteFromAdmin(
+  targetUserId: number,
+  performedByUserId: number,
+  ip?: string,
+  userAgent?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  
+  // Check if this is the last superadmin
+  const superadmins = await db
+    .select()
+    .from(users)
+    .where(eq(users.role, "superadmin"));
+  
+  const targetUser = await getUserById(targetUserId);
+  
+  if (targetUser?.role === "superadmin" && superadmins.length === 1) {
+    throw new Error("Cannot demote the last superadmin");
+  }
+  
+  // Update user role
+  await db
+    .update(users)
+    .set({ role: "user" })
+    .where(eq(users.id, targetUserId));
+  
+  // Log action
+  await logAdminAction({
+    action: targetUser?.role === "superadmin" ? "DEMOTE_SUPERADMIN" : "DEMOTE_ADMIN",
+    performedByUserId,
+    targetUserId,
+    ip,
+    userAgent,
+  });
+}
+
+/**
+ * Promote admin to superadmin
+ */
+export async function promoteToSuperAdmin(
+  targetUserId: number,
+  performedByUserId: number,
+  ip?: string,
+  userAgent?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  
+  // Update user role
+  await db
+    .update(users)
+    .set({ role: "superadmin" })
+    .where(eq(users.id, targetUserId));
+  
+  // Log action
+  await logAdminAction({
+    action: "PROMOTE_SUPERADMIN",
+    performedByUserId,
+    targetUserId,
+    ip,
+    userAgent,
+  });
+}
+
+/**
+ * List all admins and superadmins
+ */
+export async function listAllAdminsAndSuperAdmins() {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  return await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      createdAt: users.createdAt,
+      lastSignedIn: users.lastSignedIn,
+    })
+    .from(users)
+    .where(or(eq(users.role, "admin"), eq(users.role, "superadmin")))
+    .orderBy(desc(users.createdAt));
+}
+
+/**
+ * Count superadmins
+ */
+export async function countSuperAdmins() {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(users)
+    .where(eq(users.role, "superadmin"));
+  
+  return result[0]?.count || 0;
+}
+
+/**
+ * Create admin invite
+ */
+export async function createAdminInvite(
+  email: string,
+  role: "admin" | "superadmin",
+  invitedBy: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  
+  // Check if user already exists
+  const existingUser = await getUserByEmail(email);
+  if (existingUser) {
+    throw new Error("User with this email already exists");
+  }
+  
+  // Check for existing pending invite
+  const existingInvite = await db
+    .select()
+    .from(adminInvites)
+    .where(and(
+      eq(adminInvites.email, email),
+      isNull(adminInvites.acceptedAt),
+      gt(adminInvites.expiresAt, new Date())
+    ))
+    .limit(1);
+  
+  if (existingInvite.length > 0) {
+    throw new Error("Active invite already exists for this email");
+  }
+  
+  // Generate secure token
+  const crypto = await import("crypto");
+  const token = crypto.randomBytes(32).toString("hex");
+  
+  // Set expiration to 48 hours from now
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + 48);
+  
+  // Create invite
+  const result = await db.insert(adminInvites).values({
+    email,
+    role,
+    token,
+    expiresAt,
+    invitedBy,
+  });
+  
+  return {
+    token,
+    expiresAt,
+    inviteId: result[0].insertId,
+  };
+}
+
+/**
+ * Get admin invite by token
+ */
+export async function getAdminInviteByToken(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  
+  const invite = await db
+    .select()
+    .from(adminInvites)
+    .where(eq(adminInvites.token, token))
+    .limit(1);
+  
+  return invite[0] || null;
+}
+
+/**
+ * Accept admin invite and create user
+ */
+export async function acceptAdminInvite(
+  token: string,
+  password: string,
+  name: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  
+  // Get invite
+  const invite = await getAdminInviteByToken(token);
+  
+  if (!invite) {
+    throw new Error("Invalid invite token");
+  }
+  
+  if (invite.acceptedAt) {
+    throw new Error("Invite has already been accepted");
+  }
+  
+  if (new Date() > invite.expiresAt) {
+    throw new Error("Invite has expired");
+  }
+  
+  // Check if user was created in the meantime
+  const existingUser = await getUserByEmail(invite.email);
+  if (existingUser) {
+    throw new Error("User with this email already exists");
+  }
+  
+  // Create user with admin role
+  const bcrypt = await import("bcrypt");
+  const passwordHash = await bcrypt.hash(password, 10);
+  
+  const userResult = await db.insert(users).values({
+    email: invite.email,
+    name,
+    passwordHash,
+    role: invite.role,
+    emailVerified: 1, // Auto-verify invited admins
+    loginMethod: "email",
+  });
+  
+  const userId = userResult[0].insertId;
+  
+  // Mark invite as accepted
+  await db
+    .update(adminInvites)
+    .set({ acceptedAt: new Date() })
+    .where(eq(adminInvites.id, invite.id));
+  
+  // Log action
+  await logAdminAction({
+    action: invite.role === "superadmin" ? "PROMOTE_SUPERADMIN" : "PROMOTE_ADMIN",
+    performedByUserId: invite.invitedBy,
+    targetUserId: userId,
+  });
+  
+  // Return created user
+  return await getUserById(userId);
+}
+
+/**
+ * List all admin invites (pending and accepted)
+ */
+export async function listAdminInvites() {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  
+  return await db
+    .select({
+      id: adminInvites.id,
+      email: adminInvites.email,
+      role: adminInvites.role,
+      expiresAt: adminInvites.expiresAt,
+      acceptedAt: adminInvites.acceptedAt,
+      createdAt: adminInvites.createdAt,
+      invitedByName: users.name,
+      invitedByEmail: users.email,
+    })
+    .from(adminInvites)
+    .leftJoin(users, eq(adminInvites.invitedBy, users.id))
+    .orderBy(desc(adminInvites.createdAt));
 }

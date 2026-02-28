@@ -3,15 +3,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookOpen, Glasses, PlayCircle, Users, Zap, Shield } from "lucide-react";
 import { Link } from "wouter";
+import { OptimizedImage } from "@/components/OptimizedImage";
+import { SEOHead } from "@/components/SEOHead";
+import { getSEOMetaTags } from "@/lib/seo-meta-tags";
 
 import UserMenu from "@/components/UserMenu";
 import AIChatWidget from "@/components/AIChatWidget";
 
+import StatsSection from "@/components/StatsSection";
+import HowItWorks from "@/components/HowItWorks";
+import Testimonials from "@/components/Testimonials";
+import FAQSection from "@/components/FAQSection";
+
 export default function Home() {
   const { isAuthenticated, user } = useAuth();
+  const seoMeta = getSEOMetaTags('/');
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <SEOHead {...seoMeta} />
       {/* Header */}
       <header className="border-b bg-card sticky top-0 z-50 backdrop-blur">
         <div className="container py-4 flex items-center justify-between">
@@ -87,28 +97,22 @@ export default function Home() {
             </h1>
             
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
-              Desperte seu potencial através de uma experiência imersiva em realidade virtual.
-              Expanda sua consciência, fortaleça sua inteligência emocional e construa uma vida com mais propósito e plenitude.
+              Apoio individual para sua evolução pessoal. Juntos, vamos despertar seu potencial através de experiências imersivas que transformam.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/contact">
+                <Button size="lg" className="text-lg px-8 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
+                  <Zap className="h-5 w-5 mr-2" />
+                  Agende sua Sessão
+                </Button>
+              </Link>
               <Link href="/courses">
-                <Button size="lg" className="text-lg px-8">
+                <Button size="lg" variant="outline" className="text-lg px-8">
                   <PlayCircle className="h-5 w-5 mr-2" />
                   Iniciar Jornada
                 </Button>
               </Link>
-              {!isAuthenticated && (
-                <Link href="/pricing">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="text-lg px-8"
-                  >
-                    Conhecer Planos
-                  </Button>
-                </Link>
-              )}
             </div>
           </div>
         </div>
@@ -119,6 +123,8 @@ export default function Home() {
           <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500 rounded-full blur-3xl"></div>
         </div>
       </section>
+
+      <StatsSection />
 
       {/* About Section */}
       <section className="container py-20">
@@ -131,10 +137,10 @@ export default function Home() {
               Shadia Hasan
             </h2>
             <p className="text-lg text-muted-foreground">
-              Mentora de transformação e desenvolvimento humano, Shadia Hasan dedica sua jornada a guiar pessoas na descoberta do seu verdadeiro potencial através de experiências imersivas e processos estruturados de evolução consciente.
+              Estou aqui para caminhar ao seu lado. Com empatia e escuta genuína, ofereço apoio individual para que você descubra seu verdadeiro potencial e construa uma vida com mais propósito.
             </p>
             <p className="text-lg text-muted-foreground">
-              Com uma abordagem elegante e estratégica que une sabedoria ancestral e tecnologia de vanguarda, Shadia criou uma plataforma de aprendizado imersivo que eleva a jornada de crescimento interior a um novo nível de profundidade e impacto.
+              Cada pessoa é única, e sua jornada merece atenção personalizada. Juntos, vamos criar um caminho de transformação que respeita seu ritmo e suas necessidades.
             </p>
             <div className="flex gap-4">
               <a
@@ -150,20 +156,22 @@ export default function Home() {
               </a>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <img
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/TSJtZyGnSUDcAEsl.PNG"
-              alt="Shadia Hasan"
-              className="rounded-lg shadow-lg w-full h-full object-cover"
-            />
-            <img
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/EKLuDwrTzWRoEyQr.PNG"
-              alt="Shadia Hasan"
-              className="rounded-lg shadow-lg w-full h-full object-cover mt-8"
-            />
+          <div className="flex justify-center">
+            <picture>
+              <source srcSet="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/YAsEYvxqebPXZBIO.avif" type="image/avif" />
+              <source srcSet="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/bOfXnFYBniKdijZM.webp" type="image/webp" />
+              <img
+                src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/xzKfSOAtqexRDupD.jpeg"
+                alt="Shadia Hasan - Mentora de Transformação e Desenvolvimento Humano"
+                className="rounded-2xl shadow-2xl w-full max-w-md object-cover"
+                loading="lazy"
+              />
+            </picture>
           </div>
         </div>
       </section>
+
+      <HowItWorks />
 
       {/* Features Section */}
       <section className="container py-20">
@@ -172,7 +180,7 @@ export default function Home() {
             Uma Jornada Estruturada de Transformação
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Experiência completa que integra desenvolvimento pessoal profundo com tecnologia imersiva de última geração
+            Apoio personalizado que respeita seu ritmo e suas necessidades individuais
           </p>
         </div>
 
@@ -184,7 +192,7 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold">Imersão em Realidade Virtual</h3>
               <p className="text-muted-foreground">
-                Experiência transformadora em 360° com Meta Quest. Mergulhe em ambientes que potencializam sua expansão emocional e cognitiva de forma profunda e envolvente.
+                Viva experiências imersivas em 360° com Meta Quest. Um espaço seguro para sua expansão emocional e autoconhecimento.
               </p>
             </CardContent>
           </Card>
@@ -194,9 +202,9 @@ export default function Home() {
               <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
                 <PlayCircle className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold">Conteúdo de Excelência</h3>
+              <h3 className="text-xl font-semibold">Conteúdo Cuidadosamente Criado</h3>
               <p className="text-muted-foreground">
-                Jornadas estruturadas em vídeo de alta qualidade, acessíveis em qualquer dispositivo. Cada etapa foi cuidadosamente planejada para sua evolução consciente.
+                Programas pensados especialmente para você. Cada etapa foi desenhada com carinho para apoiar sua evolução.
               </p>
             </CardContent>
           </Card>
@@ -206,9 +214,9 @@ export default function Home() {
               <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Zap className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold">Ritmo Personalizado</h3>
+              <h3 className="text-xl font-semibold">No Seu Ritmo</h3>
               <p className="text-muted-foreground">
-                Avançe na sua jornada respeitando seu tempo interior. Acompanhe sua evolução e acesse os conteúdos de onde estiver, quando sentir o chamado.
+                Respeito total pelo seu tempo. Você avança quando se sentir pronto, sem pressão ou julgamento.
               </p>
             </CardContent>
           </Card>
@@ -218,9 +226,9 @@ export default function Home() {
               <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Users className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold">Mentoria Estratégica</h3>
+              <h3 className="text-xl font-semibold">Acompanhamento Individual</h3>
               <p className="text-muted-foreground">
-                Seja guiado por quem já percorreu a jornada de transformação e domina as ferramentas para sua expansão pessoal e profissional.
+                Estou aqui para você. Apoio personalizado que entende suas dores e celebra suas conquistas.
               </p>
             </CardContent>
           </Card>
@@ -230,9 +238,9 @@ export default function Home() {
               <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Shield className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold">Espaço Seguro</h3>
+              <h3 className="text-xl font-semibold">Espaço Acolhedor</h3>
               <p className="text-muted-foreground">
-                Ambiente protegido e confidencial para sua jornada. Sua evolução e informações pessoais são tratadas com máxima segurança e respeito.
+                Um lugar seguro onde você pode ser você mesmo, sem máscaras. Confidencialidade e respeito absolutos.
               </p>
             </CardContent>
           </Card>
@@ -242,25 +250,28 @@ export default function Home() {
               <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
                 <BookOpen className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold">Jornadas Completas</h3>
+              <h3 className="text-xl font-semibold">Programas Estruturados</h3>
               <p className="text-muted-foreground">
-                Programas estruturados com etapas progressivas, materiais complementares e acompanhamento detalhado da sua transformação interior.
+                Caminhos claros e organizados para sua transformação. Você nunca estará sozinho nessa jornada.
               </p>
             </CardContent>
           </Card>
         </div>
       </section>
 
+      <Testimonials />
+
+      <FAQSection />
+
       {/* CTA Section */}
       <section className="bg-gradient-to-br from-primary/10 to-purple-500/10 py-20">
         <div className="container">
           <div className="max-w-3xl mx-auto text-center space-y-6">
             <h2 className="text-3xl md:text-4xl font-bold">
-              Pronto para começar sua jornada?
+              Vamos começar juntos?
             </h2>
             <p className="text-lg text-muted-foreground">
-              Junte-se a milhares de alunos que já estão transformando seu
-              aprendizado com realidade virtual
+              Estou aqui para apoiar sua transformação. Dê o primeiro passo hoje.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/courses">
@@ -301,17 +312,13 @@ export default function Home() {
               <h4 className="font-semibold mb-4">Links Rápidos</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>
-                  <Link href="/courses">
-                    <a className="hover:text-primary transition-colors">
-                      Cursos
-                    </a>
+                  <Link href="/courses" className="hover:text-primary transition-colors">
+                    Cursos
                   </Link>
                 </li>
                 <li>
-                  <Link href="/my-courses">
-                    <a className="hover:text-primary transition-colors">
-                      Meus Cursos
-                    </a>
+                  <Link href="/my-courses" className="hover:text-primary transition-colors">
+                    Meus Cursos
                   </Link>
                 </li>
               </ul>
@@ -327,12 +334,12 @@ export default function Home() {
           <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
             <p className="mb-3">© {new Date().getFullYear()} Shadia Hasan. Todos os direitos reservados.</p>
             <div className="flex justify-center gap-4">
-              <Link href="/terms">
-                <a className="hover:text-primary transition-colors">Termos de Uso</a>
+              <Link href="/terms" className="hover:text-primary transition-colors">
+                Termos de Uso
               </Link>
               <span>•</span>
-              <Link href="/privacy">
-                <a className="hover:text-primary transition-colors">Política de Privacidade</a>
+              <Link href="/privacy" className="hover:text-primary transition-colors">
+                Política de Privacidade
               </Link>
             </div>
           </div>
@@ -341,6 +348,8 @@ export default function Home() {
       
       {/* AI Chat Widget */}
       <AIChatWidget />
+      
+
     </div>
   );
 }

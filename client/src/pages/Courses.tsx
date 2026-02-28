@@ -18,25 +18,28 @@ export default function Courses() {
         <div className="container py-4 flex items-center justify-between">
           <Link href="/">
             <img 
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/KQbMXrKxSjIsEkev.png" 
+              src="/logo.png" 
               alt="Shadia Hasan - Psicologia & Desenvolvimento Humano" 
               className="h-36 w-auto"
             />
           </Link>
           <nav className="flex items-center gap-4">
             <Link href="/courses">
-              <Button variant="ghost">Cursos</Button>
+              <Button variant="ghost" className="text-primary">Programas</Button>
+            </Link>
+            <Link href="/about">
+              <Button variant="ghost">Sobre</Button>
+            </Link>
+            <Link href="/contact">
+              <Button variant="ghost">Contato</Button>
+            </Link>
+            <Link href="/community/explore">
+              <Button variant="ghost">Comunidade</Button>
             </Link>
             {isAuthenticated ? (
-              <Link href="/my-courses">
-                <Button>Meus Cursos</Button>
-              </Link>
+              <UserMenu />
             ) : (
-              <Button
-                onClick={() => {
-                  window.location.href = getLoginUrl();
-                }}
-              >
+              <Button onClick={() => (window.location.href = getLoginUrl())}>
                 Entrar
               </Button>
             )}

@@ -1,5 +1,11 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,7 +14,6 @@ import { Link, useLocation } from "wouter";
 import {
   Users,
   UserPlus,
-  UserMinus,
   Check,
   X,
   ArrowLeft,
@@ -17,15 +22,19 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
 export default function CommunityConnections() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
-  
-  const { data: connections, isLoading: connectionsLoading } = trpc.community.getMyConnections.useQuery();
-  const { data: pendingRequests, isLoading: requestsLoading } = trpc.community.getPendingRequests.useQuery();
-  
+
+  const { data: connections, isLoading: connectionsLoading } =
+    trpc.community.getMyConnections.useQuery();
+  const { data: pendingRequests, isLoading: requestsLoading } =
+    trpc.community.getPendingRequests.useQuery();
+
   const acceptMutation = trpc.community.acceptRequest.useMutation({
     onSuccess: () => {
       utils.community.getMyConnections.invalidate();
@@ -33,20 +42,36 @@ export default function CommunityConnections() {
       toast.success("Conexão aceita!");
     },
   });
-  
+
   const rejectMutation = trpc.community.rejectRequest.useMutation({
     onSuccess: () => {
       utils.community.getPendingRequests.invalidate();
       toast.success("Solicitação recusada");
     },
   });
-  
+
   const blockMutation = trpc.community.blockUser.useMutation({
     onSuccess: () => {
       utils.community.getMyConnections.invalidate();
       toast.success("Usuário bloqueado");
     },
   });
+
+  const unblockMutation = trpc.community.unblockUser.useMutation({
+    onSuccess: () => {
+      utils.community.getMyConnections.invalidate();
+      toast.success("Usuário desbloqueado");
+    },
+  });
+
+  // Aguarda resolução do estado de autenticação
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   // Controle de acesso
   if (!user) {
@@ -72,7 +97,6 @@ export default function CommunityConnections() {
 
   const handleBlock = async (userId: number) => {
     if (!confirm("Tem certeza que deseja bloquear este usuário?")) return;
-    
     try {
       await blockMutation.mutateAsync({ userId });
     } catch (error: any) {
@@ -80,8 +104,19 @@ export default function CommunityConnections() {
     }
   };
 
-  const activeConnections = connections?.filter((c: any) => c.status === "active") || [];
-  const blockedConnections = connections?.filter((c: any) => c.status === "blocked") || [];
+  const handleUnblock = async (userId: number) => {
+    if (!confirm("Deseja desbloquear este usuário?")) return;
+    try {
+      await unblockMutation.mutateAsync({ userId });
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao desbloquear usuário");
+    }
+  };
+
+  const activeConnections =
+    connections?.filter((c: any) => c.status === "active") || [];
+  const blockedConnections =
+    connections?.filter((c: any) => c.status === "blocked") || [];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
@@ -110,6 +145,8 @@ export default function CommunityConnections() {
 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-5xl mx-auto space-y-6">
+          <Breadcrumbs items={getBreadcrumbs("/community/connections")} />
+
           {/* Cabeçalho */}
           <div>
             <h1 className="text-3xl font-bold">Minhas Conexões</h1>
@@ -149,29 +186,51 @@ export default function CommunityConnections() {
                   ) : activeConnections.length > 0 ? (
                     <div className="space-y-3">
                       {activeConnections.map((connection: any) => {
-                        const otherUserId = connection.userId1 === user.id ? connection.userId2 : connection.userId1;
-                        
+                        const otherUser =
+                          connection.userId1 === user.id
+                            ? connection.user2
+                            : connection.user1;
+                        const otherUserId =
+                          connection.userId1 === user.id
+                            ? connection.userId2
+                            : connection.userId1;
+
                         return (
-                          <div key={connection.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div
+                            key={connection.id}
+                            className="flex items-center justify-between p-4 border rounded-lg"
+                          >
                             <div className="flex items-center gap-3">
                               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
-                                {otherUserId.toString().charAt(0)}
+                                {(otherUser?.name || otherUserId.toString())
+                                  .charAt(0)
+                                  .toUpperCase()}
                               </div>
                               <div>
-                                <h4 className="font-semibold">Usuário #{otherUserId}</h4>
+                                <h4 className="font-semibold">
+                                  {otherUser?.name || `Usuário #${otherUserId}`}
+                                </h4>
                                 <p className="text-sm text-muted-foreground">
-                                  Conectado em {new Date(connection.connectedAt).toLocaleDateString("pt-BR")}
+                                  Conectado em{" "}
+                                  {new Date(
+                                    connection.connectedAt
+                                  ).toLocaleDateString("pt-BR")}
                                 </p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button variant="outline" size="sm" disabled>
-                                <MessageCircle className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
+                              {/* Botão de mensagem funcional */}
+                              <Link href={`/messages?user=${otherUserId}`}>
+                                <Button variant="outline" size="sm" title="Enviar mensagem">
+                                  <MessageCircle className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                              <Button
+                                variant="ghost"
                                 size="sm"
+                                title="Bloquear usuário"
                                 onClick={() => handleBlock(otherUserId)}
+                                disabled={blockMutation.isPending}
                               >
                                 <Ban className="h-4 w-4 text-destructive" />
                               </Button>
@@ -219,13 +278,23 @@ export default function CommunityConnections() {
                           <div className="flex items-start justify-between">
                             <div className="flex items-start gap-3">
                               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
-                                {request.fromUserId.toString().charAt(0)}
+                                {(
+                                  request.fromUser?.name ||
+                                  request.fromUserId.toString()
+                                )
+                                  .charAt(0)
+                                  .toUpperCase()}
                               </div>
                               <div>
-                                <h4 className="font-semibold">Usuário #{request.fromUserId}</h4>
+                                <h4 className="font-semibold">
+                                  {request.fromUser?.name ||
+                                    `Usuário #${request.fromUserId}`}
+                                </h4>
                                 <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                                   <Clock className="h-3 w-3" />
-                                  {new Date(request.createdAt).toLocaleDateString("pt-BR")}
+                                  {new Date(
+                                    request.createdAt
+                                  ).toLocaleDateString("pt-BR")}
                                 </p>
                                 {request.message && (
                                   <p className="text-sm mt-2 p-2 bg-muted rounded">
@@ -235,7 +304,7 @@ export default function CommunityConnections() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button 
+                              <Button
                                 size="sm"
                                 onClick={() => handleAccept(request.id)}
                                 disabled={acceptMutation.isPending}
@@ -243,8 +312,8 @@ export default function CommunityConnections() {
                                 <Check className="mr-1 h-4 w-4" />
                                 Aceitar
                               </Button>
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
                                 size="sm"
                                 onClick={() => handleReject(request.id)}
                                 disabled={rejectMutation.isPending}
@@ -274,28 +343,48 @@ export default function CommunityConnections() {
               <Card>
                 <CardHeader>
                   <CardTitle>Usuários Bloqueados</CardTitle>
-                  <CardDescription>
-                    Pessoas que você bloqueou
-                  </CardDescription>
+                  <CardDescription>Pessoas que você bloqueou</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {blockedConnections.length > 0 ? (
                     <div className="space-y-3">
                       {blockedConnections.map((connection: any) => {
-                        const otherUserId = connection.userId1 === user.id ? connection.userId2 : connection.userId1;
-                        
+                        const otherUser =
+                          connection.userId1 === user.id
+                            ? connection.user2
+                            : connection.user1;
+                        const otherUserId =
+                          connection.userId1 === user.id
+                            ? connection.userId2
+                            : connection.userId1;
+
                         return (
-                          <div key={connection.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div
+                            key={connection.id}
+                            className="flex items-center justify-between p-4 border rounded-lg"
+                          >
                             <div className="flex items-center gap-3">
                               <div className="h-10 w-10 rounded-full bg-gray-400 flex items-center justify-center text-white font-bold">
-                                {otherUserId.toString().charAt(0)}
+                                {(otherUser?.name || otherUserId.toString())
+                                  .charAt(0)
+                                  .toUpperCase()}
                               </div>
                               <div>
-                                <h4 className="font-semibold">Usuário #{otherUserId}</h4>
-                                <Badge variant="secondary" className="mt-1">Bloqueado</Badge>
+                                <h4 className="font-semibold">
+                                  {otherUser?.name || `Usuário #${otherUserId}`}
+                                </h4>
+                                <Badge variant="secondary" className="mt-1">
+                                  Bloqueado
+                                </Badge>
                               </div>
                             </div>
-                            <Button variant="outline" size="sm" disabled>
+                            {/* Botão desbloquear funcional */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUnblock(otherUserId)}
+                              disabled={unblockMutation.isPending}
+                            >
                               Desbloquear
                             </Button>
                           </div>

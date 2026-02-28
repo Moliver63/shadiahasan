@@ -16,20 +16,23 @@ export default function About() {
         <div className="container py-4 flex items-center justify-between">
           <Link href="/">
             <img 
-              src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/KQbMXrKxSjIsEkev.png" 
+              src="/logo.png" 
               alt="Shadia Hasan" 
               className="h-36 w-auto"
             />
           </Link>
           <nav className="flex items-center gap-4">
             <Link href="/courses">
-              <Button variant="ghost">Cursos</Button>
-            </Link>
-            <Link href="/pricing">
-              <Button variant="ghost">Planos</Button>
+              <Button variant="ghost">Programas</Button>
             </Link>
             <Link href="/about">
-              <Button variant="ghost">Sobre</Button>
+              <Button variant="ghost" className="text-primary">Sobre</Button>
+            </Link>
+            <Link href="/contact">
+              <Button variant="ghost">Contato</Button>
+            </Link>
+            <Link href="/community/explore">
+              <Button variant="ghost">Comunidade</Button>
             </Link>
             {isAuthenticated ? (
                 <UserMenu />
@@ -51,20 +54,20 @@ export default function About() {
                 Sobre Shadia Hasan
               </h1>
               <p className="text-xl text-muted-foreground">
-                Mentora de transformação e desenvolvimento humano, dedicada a guiar pessoas na descoberta do seu verdadeiro potencial.
+                Estou aqui para caminhar ao seu lado. Com escuta genuína e apoio individual, vamos juntos descobrir seu verdadeiro potencial.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <img
-                src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/TSJtZyGnSUDcAEsl.PNG"
-                alt="Shadia Hasan"
-                className="rounded-lg shadow-lg w-full h-full object-cover"
-              />
-              <img
-                src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/EKLuDwrTzWRoEyQr.PNG"
-                alt="Shadia Hasan"
-                className="rounded-lg shadow-lg w-full h-full object-cover mt-8"
-              />
+            <div className="flex justify-center">
+              <picture>
+                <source srcSet="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/YAsEYvxqebPXZBIO.avif" type="image/avif" />
+                <source srcSet="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/bOfXnFYBniKdijZM.webp" type="image/webp" />
+                <img
+                  src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/xzKfSOAtqexRDupD.jpeg"
+                  alt="Shadia Hasan - Mentora de Transformação e Desenvolvimento Humano"
+                  className="rounded-2xl shadow-2xl w-full max-w-md object-cover"
+                  loading="lazy"
+                />
+              </picture>
             </div>
           </div>
         </div>
@@ -84,15 +87,15 @@ export default function About() {
           
           <div className="prose prose-lg max-w-none text-muted-foreground">
             <p>
-              Com anos de experiência em desenvolvimento humano e transformação pessoal, Shadia Hasan dedica sua vida a ajudar pessoas a descobrirem seu potencial máximo e construírem uma vida com mais propósito, plenitude e autenticidade.
+              Sei como é desafiador buscar mudança. Por isso, ofereço apoio individual e personalizado para que você se sinta acolhido em cada passo dessa jornada. Juntos, vamos construir um caminho de transformação que respeita quem você é.
             </p>
             
             <p>
-              Sua abordagem única combina sabedoria ancestral com tecnologia de vanguarda, criando experiências imersivas que potencializam a evolução consciente. Através da realidade virtual e metodologias estruturadas, Shadia desenvolveu um caminho transformador que já impactou centenas de vidas.
+              Minha abordagem une tecnologia imersiva e escuta empática. Cada pessoa é única, e sua jornada merece atenção dedicada. Estou aqui para entender suas dores, celebrar suas conquistas e caminhar ao seu lado.
             </p>
             
             <p>
-              Especialista em inteligência emocional, autoconhecimento e crescimento interior, ela acredita que cada pessoa carrega dentro de si as respostas que procura. Seu papel como mentora é facilitar essa descoberta, oferecendo ferramentas, técnicas e um espaço seguro para a expansão pessoal.
+              Acredito que você já tem as respostas dentro de si. Meu papel é criar um espaço seguro e acolhedor onde você possa se descobrir, sem pressão ou julgamento. Vamos juntos?
             </p>
           </div>
         </div>
@@ -109,9 +112,9 @@ export default function About() {
                 <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Heart className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="text-xl font-semibold">Empatia e Acolhimento</h3>
+                <h3 className="text-xl font-semibold">Empatia Genuína</h3>
                 <p className="text-muted-foreground">
-                  Cada jornada é única. Oferecemos um espaço seguro, livre de julgamentos, onde você pode ser autêntico e vulnerável.
+                  Você será ouvido de verdade. Um espaço onde suas emoções são validadas e respeitadas.
                 </p>
               </CardContent>
             </Card>
@@ -121,9 +124,9 @@ export default function About() {
                 <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Target className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="text-xl font-semibold">Foco em Resultados</h3>
+                <h3 className="text-xl font-semibold">Apoio Individual</h3>
                 <p className="text-muted-foreground">
-                  Metodologias estruturadas e práticas comprovadas para gerar transformações reais e duradouras em sua vida.
+                  Atenção personalizada para suas necessidades. Cada sessão é pensada especialmente para você.
                 </p>
               </CardContent>
             </Card>

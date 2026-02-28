@@ -1,0 +1,17 @@
+# robots.txt para shadiahasan.club
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /my-courses
+Disallow: /my-subscription
+Disallow: /edit-profile
+Disallow: /messages
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://shadiahasan.club/sitemap.xml
+
+# Crawl-delay (opcional)
+Crawl-delay: 1

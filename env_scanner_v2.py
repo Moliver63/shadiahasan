@@ -1,238 +1,225 @@
 #!/usr/bin/env python3
 """
-env_scanner_v2.py
-- Scans a project for environment variable usage:
-  - process.env.X and process.env["X"]
-  - import.meta.env.VITE_X (Vite)
-- Outputs:
-  1) env-report.json (keys + file hits)
-  2) env-report.txt (human readable)
-  3) .env.example (commented template)
-  4) .env.production.sample (same keys, placeholders)
+env_scanner_v2.py (v3)
+Scans the project for environment variable usage:
+  - Backend: process.env.X, process.env["X"]
+  - Frontend (Vite): import.meta.env.VITE_X
+Also detects hardcoded localhost URLs for hints.
+
+Outputs under reports/:
+  - env-report.json
+  - env-report.txt
+And generates:
+  - .env.example (commented template)
+  - .env.production.sample (placeholders)
+
+Usage:
+  python env_scanner_v2.py --fix
 """
 
 from __future__ import annotations
 
-import json
-import os
+import argparse
 import re
-from dataclasses import dataclass
+from dataclasses import asdict
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set
+
+from common import (
+    Finding, ensure_reports_dir, findings_summary, log, now_iso, safe_rel,
+    write_json, write_text, read_text, exit_for_strict
+)
 
 ROOT = Path(".").resolve()
 
-TEXT_EXTS = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"}
-SKIP_DIRS = {
-    "node_modules", ".git", "dist", "build", ".next", ".vercel",
-    ".turbo", ".cache", ".pnpm-store", "coverage"
+DEFAULT_IGNORE_DIRS: Set[str] = {
+    "node_modules", ".git", "dist", "build", ".next", ".cache", ".turbo",
+    ".vercel", ".output", "coverage", "tmp", "temp", ".pytest_cache", "reports"
+}
+IGNORE_FILES_SUFFIX = {".png",".jpg",".jpeg",".gif",".webp",".ico",".pdf",".zip",".mp4",".mov",".log"}
+TEXT_EXT = {".js",".ts",".tsx",".jsx",".mjs",".cjs",".json",".env",".md",".yml",".yaml",".toml",".py"}
+
+RE_PROCENV_DOT = re.compile(r"\bprocess\.env\.([A-Z0-9_]+)\b")
+RE_PROCENV_BRACKET = re.compile(r"\bprocess\.env\[\s*[\"']([A-Z0-9_]+)[\"']\s*\]")
+RE_VITE = re.compile(r"\bimport\.meta\.env\.([A-Z0-9_]+)\b")  # will filter VITE_ later
+RE_LOCALHOST = re.compile(r"\b(localhost|127\.0\.0\.1)\b", re.IGNORECASE)
+
+COMMON_KEY_HINTS = {
+    "DATABASE_URL": "mysql://USER:PASS@HOST:3306/DB",
+    "JWT_SECRET": "change-me-to-a-long-random-secret",
+    "GOOGLE_CLIENT_ID": "your-google-client-id.apps.googleusercontent.com",
+    "GOOGLE_CLIENT_SECRET": "your-google-client-secret",
+    "GOOGLE_CALLBACK_URL": "https://YOUR_DOMAIN/api/auth/google/callback",
+    "SITE_URL": "http://localhost:5173",
+    "PORT": "3001",
 }
 
-RE_PROC_DOT = re.compile(r"\bprocess\.env\.([A-Z0-9_]+)\b")
-RE_PROC_BRACKET = re.compile(r"\bprocess\.env\[['\"]([A-Z0-9_]+)['\"]\]\b")
-RE_VITE = re.compile(r"\bimport\.meta\.env\.([A-Z0-9_]+)\b")
-
-# Optional: detect dotenv-safe style like env("KEY") if you use it
-RE_ENV_FUNC = re.compile(r"\benv\(\s*['\"]([A-Z0-9_]+)['\"]\s*\)")
-
-@dataclass
-class Hit:
-    file: str
-    kind: str
-    key: str
-    line: int
-    context: str
-
-def should_skip_dir(path: Path) -> bool:
-    parts = set(path.parts)
-    return any(p in parts for p in SKIP_DIRS)
-
-def scan_file(path: Path) -> List[Hit]:
-    hits: List[Hit] = []
-    try:
-        text = path.read_text(encoding="utf-8", errors="ignore")
-    except Exception:
-        return hits
-
-    lines = text.splitlines()
-    for i, line in enumerate(lines, start=1):
-        for m in RE_PROC_DOT.finditer(line):
-            hits.append(Hit(str(path), "process.env", m.group(1), i, line.strip()))
-        for m in RE_PROC_BRACKET.finditer(line):
-            hits.append(Hit(str(path), "process.env[]", m.group(1), i, line.strip()))
-        for m in RE_VITE.finditer(line):
-            hits.append(Hit(str(path), "import.meta.env", m.group(1), i, line.strip()))
-        for m in RE_ENV_FUNC.finditer(line):
-            hits.append(Hit(str(path), "env('KEY')", m.group(1), i, line.strip()))
-    return hits
-
-def group_hits(hits: List[Hit]) -> Dict[str, List[Hit]]:
-    grouped: Dict[str, List[Hit]] = {}
-    for h in hits:
-        grouped.setdefault(h.key, []).append(h)
-    return grouped
-
-def load_existing_env(env_path: Path) -> Dict[str, str]:
-    if not env_path.exists():
-        return {}
-    data: Dict[str, str] = {}
-    for raw in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        s = raw.strip()
-        if not s or s.startswith("#") or "=" not in s:
+def iter_files(root: Path, ignore_dirs: Set[str]) -> List[Path]:
+    out: List[Path] = []
+    for p in root.rglob("*"):
+        if p.is_dir():
             continue
-        k, v = s.split("=", 1)
-        data[k.strip()] = v.strip()
-    return data
-
-def infer_comment(key: str) -> str:
-    # You can customize these comments anytime.
-    mapping = {
-        "NODE_ENV": "Runtime mode: development | production",
-        "PORT": "Server port (Node/Express). In cPanel Node App, you can set this too.",
-        "SITE_URL": "Public site URL (used for redirects/callbacks/links).",
-        "APP_URL": "Alternative name some projects use for public URL.",
-        "DATABASE_URL": "MySQL connection string: mysql://user:pass@host:3306/db",
-        "JWT_SECRET": "JWT signing secret (use a long random string).",
-        "COOKIE_SECRET": "Cookie/session secret (use a long random string).",
-        "FROM_EMAIL": "Default sender email address.",
-        "RESEND_API_KEY": "Resend API key for email sending.",
-        "OAUTH_SERVER_URL": "OAuth server base URL.",
-        "OWNER_OPEN_ID": "Owner/admin OpenID (if used by your auth flow).",
-        "BUILT_IN_FORGE_API_URL": "Forge API base URL (backend).",
-        "BUILT_IN_FORGE_API_KEY": "Forge API key (backend).",
-        "VITE_APP_ID": "Frontend app id (exposed to browser).",
-        "VITE_FRONTEND_FORGE_API_URL": "Frontend Forge API base URL (exposed to browser).",
-        "VITE_FRONTEND_FORGE_API_KEY": "Frontend Forge API key (exposed to browser).",
-        "VITE_OAUTH_PORTAL_URL": "Frontend OAuth portal URL (exposed to browser).",
-    }
-    return mapping.get(key, "TODO: describe this variable")
-
-def placeholder_value(key: str) -> str:
-    # Safe placeholders (no secrets generated here)
-    defaults = {
-        "NODE_ENV": "production",
-        "PORT": "3000",
-        "SITE_URL": "https://www.seudominio.com",
-        "APP_URL": "https://www.seudominio.com",
-        "DATABASE_URL": "mysql://USER:PASSWORD@HOST:3306/DBNAME",
-        "FROM_EMAIL": "contato@seudominio.com",
-        "OAUTH_SERVER_URL": "https://oauth.seudominio.com",
-        "BUILT_IN_FORGE_API_URL": "https://api.seudominio.com",
-        "VITE_FRONTEND_FORGE_API_URL": "https://api.seudominio.com",
-        "VITE_OAUTH_PORTAL_URL": "https://oauth.seudominio.com",
-    }
-    if key in defaults:
-        return defaults[key]
-    # Secrets / keys placeholders
-    if "SECRET" in key or key.endswith("_KEY") or key.endswith("API_KEY"):
-        return "CHANGE_ME"
-    return "CHANGE_ME"
-
-def write_env_example(keys: List[str], existing: Dict[str, str], out_path: Path, commented: bool = True):
-    lines: List[str] = []
-    for k in keys:
-        comment = infer_comment(k)
-        val = existing.get(k, placeholder_value(k))
-        if commented:
-            lines.append(f"# {comment}")
-        lines.append(f"{k}={val}")
-        lines.append("")
-    out_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-
-def main():
-    all_hits: List[Hit] = []
-    for dirpath, dirnames, filenames in os.walk(ROOT):
-        dp = Path(dirpath)
-        if should_skip_dir(dp):
-            dirnames[:] = []
+        if any(part in ignore_dirs for part in p.parts):
             continue
-        for fn in filenames:
-            p = dp / fn
-            if p.suffix.lower() not in TEXT_EXTS:
+        if p.suffix.lower() in IGNORE_FILES_SUFFIX:
+            continue
+        if p.suffix.lower() not in TEXT_EXT and p.name != "package.json":
+            continue
+        out.append(p)
+    return out
+
+def add_hit(hits: Dict[str, Dict], key: str, fp: Path, line: int) -> None:
+    if key not in hits:
+        hits[key] = {"kind": "unknown", "hits": []}
+    hits[key]["hits"].append({"file": safe_rel(fp), "line": line})
+
+def template_line(key: str, value: str, comment: str = "") -> str:
+    c = f"  # {comment}" if comment else ""
+    return f"{key}={value}{c}\n"
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Scan env var usage and generate templates.")
+    ap.add_argument("--reports-dir", default="reports")
+    ap.add_argument("--strict", action="store_true", help="Exit non-zero if critical env keys are missing from templates.")
+    ap.add_argument("--fix", action="store_true", help="Write .env.example and .env.production.sample")
+    ap.add_argument("--dry-run", action="store_true", help="Don't write files; only report.")
+    ap.add_argument("--ignore-dir", action="append", default=[], help="Additional dir names to ignore (repeatable).")
+    args = ap.parse_args()
+
+    ignore_dirs = set(DEFAULT_IGNORE_DIRS) | set(args.ignore_dir)
+
+    files = iter_files(ROOT, ignore_dirs)
+
+    hits: Dict[str, Dict] = {}
+    localhost_hits: List[Dict] = []
+
+    for fp in files:
+        txt = fp.read_text(encoding="utf-8", errors="ignore")
+        # backend
+        for m in RE_PROCENV_DOT.finditer(txt):
+            key = m.group(1)
+            line = txt.count("\n", 0, m.start()) + 1
+            add_hit(hits, key, fp, line)
+            hits[key]["kind"] = "backend"
+        for m in RE_PROCENV_BRACKET.finditer(txt):
+            key = m.group(1)
+            line = txt.count("\n", 0, m.start()) + 1
+            add_hit(hits, key, fp, line)
+            hits[key]["kind"] = "backend"
+        # frontend
+        for m in RE_VITE.finditer(txt):
+            key = m.group(1)
+            if not key.startswith("VITE_"):
                 continue
-            all_hits.extend(scan_file(p))
+            line = txt.count("\n", 0, m.start()) + 1
+            add_hit(hits, key, fp, line)
+            hits[key]["kind"] = "frontend"
+        # localhost hints
+        for m in RE_LOCALHOST.finditer(txt):
+            line = txt.count("\n", 0, m.start()) + 1
+            localhost_hits.append({"file": safe_rel(fp), "line": line, "match": m.group(0)})
 
-    grouped = group_hits(all_hits)
+    # sort keys for stable outputs
+    keys = sorted(hits.keys())
 
-    proc_keys: Set[str] = set()
-    vite_keys: Set[str] = set()
-    other_keys: Set[str] = set()
+    # classify critical keys (heuristic)
+    critical = [k for k in keys if k in {"DATABASE_URL","JWT_SECRET","GOOGLE_CLIENT_ID","GOOGLE_CLIENT_SECRET","SITE_URL"} or k.endswith("_SECRET") or k.endswith("_KEY")]
+    missing_critical = [k for k in critical if k not in COMMON_KEY_HINTS and k not in keys]  # usually empty by design
 
-    for key, hs in grouped.items():
-        kinds = {h.kind for h in hs}
-        if any(k.startswith("import.meta.env") for k in kinds) or key.startswith("VITE_"):
-            vite_keys.add(key)
-        elif any(k.startswith("process.env") for k in kinds):
-            proc_keys.add(key)
-        else:
-            other_keys.add(key)
+    findings: List[Finding] = []
+    if localhost_hits:
+        findings.append(Finding(
+            level="warn",
+            code="LOCALHOST_REFERENCES",
+            message="Foram encontradas referências a localhost/127.0.0.1; para deploy use env vars.",
+            details={"count": len(localhost_hits), "samples": localhost_hits[:25]},
+        ))
+    else:
+        findings.append(Finding(level="ok", code="NO_LOCALHOST_REFERENCES", message="Nenhuma referência a localhost encontrada.", details={}))
 
-    # Merge and sort unique keys
-    all_keys = sorted(proc_keys | vite_keys | other_keys)
+    if keys:
+        findings.append(Finding(level="ok", code="ENV_KEYS_FOUND", message=f"Encontradas {len(keys)} variáveis de ambiente no código.", details={"count": len(keys)}))
+    else:
+        findings.append(Finding(level="warn", code="NO_ENV_KEYS_FOUND", message="Nenhuma variável process.env/import.meta.env encontrada (pode ser normal).", details={}))
 
-    # Existing .env values if present
-    existing = load_existing_env(ROOT / ".env")
-
-    # Write JSON report
-    json_report = {
-        "root": str(ROOT),
-        "counts": {
-            "total_hits": len(all_hits),
-            "unique_keys": len(all_keys),
-            "process_env_keys": len(proc_keys),
-            "vite_env_keys": len(vite_keys),
-        },
-        "keys": all_keys,
-        "process_env_keys": sorted(proc_keys),
-        "vite_env_keys": sorted(vite_keys),
-        "hits_by_key": {
-            k: [
-                {
-                    "file": h.file,
-                    "kind": h.kind,
-                    "line": h.line,
-                    "context": h.context,
-                }
-                for h in grouped[k]
-            ]
-            for k in all_keys
-        },
+    report = {
+        "tool": "env_scanner_v2.py",
+        "version": "v3",
+        "generated_at": now_iso(),
+        "keys": keys,
+        "hits": hits,
+        "localhost_hits": localhost_hits,
+        "critical_keys": critical,
+        "findings": [asdict(f) for f in findings],
+        "summary": findings_summary(findings),
     }
-    (ROOT / "env-report.json").write_text(json.dumps(json_report, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    # Write TXT report
-    lines: List[str] = []
-    lines.append("=== ENV SCANNER V2 REPORT ===")
-    lines.append(f"Project root: {ROOT}")
-    lines.append("")
-    lines.append(f"Total hits: {len(all_hits)}")
-    lines.append(f"Unique keys: {len(all_keys)}")
-    lines.append("")
-    lines.append("=== process.env KEYS ===")
-    for k in sorted(proc_keys):
-        lines.append(k)
-    lines.append("")
-    lines.append("=== import.meta.env (VITE) KEYS ===")
-    for k in sorted(vite_keys):
-        lines.append(k)
-    lines.append("")
-    lines.append("=== HITS (where each key appears) ===")
-    for k in all_keys:
-        lines.append(f"\n[{k}]")
-        for h in grouped[k]:
-            lines.append(f"- {h.file}:{h.line} ({h.kind})  {h.context}")
-    (ROOT / "env-report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    reports_dir = ensure_reports_dir(Path(args.reports_dir))
+    write_json(reports_dir / "env-report.json", report)
 
-    # Generate .env.example and .env.production.sample
-    write_env_example(all_keys, existing, ROOT / ".env.example", commented=True)
-    write_env_example(all_keys, existing, ROOT / ".env.production.sample", commented=False)
+    # text report
+    lines = []
+    lines.append("ENV REPORT\n")
+    lines.append(f"Generated: {report['generated_at']}\n")
+    lines.append(f"Keys found: {len(keys)}\n\n")
+    for k in keys:
+        kind = hits[k].get("kind","?")
+        lines.append(f"- {k} ({kind}) [{len(hits[k]['hits'])} hits]\n")
+        for h in hits[k]["hits"][:10]:
+            lines.append(f"    • {h['file']}:{h['line']}\n")
+        if len(hits[k]["hits"]) > 10:
+            lines.append(f"    … (+{len(hits[k]['hits'])-10})\n")
+    if localhost_hits:
+        lines.append("\nLocalhost references (samples):\n")
+        for h in localhost_hits[:15]:
+            lines.append(f"  • {h['file']}:{h['line']} ({h['match']})\n")
+    write_text(reports_dir / "env-report.txt", "".join(lines))
 
-    print("\n✅ Generated:")
-    print("- env-report.json")
-    print("- env-report.txt")
-    print("- .env.example")
-    print("- .env.production.sample")
-    print("\nTip: VITE_* variables are baked into the frontend at build time (pnpm run build).")
+    # templates
+    if args.fix and not args.dry_run:
+        # .env.example
+        ex = []
+        ex.append("# Auto-generated by env_scanner_v2.py (v3)\n")
+        ex.append("# Edite este arquivo e copie para .env (NUNCA commitar .env)\n\n")
+        # group keys
+        backend = [k for k in keys if hits[k].get("kind")=="backend" and not k.startswith("VITE_")]
+        frontend = [k for k in keys if hits[k].get("kind")=="frontend" and k.startswith("VITE_")]
+        other = [k for k in keys if k not in backend and k not in frontend]
+
+        if backend:
+            ex.append("# ================================\n# BACKEND (server)\n# ================================\n")
+            for k in backend:
+                placeholder = COMMON_KEY_HINTS.get(k, "")
+                comment = "obrigatório" if k in critical else "opcional"
+                ex.append(template_line(k, placeholder, comment))
+            ex.append("\n")
+        if frontend:
+            ex.append("# ================================\n# FRONTEND (Vite) - vai para o browser\n# ================================\n")
+            for k in frontend:
+                placeholder = COMMON_KEY_HINTS.get(k, "")
+                ex.append(template_line(k, placeholder, "opcional"))
+            ex.append("\n")
+        if other:
+            ex.append("# ================================\n# OUTROS\n# ================================\n")
+            for k in other:
+                placeholder = COMMON_KEY_HINTS.get(k, "")
+                ex.append(template_line(k, placeholder, "opcional"))
+            ex.append("\n")
+
+        (ROOT / ".env.example").write_text("".join(ex), encoding="utf-8")
+
+        prod = []
+        prod.append("# Auto-generated by env_scanner_v2.py (v3)\n")
+        prod.append("# Template de produção (Render). Ajuste valores no painel do Render.\n\n")
+        for k in keys:
+            placeholder = COMMON_KEY_HINTS.get(k, "")
+            prod.append(f"{k}={placeholder}\n")
+        (ROOT / ".env.production.sample").write_text("".join(prod), encoding="utf-8")
+
+        log("ok", "Gerados: .env.example e .env.production.sample")
+
+    exit_for_strict(findings, args.strict)
+    log("ok", "Env scan concluído. Veja reports/env-report.*")
 
 if __name__ == "__main__":
     main()

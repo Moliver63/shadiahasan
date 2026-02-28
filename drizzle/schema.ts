@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { date, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -19,10 +19,17 @@ export const users = mysqlTable("users", {
   passwordHash: varchar("passwordHash", { length: 255 }),
   /** Email verification status */
   emailVerified: int("emailVerified").default(0).notNull(),
-  /** OAuth provider: 'email', 'google', 'apple' */
+  /** Primary login method: 'email', 'google', 'apple' */
   loginMethod: varchar("loginMethod", { length: 64 }).default("email").notNull(),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "superadmin"]).default("user").notNull(),
   plan: mysqlEnum("plan", ["free", "premium"]).default("free").notNull(),
+  /** Stripe integration */
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }).unique(), // Stripe customer ID
+  /** Referral system fields */
+  referralCode: varchar("referralCode", { length: 32 }).unique(), // Unique referral code for this user
+  referredBy: varchar("referredBy", { length: 32 }), // Referral code of the user who referred them
+  pointsBalance: int("pointsBalance").default(0).notNull(), // Current points balance
+  freeMonthsRemaining: int("freeMonthsRemaining").default(0).notNull(), // Number of free months earned
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -30,6 +37,22 @@ export const users = mysqlTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+/**
+ * Admin Audit Logs - tracks all admin promotion/demotion actions
+ */
+export const adminAuditLogs = mysqlTable("admin_audit_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  action: mysqlEnum("action", ["PROMOTE_ADMIN", "DEMOTE_ADMIN", "PROMOTE_SUPERADMIN", "DEMOTE_SUPERADMIN"]).notNull(),
+  performedByUserId: int("performedByUserId").notNull(), // Who performed the action
+  targetUserId: int("targetUserId").notNull(), // Who was promoted/demoted
+  ip: varchar("ip", { length: 45 }), // IPv4 or IPv6
+  userAgent: text("userAgent"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
+export type InsertAdminAuditLog = typeof adminAuditLogs.$inferInsert;
 
 /**
  * Courses table - stores course information
@@ -222,11 +245,26 @@ export const userProfiles = mysqlTable("user_profiles", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().unique(),
   bio: text("bio"),
+  avatar: text("avatar"), // URL to avatar image
+  phoneNumber: varchar("phoneNumber", { length: 20 }),
+  birthDate: date("birthDate"),
+  gender: mysqlEnum("gender", ["male", "female", "other", "prefer_not_to_say"]),
+  // Address
+  address: varchar("address", { length: 255 }),
   city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 2 }),
+  zipCode: varchar("zipCode", { length: 10 }),
+  country: varchar("country", { length: 100 }).default("Brazil").notNull(),
+  // Community
   interests: text("interests"), // JSON array of interests
   goals: text("goals"), // JSON array of development goals
   isPublic: int("isPublic").default(0).notNull(), // Opt-in for community visibility
   showCity: int("showCity").default(0).notNull(),
+  // Emergency contact
+  emergencyContactName: varchar("emergencyContactName", { length: 255 }),
+  emergencyContactPhone: varchar("emergencyContactPhone", { length: 20 }),
+  // Medical information (encrypted)
+  medicalNotes: text("medicalNotes"), // Sensitive - should be encrypted
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -388,3 +426,229 @@ export const coursePurchases = mysqlTable("course_purchases", {
 
 export type CoursePurchase = typeof coursePurchases.$inferSelect;
 export type InsertCoursePurchase = typeof coursePurchases.$inferInsert;
+
+/**
+ * Admin Permissions table - granular permissions for admin users
+ */
+export const adminPermissions = mysqlTable("admin_permissions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(), // Foreign key to users table
+  manageCourses: int("manageCourses").default(0).notNull(), // Create, edit, delete courses
+  manageStudents: int("manageStudents").default(0).notNull(), // View and manage students
+  manageContent: int("manageContent").default(0).notNull(), // Manage lessons and content
+  manageAdmins: int("manageAdmins").default(0).notNull(), // Add and remove other admins
+  manageSettings: int("manageSettings").default(0).notNull(), // Change site settings
+  viewAnalytics: int("viewAnalytics").default(0).notNull(), // View reports and analytics
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AdminPermission = typeof adminPermissions.$inferSelect;
+export type InsertAdminPermission = typeof adminPermissions.$inferInsert;
+
+/**
+ * Subscriptions table - stores user subscription information
+ */
+export const subscriptions = mysqlTable("subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  plan: mysqlEnum("plan", ["free", "basic", "premium", "vip"]).default("free").notNull(),
+  status: mysqlEnum("status", ["active", "paused", "cancelled", "expired", "trial"]).default("active").notNull(),
+  startDate: timestamp("startDate").defaultNow().notNull(),
+  endDate: timestamp("endDate"), // Null = no expiration
+  trialEndDate: timestamp("trialEndDate"), // For trial periods
+  autoRenew: int("autoRenew").default(1).notNull(), // 1 = auto-renew, 0 = manual
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
+  stripePriceId: varchar("stripePriceId", { length: 255 }),
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  notes: text("notes"), // Admin notes
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = typeof subscriptions.$inferInsert;
+
+/**
+ * Payment history table - stores all payment transactions
+ */
+export const paymentHistory = mysqlTable("payment_history", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  subscriptionId: int("subscriptionId"),
+  amount: int("amount").notNull(), // Amount in cents
+  currency: varchar("currency", { length: 3 }).default("BRL").notNull(),
+  status: mysqlEnum("status", ["pending", "completed", "failed", "refunded"]).default("pending").notNull(),
+  paymentMethod: varchar("paymentMethod", { length: 64 }), // credit_card, pix, boleto, etc.
+  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
+  stripeInvoiceId: varchar("stripeInvoiceId", { length: 255 }),
+  description: text("description"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PaymentHistory = typeof paymentHistory.$inferSelect;
+export type InsertPaymentHistory = typeof paymentHistory.$inferInsert;
+
+/**
+ * Referrals table - tracks user referrals
+ */
+export const referrals = mysqlTable("referrals", {
+  id: int("id").autoincrement().primaryKey(),
+  referrerId: int("referrerId").notNull(), // User who referred
+  referredUserId: int("referredUserId"), // User who was referred (null until they sign up)
+  referralCode: varchar("referralCode", { length: 32 }).notNull(), // Code used for referral
+  status: mysqlEnum("status", ["pending", "confirmed", "cancelled"]).default("pending").notNull(),
+  planPurchased: mysqlEnum("planPurchased", ["basic", "premium", "vip"]), // Plan the referred user purchased
+  pointsAwarded: int("pointsAwarded").default(0).notNull(), // Points given to referrer
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  confirmedAt: timestamp("confirmedAt"), // When the referral was confirmed (payment received)
+});
+
+export type Referral = typeof referrals.$inferSelect;
+export type InsertReferral = typeof referrals.$inferInsert;
+
+/**
+ * Points transactions table - tracks all point movements
+ */
+export const pointsTransactions = mysqlTable("pointsTransactions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  amount: int("amount").notNull(), // Positive for earning, negative for spending
+  type: mysqlEnum("type", ["referral_bonus", "monthly_bonus", "cashback_redeemed", "admin_adjustment", "free_month_applied"]).notNull(),
+  description: text("description"),
+  referralId: int("referralId"), // Link to referral if applicable
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PointsTransaction = typeof pointsTransactions.$inferSelect;
+export type InsertPointsTransaction = typeof pointsTransactions.$inferInsert;
+
+/**
+ * Cashback requests table - tracks cashback redemption requests
+ */
+export const cashbackRequests = mysqlTable("cashbackRequests", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  pointsAmount: int("pointsAmount").notNull(), // Points being redeemed
+  cashAmount: int("cashAmount").notNull(), // Cash value in cents (R$)
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "paid"]).default("pending").notNull(),
+  paymentMethod: mysqlEnum("paymentMethod", ["pix", "bank_transfer", "credit_account"]).notNull(),
+  pixKey: varchar("pixKey", { length: 255 }), // PIX key if payment method is PIX
+  bankDetails: text("bankDetails"), // JSON with bank account details
+  adminNotes: text("adminNotes"), // Admin notes for approval/rejection
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"), // When admin processed the request
+  processedBy: int("processedBy"), // Admin user ID who processed
+});
+
+export type CashbackRequest = typeof cashbackRequests.$inferSelect;
+export type InsertCashbackRequest = typeof cashbackRequests.$inferInsert;
+
+/**
+ * Admin invites table - tracks admin invitation tokens
+ */
+export const adminInvites = mysqlTable("adminInvites", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  role: mysqlEnum("role", ["admin", "superadmin"]).default("admin").notNull(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  invitedBy: int("invitedBy").notNull(), // User ID of the super admin who sent the invite
+  acceptedAt: timestamp("acceptedAt"), // Null until invite is accepted
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AdminInvite = typeof adminInvites.$inferSelect;
+export type InsertAdminInvite = typeof adminInvites.$inferInsert;
+
+/**
+ * Appointments table - stores session/appointment bookings
+ */
+export const appointments = mysqlTable("appointments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  programType: varchar("programType", { length: 100 }), // VR program type
+  startTime: timestamp("startTime").notNull(),
+  endTime: timestamp("endTime").notNull(),
+  duration: int("duration").notNull(), // Duration in minutes
+  status: mysqlEnum("status", ["scheduled", "confirmed", "completed", "cancelled", "no_show"]).default("scheduled").notNull(),
+  location: varchar("location", { length: 255 }), // Physical location or "Online"
+  notes: text("notes"), // Admin notes about the session
+  reminderSent: int("reminderSent").default(0).notNull(), // 1 if reminder was sent
+  cancelledBy: int("cancelledBy"), // User ID who cancelled (null if not cancelled)
+  cancelReason: text("cancelReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = typeof appointments.$inferInsert;
+
+/**
+ * User Settings table - stores user preferences and configurations
+ */
+export const userSettings = mysqlTable("userSettings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  // Notification preferences
+  emailNotifications: int("emailNotifications").default(1).notNull(),
+  smsNotifications: int("smsNotifications").default(0).notNull(),
+  pushNotifications: int("pushNotifications").default(1).notNull(),
+  reminderEmail: int("reminderEmail").default(1).notNull(),
+  reminderSms: int("reminderSms").default(0).notNull(),
+  marketingEmails: int("marketingEmails").default(0).notNull(),
+  // Privacy preferences
+  profilePublic: int("profilePublic").default(0).notNull(),
+  shareProgress: int("shareProgress").default(0).notNull(),
+  allowAnalytics: int("allowAnalytics").default(1).notNull(),
+  // Accessibility
+  darkMode: int("darkMode").default(0).notNull(),
+  fontSize: varchar("fontSize", { length: 20 }).default("medium").notNull(),
+  highContrast: int("highContrast").default(0).notNull(),
+  reduceMotion: int("reduceMotion").default(0).notNull(),
+  // Other
+  language: varchar("language", { length: 10 }).default("pt-BR").notNull(),
+  timezone: varchar("timezone", { length: 50 }).default("America/Sao_Paulo").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserSetting = typeof userSettings.$inferSelect;
+export type InsertUserSetting = typeof userSettings.$inferInsert;
+
+/**
+ * Activity Logs table - tracks user and admin activities for LGPD compliance
+ */
+export const activityLogs = mysqlTable("activityLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  action: varchar("action", { length: 100 }).notNull(), // e.g., "login", "data_export", "profile_update"
+  entity: varchar("entity", { length: 100 }), // e.g., "user", "appointment", "course"
+  entityId: int("entityId"), // ID of the affected entity
+  details: text("details"), // JSON with additional details
+  ipAddress: varchar("ipAddress", { length: 45 }), // IPv4 or IPv6
+  userAgent: text("userAgent"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type InsertActivityLog = typeof activityLogs.$inferInsert;
+
+/**
+ * Notifications table - stores user notifications
+ */
+export const notifications = mysqlTable("notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  type: mysqlEnum("type", ["info", "success", "warning", "error", "appointment"]).default("info").notNull(),
+  read: int("read").default(0).notNull(),
+  actionUrl: varchar("actionUrl", { length: 500 }), // Optional link for the notification
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert;

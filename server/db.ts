@@ -756,3 +756,58 @@ export async function addNewAdmin(email: string, name: string, password: string)
   }).returning({ id: users.id });
   return await getUserById(result[0]?.id);
 }
+
+// ============ SUBSCRIPTION STATUS ============
+
+export async function updateSubscriptionStatus(userId: number, status: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(subscriptions).set({
+    status: status as any,
+    updatedAt: new Date(),
+  }).where(eq(subscriptions.userId, userId));
+}
+
+// ============ PAYMENT HISTORY ============
+
+export async function getPaymentHistoryByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(paymentHistory)
+    .where(eq(paymentHistory.userId, userId))
+    .orderBy(desc(paymentHistory.createdAt));
+}
+
+export async function getAllPaymentHistory() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(paymentHistory).orderBy(desc(paymentHistory.createdAt));
+}
+
+// ============ ADMIN PERMISSIONS ============
+
+export async function getAdminPermissions(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(adminPermissions)
+    .where(eq(adminPermissions.userId, userId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updateAdminPermissions(userId: number, perms: Partial<typeof adminPermissions.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await getAdminPermissions(userId);
+  if (!existing) {
+    await db.insert(adminPermissions).values({ userId, ...perms } as any);
+  } else {
+    await db.update(adminPermissions).set(perms as any).where(eq(adminPermissions.userId, userId));
+  }
+}
+
+export async function removeAdmin(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ role: "user" }).where(eq(users.id, userId));
+  await db.delete(adminPermissions).where(eq(adminPermissions.userId, userId));
+}

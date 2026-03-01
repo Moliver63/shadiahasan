@@ -661,6 +661,98 @@ export async function listAdminInvites() {
 
 // ============ WELCOME MESSAGE (stub) ============
 async function sendWelcomeMessage(userId: number, name: string) {
-  // Implementar envio de mensagem de boas-vindas aqui
   console.log(`[Welcome] Sending welcome message to user ${userId} (${name})`);
+}
+
+// ============ FIND OR CREATE USER BY PROVIDER (OAuth) ============
+
+export async function findOrCreateUserByProvider(profile: {
+  openId: string;
+  email: string;
+  name?: string;
+  loginMethod?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Tenta encontrar por openId primeiro
+  let user = await getUserByOpenId(profile.openId);
+  if (user) {
+    await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
+    return await getUserById(user.id);
+  }
+
+  // Tenta encontrar por email
+  user = await getUserByEmail(profile.email);
+  if (user) {
+    await db.update(users).set({
+      openId: profile.openId,
+      loginMethod: profile.loginMethod ?? "google",
+      lastSignedIn: new Date(),
+    }).where(eq(users.id, user.id));
+    return await getUserById(user.id);
+  }
+
+  // Cria novo usuário
+  await upsertUser({
+    openId: profile.openId,
+    email: profile.email,
+    name: profile.name,
+    loginMethod: profile.loginMethod ?? "google",
+    lastSignedIn: new Date(),
+  });
+
+  return await getUserByEmail(profile.email);
+}
+
+// ============ SUBSCRIPTIONS (admin) ============
+
+export async function getAllSubscriptions() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(subscriptions).orderBy(desc(subscriptions.createdAt));
+}
+
+export async function getSubscriptionByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .orderBy(desc(subscriptions.createdAt))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function upsertSubscription(data: InsertSubscription) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await getSubscriptionByUserId(data.userId);
+  if (existing) {
+    await db.update(subscriptions).set({
+      ...data,
+      updatedAt: new Date(),
+    }).where(eq(subscriptions.userId, data.userId));
+    return await getSubscriptionByUserId(data.userId);
+  } else {
+    const result = await db.insert(subscriptions).values(data).returning({ id: subscriptions.id });
+    const id = result[0]?.id;
+    const rows = await db.select().from(subscriptions).where(eq(subscriptions.id, id)).limit(1);
+    return rows[0];
+  }
+}
+
+// ============ ADD NEW ADMIN ============
+
+export async function addNewAdmin(email: string, name: string, password: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await getUserByEmail(email);
+  if (existing) throw new Error("User with this email already exists");
+  const bcrypt = await import("bcrypt");
+  const passwordHash = await bcrypt.hash(password, 10);
+  const result = await db.insert(users).values({
+    email, name, passwordHash,
+    role: "admin", emailVerified: 1, loginMethod: "email",
+  }).returning({ id: users.id });
+  return await getUserById(result[0]?.id);
 }

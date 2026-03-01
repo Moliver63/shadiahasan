@@ -811,3 +811,64 @@ export async function removeAdmin(userId: number) {
   await db.update(users).set({ role: "user" }).where(eq(users.id, userId));
   await db.delete(adminPermissions).where(eq(adminPermissions.userId, userId));
 }
+
+// ============ PAYMENT RECORD ============
+
+export async function createPaymentRecord(data: InsertPaymentHistory) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(paymentHistory).values(data).returning({ id: paymentHistory.id });
+  return result[0]?.id;
+}
+
+// ============ ADMIN EMAIL / INVITE ============
+
+export async function updateAdminEmail(userId: number, newEmail: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await getUserByEmail(newEmail);
+  if (existing && existing.id !== userId) throw new Error("Email already in use");
+  await db.update(users).set({ email: newEmail, updatedAt: new Date() }).where(eq(users.id, userId));
+}
+
+export async function cancelAdminInvite(inviteId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(adminInvites).where(eq(adminInvites.id, inviteId));
+}
+
+// ============ REFERRALS ============
+
+export async function generateReferralCode(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const user = await getUserById(userId);
+  if (user?.referralCode) return user.referralCode;
+  const { nanoid } = await import("nanoid");
+  const code = nanoid(10).toUpperCase();
+  await db.update(users).set({ referralCode: code }).where(eq(users.id, userId));
+  return code;
+}
+
+export async function getReferralsByReferrerId(referrerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(referrals)
+    .where(eq(referrals.referrerId, referrerId))
+    .orderBy(desc(referrals.createdAt));
+}
+
+export async function getMonthlyReferralCount(referrerId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const firstDayOfMonth = new Date();
+  firstDayOfMonth.setDate(1);
+  firstDayOfMonth.setHours(0, 0, 0, 0);
+  const result = await db.select({ count: sql<number>`count(*)` })
+    .from(referrals)
+    .where(and(
+      eq(referrals.referrerId, referrerId),
+      gte(referrals.createdAt, firstDayOfMonth)
+    ));
+  return result[0]?.count || 0;
+}

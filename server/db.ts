@@ -1,15 +1,23 @@
 import { eq, ne, or, and, gte, desc, isNull, gt } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import { InsertUser, users, subscriptions, paymentHistory, referrals, pointsTransactions, cashbackRequests, adminAuditLogs, adminInvites } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: Pool | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.DATABASE_URL.includes("localhost")
+          ? undefined
+          : { rejectUnauthorized: false },
+      });
+      _db = drizzle(_pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -81,9 +89,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       : await db.select().from(users).where(eq(users.email, user.email!)).limit(1);
     const isNewUser = existingUser.length === 0;
     
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
+    await db.insert(users).values(values).onConflictDoNothing();
     
     // Send welcome message to new users
     if (isNewUser && user.name) {
@@ -314,8 +320,8 @@ export async function createPlan(plan: InsertSubscriptionPlan) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const result = await db.insert(subscriptionPlans).values(plan);
-  return result[0].insertId;
+  const result = await db.insert(subscriptionPlans).values(plan).returning({ id: subscriptionPlans.id });
+  return result[0].id;
 }
 
 export async function updatePlan(id: number, updates: Partial<InsertSubscriptionPlan>) {
@@ -860,7 +866,7 @@ export async function getOrCreateConversation(user1Id: number, user2Id: number) 
   const [newConv] = await db.insert(conversations).values({
     user1Id: smallerId,
     user2Id: largerId,
-  } as any).$returningId();
+  } as any).returning({ id: conversations.id });
   
   return await db.select().from(conversations)
     .where(eq(conversations.id, newConv.id))
@@ -1444,8 +1450,8 @@ export async function createModule(data: InsertCourseModule) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const result = await db.insert(courseModules).values(data);
-  return { id: Number(result[0].insertId), ...data };
+  const result = await db.insert(courseModules).values(data).returning({ id: courseModules.id });
+  return { id: result[0].id, ...data };
 }
 
 /**
@@ -1490,8 +1496,8 @@ export async function createCoursePurchase(purchase: { userId: number; courseId:
   const result = await db.insert(coursePurchases).values({
     ...purchase,
     status: "pending",
-  });
-  return result[0].insertId;
+  }).returning({ id: coursePurchases.id });
+  return result[0].id;
 }
 
 export async function updateCoursePurchaseStatus(id: number, status: "pending" | "completed" | "failed" | "refunded") {
@@ -1605,9 +1611,9 @@ export async function findOrCreateUserByProvider(data: {
     plan: 'free',
     referralCode,
     lastSignedIn: new Date(),
-  });
+  }).returning({ id: users.id });
 
-  const newUser = await getUserById(result[0].insertId);
+  const newUser = await getUserById(result[0].id);
   if (!newUser) {
     console.error('[OAuth] Failed to create user');
     throw new Error("Failed to create user");
@@ -1699,7 +1705,7 @@ export async function addNewAdmin(
     userId = existingUser.id;
   } else {
     // Create new user as admin (no password, will need to set via password reset)
-    const [newUser] = await db
+    const newUserResult = await db
       .insert(users)
       .values({
         email,
@@ -1707,9 +1713,9 @@ export async function addNewAdmin(
         role: 'admin',
         emailVerified: 0,
         loginMethod: 'email',
-      });
+      }).returning({ id: users.id });
     
-    userId = newUser.insertId;
+    userId = newUserResult[0].id;
   }
 
   // Create permissions record
@@ -1929,7 +1935,7 @@ export async function upsertSubscription(data: {
     return { id: existing.id, isNew: false };
   } else {
     // Create new subscription
-    const [result] = await db.insert(subscriptions).values({
+    const result = await db.insert(subscriptions).values({
       userId: data.userId,
       plan: data.plan as any,
       status: data.status as any,
@@ -1941,9 +1947,9 @@ export async function upsertSubscription(data: {
       stripePriceId: data.stripePriceId,
       stripeCustomerId: data.stripeCustomerId,
       notes: data.notes,
-    });
+    }).returning({ id: subscriptions.id });
 
-    return { id: result.insertId, isNew: true };
+    return { id: result[0].id, isNew: true };
   }
 }
 
@@ -2021,7 +2027,7 @@ export async function createPaymentRecord(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const [result] = await db.insert(paymentHistory).values({
+  const result = await db.insert(paymentHistory).values({
     userId: data.userId,
     subscriptionId: data.subscriptionId,
     amount: data.amount,
@@ -2031,9 +2037,9 @@ export async function createPaymentRecord(data: {
     stripePaymentIntentId: data.stripePaymentIntentId,
     stripeInvoiceId: data.stripeInvoiceId,
     description: data.description,
-  });
+  }).returning({ id: paymentHistory.id });
 
-  return { id: result.insertId };
+  return { id: result[0].id };
 }
 
 // ============================================================================
@@ -2147,16 +2153,16 @@ export async function createReferral(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const [result] = await db.insert(referrals).values({
+  const result = await db.insert(referrals).values({
     referrerId: data.referrerId,
     referredUserId: data.referredUserId,
     referralCode: data.referralCode,
     status: (data.status as any) || "pending",
     planPurchased: data.planPurchased as any,
     pointsAwarded: data.pointsAwarded || 0,
-  });
+  }).returning({ id: referrals.id });
 
-  return { id: result.insertId };
+  return { id: result[0].id };
 }
 
 /**
@@ -2343,15 +2349,15 @@ export async function createPointsTransaction(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const [result] = await db.insert(pointsTransactions).values({
+  const result = await db.insert(pointsTransactions).values({
     userId: data.userId,
     amount: data.amount,
     type: data.type as any,
     description: data.description,
     referralId: data.referralId,
-  });
+  }).returning({ id: pointsTransactions.id });
 
-  return { id: result.insertId };
+  return { id: result[0].id };
 }
 
 /**
@@ -2385,7 +2391,7 @@ export async function createCashbackRequest(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const [result] = await db.insert(cashbackRequests).values({
+  const result = await db.insert(cashbackRequests).values({
     userId: data.userId,
     pointsAmount: data.pointsAmount,
     cashAmount: data.cashAmount,
@@ -2393,9 +2399,9 @@ export async function createCashbackRequest(data: {
     pixKey: data.pixKey,
     bankDetails: data.bankDetails,
     status: "pending",
-  });
+  }).returning({ id: cashbackRequests.id });
 
-  return result.insertId;
+  return result[0].id;
 }
 
 /**
@@ -2705,12 +2711,12 @@ export async function createAdminInvite(
     token,
     expiresAt,
     invitedBy,
-  });
+  }).returning({ id: adminInvites.id });
   
   return {
     token,
     expiresAt,
-    inviteId: result[0].insertId,
+    inviteId: result[0].id,
   };
 }
 
@@ -2773,9 +2779,9 @@ export async function acceptAdminInvite(
     role: invite.role,
     emailVerified: 1, // Auto-verify invited admins
     loginMethod: "email",
-  });
+  }).returning({ id: users.id });
   
-  const userId = userResult[0].insertId;
+  const userId = userResult[0].id;
   
   // Mark invite as accepted
   await db
@@ -2792,6 +2798,22 @@ export async function acceptAdminInvite(
   
   // Return created user
   return await getUserById(userId);
+}
+
+
+/**
+ * Cancel admin invite
+ */
+export async function cancelAdminInvite(inviteId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  
+  await db
+    .update(adminInvites)
+    .set({ status: "cancelled" } as any)
+    .where(eq(adminInvites.id, inviteId));
+  
+  return { success: true };
 }
 
 /**
@@ -2816,3 +2838,8 @@ export async function listAdminInvites() {
     .leftJoin(users, eq(adminInvites.invitedBy, users.id))
     .orderBy(desc(adminInvites.createdAt));
 }
+
+
+// Alias for routers.ts compatibility
+export const getConversations = getMyConversations;
+export const getMessages = getConversationMessages;

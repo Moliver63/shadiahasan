@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, serial, text, varchar, integer, timestamp, date, boolean } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, serial, text, varchar, integer, timestamp, date } from "drizzle-orm/pg-core";
 
 // ============ ENUMS ============
 export const roleEnum = pgEnum("role", ["user", "admin", "superadmin"]);
@@ -25,6 +25,10 @@ export const coursePurchaseStatusEnum = pgEnum("course_purchase_status", ["pendi
 
 // ============ TABLES ============
 
+/**
+ * Core user table backing auth flow.
+ * NOTE: status/suspendedAt/suspendReason are extras vs local MySQL schema — mantidos pois são usados no db.ts (moderação)
+ */
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   openId: varchar("openId", { length: 64 }).unique(),
@@ -40,17 +44,21 @@ export const users = pgTable("users", {
   referredBy: varchar("referredBy", { length: 32 }),
   pointsBalance: integer("pointsBalance").default(0).notNull(),
   freeMonthsRemaining: integer("freeMonthsRemaining").default(0).notNull(),
+  // Extra fields (não existem no local MySQL, mas usados pelo backend para moderação)
   status: varchar("status", { length: 20 }).default("active").notNull(),
   suspendedAt: timestamp("suspendedAt"),
   suspendReason: text("suspendReason"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(), // ⚠️ Sem onUpdateNow() no PG — atualizar via app
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+/**
+ * Admin Audit Logs
+ */
 export const adminAuditLogs = pgTable("admin_audit_logs", {
   id: serial("id").primaryKey(),
   action: adminActionEnum("action").notNull(),
@@ -64,6 +72,9 @@ export const adminAuditLogs = pgTable("admin_audit_logs", {
 export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
 export type InsertAdminAuditLog = typeof adminAuditLogs.$inferInsert;
 
+/**
+ * Courses
+ */
 export const courses = pgTable("courses", {
   id: serial("id").primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
@@ -80,6 +91,9 @@ export const courses = pgTable("courses", {
 export type Course = typeof courses.$inferSelect;
 export type InsertCourse = typeof courses.$inferInsert;
 
+/**
+ * Course Modules
+ */
 export const courseModules = pgTable("course_modules", {
   id: serial("id").primaryKey(),
   courseId: integer("courseId").notNull(),
@@ -94,6 +108,9 @@ export const courseModules = pgTable("course_modules", {
 export type CourseModule = typeof courseModules.$inferSelect;
 export type InsertCourseModule = typeof courseModules.$inferInsert;
 
+/**
+ * Lessons
+ */
 export const lessons = pgTable("lessons", {
   id: serial("id").primaryKey(),
   courseId: integer("courseId").notNull(),
@@ -113,6 +130,9 @@ export const lessons = pgTable("lessons", {
 export type Lesson = typeof lessons.$inferSelect;
 export type InsertLesson = typeof lessons.$inferInsert;
 
+/**
+ * Enrollments
+ */
 export const enrollments = pgTable("enrollments", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -126,6 +146,9 @@ export const enrollments = pgTable("enrollments", {
 export type Enrollment = typeof enrollments.$inferSelect;
 export type InsertEnrollment = typeof enrollments.$inferInsert;
 
+/**
+ * Subscription Plans
+ */
 export const subscriptionPlans = pgTable("subscription_plans", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
@@ -146,6 +169,9 @@ export const subscriptionPlans = pgTable("subscription_plans", {
 export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
 export type InsertSubscriptionPlan = typeof subscriptionPlans.$inferInsert;
 
+/**
+ * User Subscriptions (Stripe-based)
+ */
 export const userSubscriptions = pgTable("user_subscriptions", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -163,6 +189,9 @@ export const userSubscriptions = pgTable("user_subscriptions", {
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
 export type InsertUserSubscription = typeof userSubscriptions.$inferInsert;
 
+/**
+ * Course Reviews
+ */
 export const courseReviews = pgTable("course_reviews", {
   id: serial("id").primaryKey(),
   courseId: integer("courseId").notNull(),
@@ -176,6 +205,9 @@ export const courseReviews = pgTable("course_reviews", {
 export type CourseReview = typeof courseReviews.$inferSelect;
 export type InsertCourseReview = typeof courseReviews.$inferInsert;
 
+/**
+ * Ebooks
+ */
 export const ebooks = pgTable("ebooks", {
   id: serial("id").primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
@@ -192,6 +224,9 @@ export const ebooks = pgTable("ebooks", {
 export type Ebook = typeof ebooks.$inferSelect;
 export type InsertEbook = typeof ebooks.$inferInsert;
 
+/**
+ * User Badges
+ */
 export const userBadges = pgTable("user_badges", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -205,6 +240,9 @@ export const userBadges = pgTable("user_badges", {
 export type UserBadge = typeof userBadges.$inferSelect;
 export type InsertUserBadge = typeof userBadges.$inferInsert;
 
+/**
+ * Certificates
+ */
 export const certificates = pgTable("certificates", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -217,6 +255,9 @@ export const certificates = pgTable("certificates", {
 export type Certificate = typeof certificates.$inferSelect;
 export type InsertCertificate = typeof certificates.$inferInsert;
 
+/**
+ * User Profiles
+ */
 export const userProfiles = pgTable("user_profiles", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().unique(),
@@ -244,6 +285,9 @@ export const userProfiles = pgTable("user_profiles", {
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type InsertUserProfile = typeof userProfiles.$inferInsert;
 
+/**
+ * Connections
+ */
 export const connections = pgTable("connections", {
   id: serial("id").primaryKey(),
   userId1: integer("userId1").notNull(),
@@ -255,6 +299,9 @@ export const connections = pgTable("connections", {
 export type Connection = typeof connections.$inferSelect;
 export type InsertConnection = typeof connections.$inferInsert;
 
+/**
+ * Connection Requests
+ */
 export const connectionRequests = pgTable("connection_requests", {
   id: serial("id").primaryKey(),
   fromUserId: integer("fromUserId").notNull(),
@@ -268,6 +315,9 @@ export const connectionRequests = pgTable("connection_requests", {
 export type ConnectionRequest = typeof connectionRequests.$inferSelect;
 export type InsertConnectionRequest = typeof connectionRequests.$inferInsert;
 
+/**
+ * Reports
+ */
 export const reports = pgTable("reports", {
   id: serial("id").primaryKey(),
   reporterId: integer("reporterId").notNull(),
@@ -283,6 +333,9 @@ export const reports = pgTable("reports", {
 export type Report = typeof reports.$inferSelect;
 export type InsertReport = typeof reports.$inferInsert;
 
+/**
+ * Moderation Logs
+ */
 export const moderationLogs = pgTable("moderation_logs", {
   id: serial("id").primaryKey(),
   adminId: integer("adminId").notNull(),
@@ -296,6 +349,9 @@ export const moderationLogs = pgTable("moderation_logs", {
 export type ModerationLog = typeof moderationLogs.$inferSelect;
 export type InsertModerationLog = typeof moderationLogs.$inferInsert;
 
+/**
+ * Conversations
+ */
 export const conversations = pgTable("conversations", {
   id: serial("id").primaryKey(),
   user1Id: integer("user1Id").notNull(),
@@ -307,6 +363,9 @@ export const conversations = pgTable("conversations", {
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = typeof conversations.$inferInsert;
 
+/**
+ * Messages
+ */
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
   conversationId: integer("conversationId").notNull(),
@@ -320,6 +379,9 @@ export const messages = pgTable("messages", {
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = typeof messages.$inferInsert;
 
+/**
+ * Email Verification Tokens
+ */
 export const emailVerificationTokens = pgTable("email_verification_tokens", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -331,6 +393,9 @@ export const emailVerificationTokens = pgTable("email_verification_tokens", {
 export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
 export type InsertEmailVerificationToken = typeof emailVerificationTokens.$inferInsert;
 
+/**
+ * Password Reset Tokens
+ */
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -343,6 +408,9 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
+/**
+ * Refresh Tokens
+ */
 export const refreshTokens = pgTable("refresh_tokens", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -355,6 +423,9 @@ export const refreshTokens = pgTable("refresh_tokens", {
 export type RefreshToken = typeof refreshTokens.$inferSelect;
 export type InsertRefreshToken = typeof refreshTokens.$inferInsert;
 
+/**
+ * Course Purchases
+ */
 export const coursePurchases = pgTable("course_purchases", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -369,6 +440,9 @@ export const coursePurchases = pgTable("course_purchases", {
 export type CoursePurchase = typeof coursePurchases.$inferSelect;
 export type InsertCoursePurchase = typeof coursePurchases.$inferInsert;
 
+/**
+ * Admin Permissions
+ */
 export const adminPermissions = pgTable("admin_permissions", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().unique(),
@@ -385,6 +459,9 @@ export const adminPermissions = pgTable("admin_permissions", {
 export type AdminPermission = typeof adminPermissions.$inferSelect;
 export type InsertAdminPermission = typeof adminPermissions.$inferInsert;
 
+/**
+ * Subscriptions (manual/admin-managed)
+ */
 export const subscriptions = pgTable("subscriptions", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -405,6 +482,9 @@ export const subscriptions = pgTable("subscriptions", {
 export type Subscription = typeof subscriptions.$inferSelect;
 export type InsertSubscription = typeof subscriptions.$inferInsert;
 
+/**
+ * Payment History
+ */
 export const paymentHistory = pgTable("payment_history", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -422,6 +502,9 @@ export const paymentHistory = pgTable("payment_history", {
 export type PaymentHistory = typeof paymentHistory.$inferSelect;
 export type InsertPaymentHistory = typeof paymentHistory.$inferInsert;
 
+/**
+ * Referrals
+ */
 export const referrals = pgTable("referrals", {
   id: serial("id").primaryKey(),
   referrerId: integer("referrerId").notNull(),
@@ -437,6 +520,9 @@ export const referrals = pgTable("referrals", {
 export type Referral = typeof referrals.$inferSelect;
 export type InsertReferral = typeof referrals.$inferInsert;
 
+/**
+ * Points Transactions
+ */
 export const pointsTransactions = pgTable("pointsTransactions", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -450,6 +536,9 @@ export const pointsTransactions = pgTable("pointsTransactions", {
 export type PointsTransaction = typeof pointsTransactions.$inferSelect;
 export type InsertPointsTransaction = typeof pointsTransactions.$inferInsert;
 
+/**
+ * Cashback Requests
+ */
 export const cashbackRequests = pgTable("cashbackRequests", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -468,6 +557,9 @@ export const cashbackRequests = pgTable("cashbackRequests", {
 export type CashbackRequest = typeof cashbackRequests.$inferSelect;
 export type InsertCashbackRequest = typeof cashbackRequests.$inferInsert;
 
+/**
+ * Admin Invites
+ */
 export const adminInvites = pgTable("adminInvites", {
   id: serial("id").primaryKey(),
   email: varchar("email", { length: 320 }).notNull(),
@@ -482,6 +574,9 @@ export const adminInvites = pgTable("adminInvites", {
 export type AdminInvite = typeof adminInvites.$inferSelect;
 export type InsertAdminInvite = typeof adminInvites.$inferInsert;
 
+/**
+ * Appointments
+ */
 export const appointments = pgTable("appointments", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -504,6 +599,9 @@ export const appointments = pgTable("appointments", {
 export type Appointment = typeof appointments.$inferSelect;
 export type InsertAppointment = typeof appointments.$inferInsert;
 
+/**
+ * User Settings
+ */
 export const userSettings = pgTable("userSettings", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().unique(),
@@ -529,6 +627,9 @@ export const userSettings = pgTable("userSettings", {
 export type UserSetting = typeof userSettings.$inferSelect;
 export type InsertUserSetting = typeof userSettings.$inferInsert;
 
+/**
+ * Activity Logs (LGPD compliance)
+ */
 export const activityLogs = pgTable("activityLogs", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -544,6 +645,9 @@ export const activityLogs = pgTable("activityLogs", {
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
 
+/**
+ * Notifications
+ */
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),

@@ -10,12 +10,12 @@ interface ProtectedRouteProps extends RouteProps {
 /**
  * Protected route wrapper that requires authentication
  * Redirects to /login if user is not authenticated
- * Optionally requires admin role
+ * Optionally requires admin role (accepts both 'admin' and 'superadmin')
  */
-export default function ProtectedRoute({ 
-  component: Component, 
+export default function ProtectedRoute({
+  component: Component,
   requireAdmin = false,
-  ...rest 
+  ...rest
 }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
 
@@ -36,8 +36,8 @@ export default function ProtectedRoute({
           return <Redirect to="/login" />;
         }
 
-        // Check admin requirement
-        if (requireAdmin && user.role !== 'admin') {
+        // Check admin requirement — superadmin also passes
+        if (requireAdmin && user.role !== "admin" && user.role !== "superadmin") {
           return <Redirect to="/courses" />;
         }
 

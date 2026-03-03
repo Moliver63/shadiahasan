@@ -39,9 +39,15 @@ export default function Login() {
     }
   }, []);
 
+  // FIX: admin/superadmin -> /admin, regular users -> /courses
   const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: () => {
-      window.location.href = "/dashboard";
+    onSuccess: (data) => {
+      const role = data?.user?.role;
+      if (role === "admin" || role === "superadmin") {
+        window.location.href = "/admin";
+      } else {
+        window.location.href = "/courses";
+      }
     },
     onError: (error) => {
       alert(error.message);
@@ -188,10 +194,10 @@ export default function Login() {
             {/* Submit Button */}
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || loginMutation.isPending}
               className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3"
             >
-              {isLoading ? "Entrando..." : "Entrar"}
+              {isLoading || loginMutation.isPending ? "Entrando..." : "Entrar"}
             </Button>
 
             {/* Divider */}

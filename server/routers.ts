@@ -11,7 +11,7 @@ import * as db from "./db";
 
 // Admin-only procedure helper
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== 'admin') {
+  if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
   }
   return next({ ctx });
@@ -167,7 +167,7 @@ export const appRouter = router({
     }),
     
     listAll: protectedProcedure.query(async ({ ctx }) => {
-      const includeUnpublished = ctx.user.role === 'admin';
+      const includeUnpublished = ctx.user.role === 'admin' || ctx.user.role === 'superadmin';
       return await db.getAllCourses(includeUnpublished);
     }),
     
@@ -192,7 +192,7 @@ export const appRouter = router({
         isPublished: z.number().default(0),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const courseId = await db.createCourse({
@@ -212,7 +212,7 @@ export const appRouter = router({
         isPublished: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const { id, ...updates } = input;
@@ -223,7 +223,7 @@ export const appRouter = router({
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         await db.deleteCourse(input.id);
@@ -231,7 +231,7 @@ export const appRouter = router({
       }),
     
     stats: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user.role !== 'admin') {
+      if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
         throw new TRPCError({ code: 'FORBIDDEN' });
       }
       return await db.getCourseStats();
@@ -242,7 +242,7 @@ export const appRouter = router({
     listByCourse: publicProcedure
       .input(z.object({ courseId: z.number() }))
       .query(async ({ input, ctx }) => {
-        const includeUnpublished = ctx.user?.role === 'admin';
+        const includeUnpublished = ctx.user?.role === 'admin' || ctx.user?.role === 'superadmin';
         return await db.getLessonsByCourseId(input.courseId, includeUnpublished);
       }),
     
@@ -265,7 +265,7 @@ export const appRouter = router({
         isPublished: z.number().default(0),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const lessonId = await db.createLesson(input);
@@ -285,7 +285,7 @@ export const appRouter = router({
         isPublished: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const { id, ...updates } = input;
@@ -296,7 +296,7 @@ export const appRouter = router({
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        if (ctx.user.role !== 'admin') {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         await db.deleteLesson(input.id);
@@ -698,7 +698,7 @@ export const appRouter = router({
         if (ctx.user.plan === 'free') {
           // Free users can only send to admin
           const receiver = await db.getUserById(input.receiverId);
-          if (!receiver || receiver.role !== 'admin') {
+          if (!receiver || (receiver.role !== 'admin' && receiver.role !== 'superadmin')) {
             throw new TRPCError({
               code: 'FORBIDDEN',
               message: 'Usuários do plano gratuito só podem enviar mensagens para administradores. Faça upgrade para o plano premium para conversar com outros usuários.',

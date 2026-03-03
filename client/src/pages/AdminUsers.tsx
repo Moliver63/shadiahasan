@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,13 +38,23 @@ export default function AdminUsers() {
   const [pendingSuspendUserId, setPendingSuspendUserId] = useState<{ id: number; name: string } | null>(null);
   const [reasonText, setReasonText] = useState("");
 
-  const { data: users, isLoading, refetch } = trpc.admin.listUsers.useQuery({
-    search: searchTerm || undefined,
-    role: roleFilter !== "all" ? roleFilter : undefined,
-    limit: 50,
-  });
+  // Busca todos os usuários de uma vez — filtragem feita no cliente
+  // pois o procedure admin.listUsers não aceita parâmetros de input
+  const { data: allUsers, isLoading, refetch } = trpc.admin.listUsers.useQuery();
 
-  // ← Usa adminProcedure simples — qualquer admin pode usar
+  // Filtragem client-side
+  const users = useMemo(() => {
+    if (!allUsers) return [];
+    return allUsers.filter((user) => {
+      const matchesSearch =
+        !searchTerm ||
+        user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      return matchesSearch && matchesRole;
+    });
+  }, [allUsers, searchTerm, roleFilter]);
+
   const updateUserRole = trpc.admin.updateUserRole.useMutation({
     onSuccess: (_, vars) => {
       toast.success(
@@ -57,7 +67,6 @@ export default function AdminUsers() {
     onError: (err) => toast.error("Erro ao alterar role: " + err.message),
   });
 
-  // Suspender — requer reason obrigatório
   const moderateUser = trpc.admin.moderateUser.useMutation({
     onSuccess: () => {
       toast.success("Ação aplicada com sucesso.");
@@ -137,7 +146,7 @@ export default function AdminUsers() {
           <p className="text-muted-foreground">Visualize, edite e gerencie todos os usuários da plataforma</p>
         </div>
 
-        {/* Filtros */}
+        {/* Filtros — aplicados client-side */}
         <Card>
           <CardHeader>
             <CardTitle>Filtros</CardTitle>
@@ -170,8 +179,12 @@ export default function AdminUsers() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Usuários ({users?.length || 0})</CardTitle>
-              <CardDescription>Lista completa de usuários cadastrados</CardDescription>
+              <CardTitle>Usuários ({users.length})</CardTitle>
+              <CardDescription>
+                {searchTerm || roleFilter !== "all"
+                  ? `Mostrando ${users.length} de ${allUsers?.length || 0} usuários`
+                  : "Lista completa de usuários cadastrados"}
+              </CardDescription>
             </div>
             <Button variant="outline">
               <UserPlus className="mr-2 h-4 w-4" />Convidar Usuário
@@ -181,7 +194,11 @@ export default function AdminUsers() {
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">Carregando usuários...</div>
             ) : !users || users.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">Nenhum usuário encontrado</div>
+              <div className="text-center py-8 text-muted-foreground">
+                {searchTerm || roleFilter !== "all"
+                  ? "Nenhum usuário encontrado com esses filtros."
+                  : "Nenhum usuário cadastrado ainda."}
+              </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -215,7 +232,6 @@ export default function AdminUsers() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {/* Promover / Rebaixar — bloqueado para superadmins */}
                             {user.role === "user" && (
                               <DropdownMenuItem
                                 onClick={() => setConfirmAction({ type: "promote", userId: user.id, userName: user.name })}
@@ -242,7 +258,6 @@ export default function AdminUsers() {
 
                             <DropdownMenuSeparator />
 
-                            {/* Suspender / Reativar */}
                             {user.status === "suspended" ? (
                               <DropdownMenuItem
                                 onClick={() => setConfirmAction({ type: "unban", userId: user.id, userName: user.name })}

@@ -7,26 +7,41 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AdminDashboard() {
   // Buscar dados reais do backend
-  const { data: stats, isLoading: statsLoading } = trpc.admin.getStats.useQuery();
-  const { data: users, isLoading: usersLoading } = trpc.admin.listUsers.useQuery();
+  const { data: stats, isLoading: statsLoading, error: statsError } = trpc.admin.getStats.useQuery();
   const { data: appointmentStats, isLoading: appointmentsLoading } = trpc.appointments.getStats.useQuery();
 
-  const isLoading = statsLoading || usersLoading || appointmentsLoading;
+  const isLoading = statsLoading || appointmentsLoading;
 
   // Calcular métricas
-  const totalUsers = users?.length || 0;
+  const totalUsers = stats?.totalStudents || 0;
   const totalAppointments = appointmentStats?.total || 0;
   const scheduledAppointments = appointmentStats?.scheduled || 0;
   const completedAppointments = appointmentStats?.completed || 0;
   const totalCourses = stats?.totalCourses || 0;
   const totalEnrollments = stats?.totalEnrollments || 0;
 
-  const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(cents / 100);
-  };
+  // Se erro de autenticação/autorização, mostra aviso
+  if (statsError) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6 text-center">
+              <AlertCircle className="h-10 w-10 text-destructive mx-auto mb-4" />
+              <h2 className="text-lg font-semibold mb-2">Acesso Negado</h2>
+              <p className="text-muted-foreground text-sm">
+                Você não tem permissão para acessar o painel administrativo.
+                Certifique-se de que sua conta possui o role de <strong>admin</strong>.
+              </p>
+              <p className="text-xs text-muted-foreground mt-3 bg-muted p-2 rounded font-mono">
+                Erro: {statsError.message}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

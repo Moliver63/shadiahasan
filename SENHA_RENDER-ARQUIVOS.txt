@@ -1,0 +1,24 @@
+$env:DATABASE_URL="postgresql://shadia_db_user:P5sBxrA7nocmuTmnAVcY8soeIx9RtrT7@dpg-d6hnq9hdrdic73cp01bg-a.oregon-postgres.render.com/shadia_db?ssl=true"
+
+postgresql://shadia_db_user:P5sBxrA7nocmuTmnAVcY8soeIx9RtrT7@dpg-d6hnq9hdrdic73cp01bg-a.oregon-postgres.render.com/shadia_db
+
+
+postgresql://shadia_db_user:P5sBxrA7nocmuTmnAVcY8soeIx9RtrT7@dpg-d6hnq9hdrdic73cp01bg-a/shadia_db
+
+postgresql://shadia_db_user:P5sBxrA7nocmuTmnAVcY8soeIx9RtrT7@dpg-d6hnq9hdrdic73cp01bg-a.oregon-postgres.render.com/shadia_db
+
+ $env:DATABASE_URL="postgresql://shadia_db_user:P5sBxrA7nocmuTmnAVcY8soeIx9RtrT7@dpg-d6hnq9hdrdic73cp01bg-a.oregon-postgres.render.com/shadia_db?ssl=true"
+
+
+$env:DATABASE_URL="postgresql://shadia_db_user:P5sBxrA7nocmuTmnAVcY8soeIx9RtrT7@dpg-d6hnq9hdrdic73cp01bg-a.oregon-postgres.render.com/shadia_db?ssl=true"
+python .\check_render_pg_schema.py
+
+
+node -e "console.log('RUNTIME DATABASE_URL=', process.env.DATABASE_URL=postgresql://shadia_db_user:P5sBxrA7nocmuTmnAVcY8soeIx9RtrT7@dpg-d6hnq9hdrdic73cp01bg-a.oregon-postgres.render.com/shadia_db?ssl=true)"
+
+$env:DATABASE_URL="postgresql://shadia_db_user:***@dpg-...render.com/shadia_db?sslmode=require"
+
+$env:DATABASE_URL="postgresql://shadia_db_user:P5sBxrA7nocmuTmnAVcY8soeIx9RtrT7@dpg-d6hnq9hdrdic73cp01bg-a.oregon-postgres.render.com/shadia_db?sslmode=require"
+
+psql "postgresql://shadia_db_user:P5sBxrA7nocmuTmnAVcY8soeIx9RtrT7@dpg-d6hnq9hdrdic73cp01bg-a.oregon-postgres.render.com/shadia_db?sslmode=require" -c "\d ""users"""
+psql "postgresql://shadia_db_user:P5sBxrA7nocmuTmnAVcY8soeIx9RtrT7@dpg-d6hnq9hdrdic73cp01bg-a.oregon-postgres.render.com/shadia_db?sslmode=require" -c "\d ""courses"""

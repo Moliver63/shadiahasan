@@ -5,7 +5,7 @@ import * as db from "../db";
 
 // Admin-only procedure helper
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== 'admin') {
+  if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
   }
   return next({ ctx });
@@ -177,7 +177,12 @@ export const adminRouter = router({
       inviteId: z.number(),
     }))
     .mutation(async ({ input }) => {
-      await db.cancelAdminInvite(input.inviteId);
+      const { db: database } = await import("../db");
+      const { adminInvites } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await database.update(adminInvites)
+        .set({ status: "cancelled" })
+        .where(eq(adminInvites.id, input.inviteId));
       return { success: true };
     }),
 });

@@ -12,6 +12,14 @@ import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
+// Detecta se a URL é do YouTube e retorna a URL de embed
+function getYouTubeEmbedUrl(url: string): string | null {
+  const match = url.match(
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/
+  );
+  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+}
+
 export default function LessonView() {
   const params = useParams();
   const lessonId = parseInt(params.id || "0");
@@ -187,30 +195,47 @@ export default function LessonView() {
             {/* Video Player */}
             {lesson.videoPlaybackUrl ? (
               <div className="space-y-4">
-                {!showVR ? (
-                  <>
-                    <VideoPlayer
-                      src={lesson.videoPlaybackUrl}
+                {(() => {
+                  const youtubeEmbed = getYouTubeEmbedUrl(lesson.videoPlaybackUrl);
+                  if (youtubeEmbed) {
+                    return (
+                      <div className="relative w-full rounded-lg overflow-hidden" style={{ paddingTop: "56.25%" }}>
+                        <iframe
+                          className="absolute top-0 left-0 w-full h-full"
+                          src={youtubeEmbed}
+                          title={lesson.title}
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    );
+                  }
+                  return !showVR ? (
+                    <>
+                      <VideoPlayer
+                        src={lesson.videoPlaybackUrl}
+                        title={lesson.title}
+                        onProgress={handleProgress}
+                        onComplete={handleComplete}
+                      />
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setShowVR(true)}
+                      >
+                        <Maximize2 className="h-4 w-4 mr-2" />
+                        Ver em Modo VR 360°
+                      </Button>
+                    </>
+                  ) : (
+                    <VRViewer
+                      videoUrl={lesson.videoPlaybackUrl}
                       title={lesson.title}
-                      onProgress={handleProgress}
-                      onComplete={handleComplete}
+                      onClose={() => setShowVR(false)}
                     />
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setShowVR(true)}
-                    >
-                      <Maximize2 className="h-4 w-4 mr-2" />
-                      Ver em Modo VR 360°
-                    </Button>
-                  </>
-                ) : (
-                  <VRViewer
-                    videoUrl={lesson.videoPlaybackUrl}
-                    title={lesson.title}
-                    onClose={() => setShowVR(false)}
-                  />
-                )}
+                  );
+                })()}
               </div>
             ) : (
               <Card>

@@ -13,7 +13,7 @@ interface VideoPlayerProps {
 // Detecta se a URL é do YouTube e retorna o ID do vídeo
 function getYouTubeId(url: string): string | null {
   const match = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
   );
   return match ? match[1] : null;
 }
@@ -163,13 +163,17 @@ export default function VideoPlayer({
   // ✅ Renderiza iframe do YouTube
   if (youtubeId) {
     return (
-      <div ref={containerRef} className="relative w-full rounded-lg overflow-hidden bg-black" style={{ paddingTop: "56.25%" }}>
+      <div
+        ref={containerRef}
+        className="relative w-full rounded-lg overflow-hidden bg-black"
+        style={{ paddingTop: "56.25%" }}
+      >
         <iframe
           className="absolute top-0 left-0 w-full h-full"
-          src={`https://www.youtube.com/embed/${youtubeId}?autoplay=0&rel=0`}
+          src={`https://www.youtube.com/embed/${youtubeId}?rel=0`}
           title={title || "YouTube Video"}
           frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
         />
       </div>
@@ -191,20 +195,17 @@ export default function VideoPlayer({
         playsInline
       />
 
-      {/* Controls overlay */}
       <div
         className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity duration-300 ${
           showControls ? "opacity-100" : "opacity-0"
         }`}
       >
-        {/* Title */}
         {title && (
           <div className="absolute top-0 left-0 right-0 p-4">
             <h3 className="text-white font-semibold">{title}</h3>
           </div>
         )}
 
-        {/* Center play button */}
         {!isPlaying && (
           <div className="absolute inset-0 flex items-center justify-center">
             <Button
@@ -218,9 +219,7 @@ export default function VideoPlayer({
           </div>
         )}
 
-        {/* Bottom controls */}
         <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
-          {/* Progress bar */}
           <Slider
             value={[duration > 0 ? (currentTime / duration) * 100 : 0]}
             onValueChange={handleSeek}
@@ -229,7 +228,6 @@ export default function VideoPlayer({
             className="cursor-pointer"
           />
 
-          {/* Control buttons */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Button

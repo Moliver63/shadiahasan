@@ -14,21 +14,18 @@ import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
 // Detecta se a URL é do YouTube
 function isYouTubeUrl(url: string): boolean {
-  return /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/.test(url);
+  return /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/.test(url);
 }
 
 export default function LessonView() {
   const params = useParams();
   const lessonId = parseInt(params.id || "0");
   const [, setLocation] = useLocation();
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [showVR, setShowVR] = useState(false);
 
   const { data: lesson, isLoading: lessonLoading } =
-    trpc.lessons.getById.useQuery(
-      { id: lessonId },
-      { enabled: isAuthenticated && lessonId > 0 }
-    );
+    trpc.lessons.getById.useQuery({ id: lessonId });
 
   const { data: course } = trpc.courses.getById.useQuery(
     { id: lesson?.courseId || 0 },
@@ -74,15 +71,6 @@ export default function LessonView() {
       }
     }
   };
-
-  // Aguarda resolução do estado de autenticação antes de redirecionar
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-      </div>
-    );
-  }
 
   if (!isAuthenticated) {
     window.location.href = getLoginUrl();
@@ -140,8 +128,10 @@ export default function LessonView() {
   const prevLesson =
     allLessons && currentIndex > 0 ? allLessons[currentIndex - 1] : null;
 
-  // Vídeo do YouTube não suporta VR — oculta o botão nesses casos
-  const isYouTube = lesson.videoPlaybackUrl ? isYouTubeUrl(lesson.videoPlaybackUrl) : false;
+  // YouTube não suporta VR — oculta o botão nesses casos
+  const isYouTube = lesson.videoPlaybackUrl
+    ? isYouTubeUrl(lesson.videoPlaybackUrl)
+    : false;
 
   return (
     <div className="min-h-screen bg-background">
@@ -197,7 +187,7 @@ export default function LessonView() {
               <div className="space-y-4">
                 {!showVR ? (
                   <>
-                    {/* VideoPlayer já detecta YouTube internamente e renderiza iframe ou HLS */}
+                    {/* VideoPlayer detecta YouTube internamente e renderiza iframe ou HLS */}
                     <VideoPlayer
                       src={lesson.videoPlaybackUrl}
                       title={lesson.title}

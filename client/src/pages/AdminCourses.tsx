@@ -13,14 +13,35 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { Plus, Edit, Trash2, Eye, EyeOff, Wand2, RefreshCw, ImageIcon } from "lucide-react";
+import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
+
+// Generates a themed Unsplash thumbnail URL based on course title keywords
+const generateThumbnailFromTitle = (title: string): string => {
+  const keywords = title
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 2)
+    .slice(0, 3)
+    .join(",");
+
+  const query = keywords || "education,learning,course";
+  // Random seed so each "refresh" produces a different image for the same query
+  const seed = Math.floor(Math.random() * 1000);
+  return `https://source.unsplash.com/1600x900/?${encodeURIComponent(query)}&sig=${seed}`;
+};
 
 export default function AdminCourses() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<any>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState("");
+  const [isGeneratingThumb, setIsGeneratingThumb] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     slug: "",
@@ -65,6 +86,7 @@ export default function AdminCourses() {
 
   const openCreateDialog = () => {
     setEditingCourse(null);
+    setThumbnailPreview("");
     setFormData({
       title: "",
       slug: "",
@@ -77,6 +99,7 @@ export default function AdminCourses() {
 
   const openEditDialog = (course: any) => {
     setEditingCourse(course);
+    setThumbnailPreview(course.thumbnail || "");
     setFormData({
       title: course.title,
       slug: course.slug,
@@ -90,7 +113,17 @@ export default function AdminCourses() {
   const closeDialog = () => {
     setDialogOpen(false);
     setEditingCourse(null);
+    setThumbnailPreview("");
   };
+
+  const handleGenerateThumbnail = useCallback(() => {
+    setIsGeneratingThumb(true);
+    const url = generateThumbnailFromTitle(formData.title || "curso");
+    setFormData((prev) => ({ ...prev, thumbnail: url }));
+    setThumbnailPreview(url);
+    // Give the browser a moment to start fetching before resetting the spinner
+    setTimeout(() => setIsGeneratingThumb(false), 800);
+  }, [formData.title]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,6 +194,15 @@ export default function AdminCourses() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {courses.map((course) => (
               <Card key={course.id}>
+                {course.thumbnail && (
+                  <div className="w-full h-32 overflow-hidden rounded-t-lg">
+                    <img
+                      src={course.thumbnail}
+                      alt={course.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
                 <CardHeader>
                   <CardTitle className="flex items-start justify-between gap-2">
                     <span className="line-clamp-2">{course.title}</span>
@@ -279,15 +321,57 @@ export default function AdminCourses() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="thumbnail">URL da Thumbnail</Label>
-                <Input
-                  id="thumbnail"
-                  value={formData.thumbnail}
-                  onChange={(e) =>
-                    setFormData({ ...formData, thumbnail: e.target.value })
-                  }
-                  placeholder="https://exemplo.com/imagem.jpg"
-                />
+                <Label htmlFor="thumbnail">Thumbnail do Curso</Label>
+
+                {/* Preview */}
+                <div className="relative w-full h-36 rounded-md border bg-muted overflow-hidden flex items-center justify-center">
+                  {thumbnailPreview ? (
+                    <img
+                      src={thumbnailPreview}
+                      alt="Preview da thumbnail"
+                      className="w-full h-full object-cover"
+                      onError={() => setThumbnailPreview("")}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                      <ImageIcon className="h-8 w-8" />
+                      <span className="text-xs">Sem imagem</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* URL input + generate button */}
+                <div className="flex gap-2">
+                  <Input
+                    id="thumbnail"
+                    value={formData.thumbnail}
+                    onChange={(e) => {
+                      setFormData({ ...formData, thumbnail: e.target.value });
+                      setThumbnailPreview(e.target.value);
+                    }}
+                    placeholder="https://exemplo.com/imagem.jpg"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Gerar imagem automaticamente pelo título"
+                    onClick={handleGenerateThumbnail}
+                    disabled={isGeneratingThumb}
+                  >
+                    {isGeneratingThumb ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wand2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Cole uma URL ou clique em{" "}
+                  <Wand2 className="inline h-3 w-3" /> para gerar uma imagem
+                  automaticamente com base no título do curso.
+                </p>
               </div>
 
               <div className="flex items-center space-x-2">

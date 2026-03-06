@@ -12,12 +12,9 @@ import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
-// Detecta se a URL é do YouTube e retorna a URL de embed
-function getYouTubeEmbedUrl(url: string): string | null {
-  const match = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/
-  );
-  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+// Detecta se a URL é do YouTube
+function isYouTubeUrl(url: string): boolean {
+  return /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/.test(url);
 }
 
 export default function LessonView() {
@@ -143,6 +140,9 @@ export default function LessonView() {
   const prevLesson =
     allLessons && currentIndex > 0 ? allLessons[currentIndex - 1] : null;
 
+  // Vídeo do YouTube não suporta VR — oculta o botão nesses casos
+  const isYouTube = lesson.videoPlaybackUrl ? isYouTubeUrl(lesson.videoPlaybackUrl) : false;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -195,30 +195,17 @@ export default function LessonView() {
             {/* Video Player */}
             {lesson.videoPlaybackUrl ? (
               <div className="space-y-4">
-                {(() => {
-                  const youtubeEmbed = getYouTubeEmbedUrl(lesson.videoPlaybackUrl);
-                  if (youtubeEmbed) {
-                    return (
-                      <div className="relative w-full rounded-lg overflow-hidden" style={{ paddingTop: "56.25%" }}>
-                        <iframe
-                          className="absolute top-0 left-0 w-full h-full"
-                          src={youtubeEmbed}
-                          title={lesson.title}
-                          frameBorder="0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
-                      </div>
-                    );
-                  }
-                  return !showVR ? (
-                    <>
-                      <VideoPlayer
-                        src={lesson.videoPlaybackUrl}
-                        title={lesson.title}
-                        onProgress={handleProgress}
-                        onComplete={handleComplete}
-                      />
+                {!showVR ? (
+                  <>
+                    {/* VideoPlayer já detecta YouTube internamente e renderiza iframe ou HLS */}
+                    <VideoPlayer
+                      src={lesson.videoPlaybackUrl}
+                      title={lesson.title}
+                      onProgress={handleProgress}
+                      onComplete={handleComplete}
+                    />
+                    {/* Botão VR só aparece para vídeos de streaming (não YouTube) */}
+                    {!isYouTube && (
                       <Button
                         variant="outline"
                         className="w-full"
@@ -227,15 +214,15 @@ export default function LessonView() {
                         <Maximize2 className="h-4 w-4 mr-2" />
                         Ver em Modo VR 360°
                       </Button>
-                    </>
-                  ) : (
-                    <VRViewer
-                      videoUrl={lesson.videoPlaybackUrl}
-                      title={lesson.title}
-                      onClose={() => setShowVR(false)}
-                    />
-                  );
-                })()}
+                    )}
+                  </>
+                ) : (
+                  <VRViewer
+                    videoUrl={lesson.videoPlaybackUrl}
+                    title={lesson.title}
+                    onClose={() => setShowVR(false)}
+                  />
+                )}
               </div>
             ) : (
               <Card>

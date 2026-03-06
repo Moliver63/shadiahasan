@@ -11,6 +11,14 @@ interface VRViewerProps {
   onClose?: () => void;
 }
 
+// Detecta se a URL é do YouTube
+function getYouTubeId(url: string): string | null {
+  const match = url.match(
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/
+  );
+  return match ? match[1] : null;
+}
+
 function VideoSphere({ videoUrl }: { videoUrl: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [texture, setTexture] = useState<THREE.VideoTexture | null>(null);
@@ -75,18 +83,18 @@ export default function VRViewer({ videoUrl, title, onClose }: VRViewerProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const youtubeId = getYouTubeId(videoUrl);
+
   const enterVR = async () => {
     const container = containerRef.current;
     if (!container) return;
 
     try {
-      // Check if WebXR is available
       if ("xr" in navigator) {
         const xr = (navigator as any).xr;
         const isSupported = await xr.isSessionSupported("immersive-vr");
 
         if (isSupported) {
-          // Request VR session
           const session = await xr.requestSession("immersive-vr");
           setIsVRMode(true);
           console.log("VR session started", session);
@@ -96,7 +104,6 @@ export default function VRViewer({ videoUrl, title, onClose }: VRViewerProps) {
           );
         }
       } else {
-        // Fallback to fullscreen for non-VR devices
         if (container.requestFullscreen) {
           await container.requestFullscreen();
           setIsFullscreen(true);
@@ -104,7 +111,6 @@ export default function VRViewer({ videoUrl, title, onClose }: VRViewerProps) {
       }
     } catch (error) {
       console.error("Erro ao entrar em modo VR:", error);
-      // Fallback to fullscreen
       if (container.requestFullscreen) {
         await container.requestFullscreen();
         setIsFullscreen(true);
@@ -130,6 +136,35 @@ export default function VRViewer({ videoUrl, title, onClose }: VRViewerProps) {
     };
   }, []);
 
+  // ✅ Se for YouTube, exibe iframe em vez do VR sphere
+  if (youtubeId) {
+    return (
+      <div ref={containerRef} className="relative w-full rounded-lg overflow-hidden bg-black" style={{ paddingTop: "56.25%" }}>
+        <iframe
+          className="absolute top-0 left-0 w-full h-full"
+          src={`https://www.youtube.com/embed/${youtubeId}?autoplay=0&rel=0`}
+          title={title || "YouTube Video"}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+        {onClose && (
+          <div className="absolute top-4 right-4">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={onClose}
+              className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ✅ Renderiza VR normal para HLS/MP4
   return (
     <div
       ref={containerRef}

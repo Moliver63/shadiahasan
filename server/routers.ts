@@ -777,7 +777,7 @@ export const appRouter = router({
         userId: z.number(),
         name: z.string().optional(),
         email: z.string().email().optional(),
-        plan: z.enum(['free', 'premium']).optional(),
+        plan: z.enum(['free', 'basic', 'premium', 'vip']).optional(),
       }))
       .mutation(async ({ input }) => {
         return await db.updateUserData(input.userId, input);
@@ -797,7 +797,7 @@ export const appRouter = router({
     updateUserPlan: adminProcedure
       .input(z.object({
         userId: z.number(),
-        plan: z.enum(['free', 'premium']),
+        plan: z.enum(['free', 'basic', 'premium', 'vip']),
       }))
       .mutation(async ({ input }) => {
         return await db.updateUserData(input.userId, { plan: input.plan });

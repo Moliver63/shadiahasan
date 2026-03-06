@@ -141,10 +141,11 @@ export default function AdminStudents() {
                               <TableCell>
                                 <Select
                                   value={student.plan || "free"}
-                                  onValueChange={async (value: "free" | "premium") => {
+                                  onValueChange={async (value: "free" | "basic" | "premium" | "vip") => {
+                                    const labels: Record<string, string> = { free: "Gratuito", basic: "Básico", premium: "Premium", vip: "VIP" };
                                     try {
                                       await updatePlanMutation.mutateAsync({ userId: student.id, plan: value });
-                                      toast.success(`Plano atualizado para ${value === "free" ? "Gratuito" : "Premium"}`);
+                                      toast.success(`Plano atualizado para ${labels[value] ?? value}`);
                                       utils.admin.listUsers.invalidate();
                                     } catch {
                                       toast.error("Erro ao atualizar plano");

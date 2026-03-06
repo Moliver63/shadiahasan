@@ -11,9 +11,8 @@ export default function AdminAppointments() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [programFilter, setProgramFilter] = useState<string>("all");
 
-  const { data: appointments, isLoading } = trpc.appointments.list.useQuery({
+  const { data: appointments, isLoading } = trpc.appointments.listAll.useQuery({
     status: statusFilter !== "all" ? statusFilter as any : undefined,
-    programType: programFilter !== "all" ? programFilter : undefined,
   });
 
   const getStatusBadge = (status: string) => {

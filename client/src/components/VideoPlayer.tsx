@@ -10,6 +10,14 @@ interface VideoPlayerProps {
   onComplete?: () => void;
 }
 
+// Detecta se a URL é do YouTube e retorna o ID do vídeo
+function getYouTubeId(url: string): string | null {
+  const match = url.match(
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/
+  );
+  return match ? match[1] : null;
+}
+
 export default function VideoPlayer({
   src,
   title,
@@ -27,17 +35,20 @@ export default function VideoPlayer({
   const [showControls, setShowControls] = useState(true);
   const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const youtubeId = getYouTubeId(src);
+
   useEffect(() => {
+    // Se for YouTube, não usa o player nativo
+    if (youtubeId) return;
+
     const video = videoRef.current;
     if (!video) return;
 
     // Load HLS if needed
     if (src.includes(".m3u8")) {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Native HLS support (Safari)
         video.src = src;
       } else {
-        // Use hls.js for other browsers
         import("hls.js").then((module) => {
           const Hls = module.default;
           if (Hls.isSupported()) {
@@ -79,12 +90,11 @@ export default function VideoPlayer({
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       video.removeEventListener("ended", handleEnded);
     };
-  }, [src, duration, onProgress, onComplete]);
+  }, [src, duration, onProgress, onComplete, youtubeId]);
 
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
-
     if (isPlaying) {
       video.pause();
     } else {
@@ -96,7 +106,6 @@ export default function VideoPlayer({
   const toggleMute = () => {
     const video = videoRef.current;
     if (!video) return;
-
     video.muted = !isMuted;
     setIsMuted(!isMuted);
   };
@@ -104,7 +113,6 @@ export default function VideoPlayer({
   const handleVolumeChange = (value: number[]) => {
     const video = videoRef.current;
     if (!video) return;
-
     const newVolume = value[0] || 0;
     video.volume = newVolume / 100;
     setVolume(newVolume);
@@ -114,7 +122,6 @@ export default function VideoPlayer({
   const handleSeek = (value: number[]) => {
     const video = videoRef.current;
     if (!video || !duration) return;
-
     const newTime = (value[0] || 0) / 100 * duration;
     video.currentTime = newTime;
     setCurrentTime(newTime);
@@ -123,7 +130,6 @@ export default function VideoPlayer({
   const toggleFullscreen = () => {
     const container = containerRef.current;
     if (!container) return;
-
     if (!isFullscreen) {
       if (container.requestFullscreen) {
         container.requestFullscreen();
@@ -154,6 +160,23 @@ export default function VideoPlayer({
     }, 3000);
   };
 
+  // ✅ Renderiza iframe do YouTube
+  if (youtubeId) {
+    return (
+      <div ref={containerRef} className="relative w-full rounded-lg overflow-hidden bg-black" style={{ paddingTop: "56.25%" }}>
+        <iframe
+          className="absolute top-0 left-0 w-full h-full"
+          src={`https://www.youtube.com/embed/${youtubeId}?autoplay=0&rel=0`}
+          title={title || "YouTube Video"}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+
+  // ✅ Renderiza player nativo para HLS/MP4
   return (
     <div
       ref={containerRef}

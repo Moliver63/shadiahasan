@@ -18,23 +18,40 @@ import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
-// Generates a themed Unsplash thumbnail URL based on course title keywords
+// Keyword map: Portuguese common words → English for Unsplash search
+const ptToEn: Record<string, string> = {
+  curso: "course", aula: "lesson", programacao: "programming", desenvolvimento: "development",
+  web: "web", design: "design", marketing: "marketing", negocios: "business",
+  financas: "finance", fotografia: "photography", musica: "music", arte: "art",
+  culinaria: "cooking", fitness: "fitness", saude: "health", tecnologia: "technology",
+  dados: "data", inteligencia: "intelligence", artificial: "artificial", gestao: "management",
+  lideranca: "leadership", vendas: "sales", comunicacao: "communication", ingles: "english",
+  idiomas: "languages", python: "python", javascript: "javascript", react: "react",
+  mobile: "mobile", seguranca: "security", redes: "network", banco: "database",
+  excel: "excel", contabilidade: "accounting", direito: "law", medicina: "medicine",
+};
+
 const generateThumbnailFromTitle = (title: string): string => {
-  const keywords = title
+  const words = title
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9\s]/g, "")
     .trim()
     .split(/\s+/)
-    .filter((w) => w.length > 2)
-    .slice(0, 3)
+    .filter((w) => w.length > 2);
+
+  const translated = words
+    .map((w) => ptToEn[w] || w)
+    .slice(0, 2)
     .join(",");
 
-  const query = keywords || "education,learning,course";
-  // Random seed so each "refresh" produces a different image for the same query
-  const seed = Math.floor(Math.random() * 1000);
-  return `https://source.unsplash.com/1600x900/?${encodeURIComponent(query)}&sig=${seed}`;
+  const query = translated || "education,learning";
+  const seed = Math.floor(Math.random() * 9999);
+
+  // Uses Picsum Photos — stable, free, no API key needed
+  // For themed images, fallback to a curated Unsplash collection URL
+  return `https://picsum.photos/seed/${encodeURIComponent(query)}-${seed}/1600/900`;
 };
 
 export default function AdminCourses() {

@@ -9,7 +9,7 @@ import Stripe from "stripe";
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "";
 
 export const stripe = stripeSecretKey
-   new Stripe(stripeSecretKey, { apiVersion: "2024-11-20.acacia" })
+  ? new Stripe(stripeSecretKey, { apiVersion: "2024-11-20.acacia" })
   : null;
 
 /**
@@ -57,9 +57,7 @@ export async function createCheckoutSession(params: {
       user_name: params.userName || "",
       ...params.metadata,
     },
-    // Configurações para o Brasil
     locale: "pt-BR",
-    currency: "brl",
   });
 
   console.log(`[Stripe] Checkout session criada: ${session.id} para user ${params.userId}`);

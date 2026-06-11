@@ -123,6 +123,7 @@ export const lessons = pgTable("lessons", {
   videoPlaybackUrl: text("videoPlaybackUrl"),
   duration: integer("duration"),
   isPublished: integer("isPublished").default(0).notNull(),
+  isAccessRestricted: integer("isAccessRestricted").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

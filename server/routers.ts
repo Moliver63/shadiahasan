@@ -259,8 +259,8 @@ export const appRouter = router({
         order: z.number(),
         description: z.string().optional(),
         videoProvider: z.string().optional(),
-        videoAssetId: z.string().optional(),
-        videoPlaybackUrl: z.string().optional(),
+        videoAssetId: z.string().nullable().optional(),
+        videoPlaybackUrl: z.string().nullable().optional(),
         duration: z.number().optional(),
         isPublished: z.number().default(0),
       }))
@@ -279,8 +279,8 @@ export const appRouter = router({
         order: z.number().optional(),
         description: z.string().optional(),
         videoProvider: z.string().optional(),
-        videoAssetId: z.string().optional(),
-        videoPlaybackUrl: z.string().optional(),
+        videoAssetId: z.string().nullable().optional(),
+        videoPlaybackUrl: z.string().nullable().optional(),
         duration: z.number().optional(),
         isPublished: z.number().optional(),
       }))

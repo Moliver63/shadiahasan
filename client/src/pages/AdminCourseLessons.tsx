@@ -99,6 +99,7 @@ export default function AdminCourseLessons() {
   const [editingLesson, setEditingLesson] = useState<any>(null);
   const [uploadState, setUploadState] = useState<UploadState>({ status: "idle" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const emptyForm = (): FormData => ({
     title: "",
@@ -124,8 +125,24 @@ export default function AdminCourseLessons() {
   const checkUploadStatusMutation = trpc.videos.admin.checkUploadStatus.useMutation();
 
   const createMutation = trpc.lessons.create.useMutation({
-    onSuccess: () => {
+    onSuccess: async (result) => {
       toast.success("Aula criada com sucesso!");
+
+      // Se o vídeo do Cloudflare ainda estava processando/pronto no momento
+      // da criação (videoAssetId existe mas videoPlaybackUrl pode estar vazio
+      // ou desatualizado), consulta o status novamente agora que já temos o
+      // lessonId, garantindo que a URL seja persistida.
+      if (formData.videoProvider === "cloudflare" && formData.videoAssetId) {
+        try {
+          await checkUploadStatusMutation.mutateAsync({
+            uid: formData.videoAssetId,
+            lessonId: result.id,
+          });
+        } catch (err) {
+          console.error("Erro ao sincronizar status do vídeo:", err);
+        }
+      }
+
       utils.lessons.listByCourse.invalidate();
       closeDialog();
     },
@@ -213,6 +230,8 @@ export default function AdminCourseLessons() {
       const fileName =
         uploadState.status === "processing" ? uploadState.fileName : "vídeo";
 
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
       const interval = setInterval(async () => {
         try {
           const result = await checkUploadStatusMutation.mutateAsync({
@@ -246,6 +265,8 @@ export default function AdminCourseLessons() {
           console.error("Erro ao consultar status do upload:", err);
         }
       }, 5000);
+
+      pollIntervalRef.current = interval;
 
       // Timeout de segurança: para após 10 minutos
       setTimeout(() => clearInterval(interval), 10 * 60 * 1000);
@@ -284,6 +305,10 @@ export default function AdminCourseLessons() {
     setDialogOpen(false);
     setEditingLesson(null);
     setUploadState({ status: "idle" });
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {

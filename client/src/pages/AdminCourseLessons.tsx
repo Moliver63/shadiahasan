@@ -62,30 +62,7 @@ async function tusUpload(
   const CHUNK = 50 * 1024 * 1024; // 50 MB por chunk
   let offset = 0;
 
-  // Primeiro request: inicializar o upload
-  const initRes = await fetch(uploadUrl, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/offset+octet-stream",
-      "Upload-Offset": "0",
-      "Tus-Resumable": "1.0.0",
-    },
-    body: new Blob(), // vazio para verificar offset atual
-  }).catch(() => null);
-
-  // Se não suportar PATCH inicial, fazer upload simples
-  if (!initRes || initRes.status === 405) {
-    // Fallback: PUT direto (funciona na maioria dos casos do CF Stream)
-    const res = await fetch(uploadUrl, {
-      method: "PUT",
-      body: file,
-    });
-    if (!res.ok) throw new Error(`Upload falhou: ${res.status}`);
-    onProgress(100);
-    return;
-  }
-
-  // Upload em chunks via TUS
+  // Upload em chunks via protocolo TUS (Cloudflare Stream)
   while (offset < file.size) {
     const chunk = file.slice(offset, offset + CHUNK);
     const res = await fetch(uploadUrl, {
@@ -98,9 +75,13 @@ async function tusUpload(
       body: chunk,
     });
 
-    if (!res.ok) throw new Error(`Erro no upload (offset ${offset}): ${res.status}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Erro no upload (offset ${offset}): ${res.status} ${errText}`);
+    }
 
-    offset = parseInt(res.headers.get("Upload-Offset") || String(offset + chunk.size));
+    const newOffset = res.headers.get("Upload-Offset");
+    offset = newOffset ? parseInt(newOffset) : offset + chunk.size;
     onProgress(Math.round((offset / file.size) * 100));
   }
 }

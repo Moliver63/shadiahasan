@@ -163,6 +163,50 @@ export const appRouter = router({
   }),
 
   courses: router({
+    /**
+     * Upload de thumbnail do curso (imagem) via storage proxy interno.
+     * Recebe a imagem em base64 (data URL ou string base64 pura) e o
+     * content-type, salva no storage e retorna a URL pública.
+     */
+    uploadThumbnail: protectedProcedure
+      .input(
+        z.object({
+          fileName: z.string().min(1),
+          contentType: z.string().min(1),
+          base64Data: z.string().min(1),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+
+        const { storagePut } = await import('./storage');
+
+        // Aceita tanto "data:image/png;base64,XXXX" quanto "XXXX" puro
+        const base64 = input.base64Data.includes(',')
+          ? input.base64Data.split(',')[1]
+          : input.base64Data;
+
+        const buffer = Buffer.from(base64, 'base64');
+
+        // Limite de 5MB para thumbnails
+        const MAX_SIZE = 5 * 1024 * 1024;
+        if (buffer.length > MAX_SIZE) {
+          throw new TRPCError({
+            code: 'PAYLOAD_TOO_LARGE',
+            message: 'Imagem muito grande. Máximo 5MB.',
+          });
+        }
+
+        const ext = input.fileName.split('.').pop() || 'jpg';
+        const key = `course-thumbnails/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+        const { url } = await storagePut(key, buffer, input.contentType);
+
+        return { url };
+      }),
+
     list: publicProcedure.query(async () => {
       return await db.getAllCourses();
     }),

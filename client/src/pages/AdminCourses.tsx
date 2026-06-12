@@ -13,8 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { Plus, Edit, Trash2, Eye, EyeOff, Wand2, RefreshCw, ImageIcon } from "lucide-react";
-import { useState, useCallback } from "react";
+import { Plus, Edit, Trash2, Eye, EyeOff, Wand2, RefreshCw, ImageIcon, Upload, Loader2 } from "lucide-react";
+import { useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
@@ -50,15 +50,26 @@ const generateThumbnailFromTitle = (title: string): string => {
   const seed = Math.floor(Math.random() * 9999);
 
   // Uses Picsum Photos — stable, free, no API key needed
-  // For themed images, fallback to a curated Unsplash collection URL
   return `https://picsum.photos/seed/${encodeURIComponent(query)}-${seed}/1600/900`;
 };
+
+// Converte um File em string base64 (data URL)
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function AdminCourses() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<any>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState("");
   const [isGeneratingThumb, setIsGeneratingThumb] = useState(false);
+  const [isUploadingThumb, setIsUploadingThumb] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     title: "",
     slug: "",
@@ -69,6 +80,8 @@ export default function AdminCourses() {
 
   const utils = trpc.useUtils();
   const { data: courses, isLoading } = trpc.courses.listAll.useQuery();
+  const uploadThumbnailMutation = trpc.courses.uploadThumbnail.useMutation();
+
   const createMutation = trpc.courses.create.useMutation({
     onSuccess: () => {
       toast.success("Curso criado com sucesso!");
@@ -138,9 +151,51 @@ export default function AdminCourses() {
     const url = generateThumbnailFromTitle(formData.title || "curso");
     setFormData((prev) => ({ ...prev, thumbnail: url }));
     setThumbnailPreview(url);
-    // Give the browser a moment to start fetching before resetting the spinner
     setTimeout(() => setIsGeneratingThumb(false), 800);
   }, [formData.title]);
+
+  // ── Upload de imagem do PC ────────────────────────────────────────────────
+  const handleThumbnailFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (!file.type.startsWith("image/")) {
+        toast.error("Selecione um arquivo de imagem válido.");
+        return;
+      }
+
+      const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+      if (file.size > MAX_SIZE) {
+        toast.error("Imagem muito grande. Máximo 5MB.");
+        return;
+      }
+
+      setIsUploadingThumb(true);
+      try {
+        const base64Data = await fileToBase64(file);
+
+        // Preview imediato local enquanto envia
+        setThumbnailPreview(base64Data);
+
+        const { url } = await uploadThumbnailMutation.mutateAsync({
+          fileName: file.name,
+          contentType: file.type,
+          base64Data,
+        });
+
+        setFormData((prev) => ({ ...prev, thumbnail: url }));
+        setThumbnailPreview(url);
+        toast.success("Imagem enviada com sucesso!");
+      } catch (err: any) {
+        toast.error("Erro no upload: " + (err.message || "tente novamente"));
+      } finally {
+        setIsUploadingThumb(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [uploadThumbnailMutation]
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -338,14 +393,19 @@ export default function AdminCourses() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="thumbnail">Thumbnail do Curso</Label>
+                <Label htmlFor="thumbnail">Capa do Curso</Label>
 
                 {/* Preview */}
                 <div className="relative w-full h-36 rounded-md border bg-muted overflow-hidden flex items-center justify-center">
+                  {isUploadingThumb && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
+                      <Loader2 className="h-6 w-6 text-white animate-spin" />
+                    </div>
+                  )}
                   {thumbnailPreview ? (
                     <img
                       src={thumbnailPreview}
-                      alt="Preview da thumbnail"
+                      alt="Preview da capa"
                       className="w-full h-full object-cover"
                       onError={() => setThumbnailPreview("")}
                     />
@@ -357,25 +417,32 @@ export default function AdminCourses() {
                   )}
                 </div>
 
-                {/* URL input + generate button */}
+                {/* Botões de ação */}
                 <div className="flex gap-2">
-                  <Input
-                    id="thumbnail"
-                    value={formData.thumbnail}
-                    onChange={(e) => {
-                      setFormData({ ...formData, thumbnail: e.target.value });
-                      setThumbnailPreview(e.target.value);
-                    }}
-                    placeholder="https://exemplo.com/imagem.jpg"
-                    className="flex-1"
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleThumbnailFileSelect}
                   />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingThumb}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload do PC
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
                     title="Gerar imagem automaticamente pelo título"
                     onClick={handleGenerateThumbnail}
-                    disabled={isGeneratingThumb}
+                    disabled={isGeneratingThumb || isUploadingThumb}
                   >
                     {isGeneratingThumb ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />
@@ -384,10 +451,22 @@ export default function AdminCourses() {
                     )}
                   </Button>
                 </div>
+
+                {/* URL manual (opcional) */}
+                <Input
+                  id="thumbnail"
+                  value={formData.thumbnail}
+                  onChange={(e) => {
+                    setFormData({ ...formData, thumbnail: e.target.value });
+                    setThumbnailPreview(e.target.value);
+                  }}
+                  placeholder="ou cole uma URL de imagem aqui"
+                  className="text-xs"
+                />
                 <p className="text-xs text-muted-foreground">
-                  Cole uma URL ou clique em{" "}
-                  <Wand2 className="inline h-3 w-3" /> para gerar uma imagem
-                  automaticamente com base no título do curso.
+                  Envie uma imagem do seu computador (até 5MB), gere
+                  automaticamente <Wand2 className="inline h-3 w-3" /> com base
+                  no título, ou cole uma URL.
                 </p>
               </div>
 
@@ -416,7 +495,11 @@ export default function AdminCourses() {
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  isUploadingThumb
+                }
               >
                 {editingCourse ? "Atualizar" : "Criar"}
               </Button>

@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { adminRouter } from "./routers/admin";
 import { subscriptionsRouter } from "./routers/subscriptions";
 import { referralsRouter } from "./routers/referrals";
+import { videosRouter } from "./routers/videos";
 import { publicProcedure, router, protectedProcedure, superAdminProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -263,6 +264,7 @@ export const appRouter = router({
         videoPlaybackUrl: z.string().nullable().optional(),
         duration: z.number().optional(),
         isPublished: z.number().default(0),
+        isAccessRestricted: z.number().default(0),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
@@ -283,6 +285,7 @@ export const appRouter = router({
         videoPlaybackUrl: z.string().nullable().optional(),
         duration: z.number().optional(),
         isPublished: z.number().optional(),
+        isAccessRestricted: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
@@ -1139,6 +1142,8 @@ Seja breve e direta nas respostas (m\u00e1ximo 3-4 linhas por mensagem).`;
   }),
 
   // Admin management router
+  videos: videosRouter,
+
   adminManagement: adminRouter,
   
   // Subscriptions management router

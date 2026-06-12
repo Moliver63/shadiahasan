@@ -158,13 +158,26 @@ async function checkUserHasAccess(
 
     if (existingEnrollment.length > 0) return true;
 
-    // Ainda não matriculado: verifica se há vaga dentro do limite do plano
+    // Ainda não matriculado: conta apenas matrículas em cursos PAGOS
+    // (cursos com pelo menos uma aula isAccessRestricted=1).
+    // Cursos gratuitos não consomem a cota do plano Básico.
+    const paidCourseIds = await db
+      .select({ courseId: lessons.courseId })
+      .from(lessons)
+      .where(eq(lessons.isAccessRestricted, 1));
+
+    const paidCourseIdSet = new Set(paidCourseIds.map((r) => r.courseId));
+
     const allEnrollments = await db
       .select()
       .from(enrollments)
       .where(eq(enrollments.userId, userId));
 
-    if (allEnrollments.length < maxCourses) {
+    const paidEnrollmentsCount = allEnrollments.filter((e) =>
+      paidCourseIdSet.has(e.courseId)
+    ).length;
+
+    if (paidEnrollmentsCount < maxCourses) {
       // Matrícula automática no primeiro acesso a este curso
       await db.insert(enrollments).values({
         userId,

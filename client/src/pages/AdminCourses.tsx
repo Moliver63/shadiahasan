@@ -165,9 +165,9 @@ export default function AdminCourses() {
         return;
       }
 
-      const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+      const MAX_SIZE = 2 * 1024 * 1024; // 2MB
       if (file.size > MAX_SIZE) {
-        toast.error("Imagem muito grande. Máximo 5MB.");
+        toast.error("Imagem muito grande. Máximo 2MB.");
         return;
       }
 
@@ -464,7 +464,7 @@ export default function AdminCourses() {
                   className="text-xs"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Envie uma imagem do seu computador (até 5MB), gere
+                  Envie uma imagem do seu computador (até 2MB), gere
                   automaticamente <Wand2 className="inline h-3 w-3" /> com base
                   no título, ou cole uma URL.
                 </p>

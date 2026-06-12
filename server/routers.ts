@@ -181,8 +181,6 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
 
-        const { storagePut } = await import('./storage');
-
         // Aceita tanto "data:image/png;base64,XXXX" quanto "XXXX" puro
         const base64 = input.base64Data.includes(',')
           ? input.base64Data.split(',')[1]
@@ -190,21 +188,21 @@ export const appRouter = router({
 
         const buffer = Buffer.from(base64, 'base64');
 
-        // Limite de 5MB para thumbnails
-        const MAX_SIZE = 5 * 1024 * 1024;
+        // Limite de 2MB para thumbnails armazenadas como data URL no banco
+        const MAX_SIZE = 2 * 1024 * 1024;
         if (buffer.length > MAX_SIZE) {
           throw new TRPCError({
             code: 'PAYLOAD_TOO_LARGE',
-            message: 'Imagem muito grande. Máximo 5MB.',
+            message: 'Imagem muito grande. Máximo 2MB.',
           });
         }
 
-        const ext = input.fileName.split('.').pop() || 'jpg';
-        const key = `course-thumbnails/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        // Armazena a imagem como data URL direto no campo thumbnail (text).
+        // Não depende de storage externo (BUILT_IN_FORGE_API_URL não está
+        // configurado/funcional neste ambiente).
+        const dataUrl = `data:${input.contentType};base64,${base64}`;
 
-        const { url } = await storagePut(key, buffer, input.contentType);
-
-        return { url };
+        return { url: dataUrl };
       }),
 
     list: publicProcedure.query(async () => {

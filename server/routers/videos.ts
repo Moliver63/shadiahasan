@@ -17,7 +17,7 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { db } from "../db";
+import { getDb } from "../db";
 import {
   lessons,
   subscriptions,
@@ -50,6 +50,8 @@ async function checkUserHasAccess(
 ): Promise<boolean> {
   // Aula gratuita — todos acessam
   if (!lesson.isAccessRestricted) return true;
+
+  const db = await getDb();
 
   // Verifica assinatura ativa na tabela subscriptions (gerenciada pelo admin)
   const activeSub = await db
@@ -148,6 +150,7 @@ export const videosRouter = router({
         })
       )
       .mutation(async ({ input }) => {
+        const db = await getDb();
         const { lessonId, ...updates } = input;
 
         await db
@@ -221,6 +224,7 @@ export const videosRouter = router({
   getPlaybackUrl: protectedProcedure
     .input(z.object({ lessonId: z.number() }))
     .query(async ({ input, ctx }) => {
+      const db = await getDb();
       const result = await db
         .select()
         .from(lessons)
@@ -272,6 +276,7 @@ export const videosRouter = router({
   hasAccess: protectedProcedure
     .input(z.object({ lessonId: z.number() }))
     .query(async ({ input, ctx }) => {
+      const db = await getDb();
       const result = await db
         .select({
           isAccessRestricted: lessons.isAccessRestricted,
@@ -304,6 +309,7 @@ export const videosRouter = router({
   listLessons: publicProcedure
     .input(z.object({ courseId: z.number() }))
     .query(async ({ input }) => {
+      const db = await getDb();
       const result = await db
         .select({
           id: lessons.id,

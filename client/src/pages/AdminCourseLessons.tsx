@@ -46,8 +46,8 @@ interface FormData {
 type UploadState =
   | { status: "idle" }
   | { status: "uploading"; progress: number; fileName: string }
-  | { status: "processing"; uid: string }
-  | { status: "done"; uid: string; fileName: string }
+  | { status: "processing"; uid: string; fileName: string }
+  | { status: "ready"; uid: string; fileName: string; duration: number }
   | { status: "error"; message: string };
 
 // ─── Helper: upload TUS para Cloudflare Stream ───────────────────────────────
@@ -121,6 +121,7 @@ export default function AdminCourseLessons() {
 
   const createUploadUrlMutation = trpc.videos.admin.createUploadUrl.useMutation();
   const updateLessonVideoMutation = trpc.videos.admin.updateLessonVideo.useMutation();
+  const checkUploadStatusMutation = trpc.videos.admin.checkUploadStatus.useMutation();
 
   const createMutation = trpc.lessons.create.useMutation({
     onSuccess: () => {
@@ -180,15 +181,20 @@ export default function AdminCourseLessons() {
       });
 
       // 3. Vídeo enviado — CF processa em background
-      setUploadState({ status: "done", uid, fileName: file.name });
+      setUploadState({ status: "processing", uid, fileName: file.name });
       setFormData((prev) => ({
         ...prev,
         videoProvider: "cloudflare",
         videoAssetId: uid,
-        videoPlaybackUrl: "", // será preenchido quando CF processar
+        videoPlaybackUrl: "", // será preenchido automaticamente quando o CF terminar
       }));
 
-      toast.success("Vídeo enviado! O Cloudflare está processando — pode levar alguns minutos.");
+      toast.success("Vídeo enviado! Processando no Cloudflare...");
+
+      // 4. Polling: a cada 5s consulta o status até ficar "ready",
+      // então preenche videoPlaybackUrl/duration automaticamente
+      // (no banco, se a aula já existir, e no formulário sempre).
+      pollUploadStatus(uid, editingLesson?.id);
     } catch (err: any) {
       setUploadState({ status: "error", message: err.message || "Falha no upload" });
       toast.error("Erro no upload: " + (err.message || "tente novamente"));
@@ -197,6 +203,55 @@ export default function AdminCourseLessons() {
     // Limpar input para permitir re-seleção do mesmo arquivo
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [formData.title, formData.isAccessRestricted, createUploadUrlMutation]);
+
+  // ── Polling de status do Cloudflare Stream ────────────────────────────────
+  // Consulta a cada 5s até o vídeo ficar "readyToStream". Quando pronto,
+  // preenche videoPlaybackUrl/duration no formulário e, se lessonId existir
+  // (edição), também salva direto no banco via checkUploadStatus.
+  const pollUploadStatus = useCallback(
+    (uid: string, lessonId?: number) => {
+      const fileName =
+        uploadState.status === "processing" ? uploadState.fileName : "vídeo";
+
+      const interval = setInterval(async () => {
+        try {
+          const result = await checkUploadStatusMutation.mutateAsync({
+            uid,
+            lessonId,
+          });
+
+          if (result.readyToStream) {
+            clearInterval(interval);
+            setUploadState({
+              status: "ready",
+              uid,
+              fileName,
+              duration: Math.round(result.duration || 0),
+            });
+            setFormData((prev) => ({
+              ...prev,
+              videoPlaybackUrl: result.playbackUrl || "",
+              duration: Math.round(result.duration || 0),
+            }));
+
+            if (lessonId) {
+              utils.lessons.listByCourse.invalidate();
+              toast.success("Vídeo processado e salvo na aula!");
+            } else {
+              toast.success("Vídeo processado! Pronto para salvar a aula.");
+            }
+          }
+        } catch (err) {
+          // Em caso de erro de rede pontual, mantém tentando
+          console.error("Erro ao consultar status do upload:", err);
+        }
+      }, 5000);
+
+      // Timeout de segurança: para após 10 minutos
+      setTimeout(() => clearInterval(interval), 10 * 60 * 1000);
+    },
+    [checkUploadStatusMutation, utils, uploadState]
+  );
 
   // ── Dialogs ───────────────────────────────────────────────────────────────
 
@@ -565,26 +620,34 @@ export default function AdminCourseLessons() {
                     </div>
                   )}
 
-                  {/* Estado: processando */}
+                  {/* Estado: processando (polling a cada 5s) */}
                   {uploadState.status === "processing" && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Cloudflare está processando o vídeo...
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Cloudflare está processando {uploadState.fileName}...
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        UID: <code className="bg-muted px-1 rounded">{uploadState.uid}</code>
+                        {" — "}isso costuma levar de 30s a poucos minutos.
+                      </p>
                     </div>
                   )}
 
-                  {/* Estado: concluído */}
-                  {uploadState.status === "done" && (
+                  {/* Estado: pronto (videoPlaybackUrl já preenchido automaticamente) */}
+                  {uploadState.status === "ready" && (
                     <div className="space-y-1">
                       <p className="text-sm text-green-600 flex items-center gap-2">
                         <CheckCircle2 className="h-4 w-4" />
-                        Upload concluído — {uploadState.fileName}
+                        Vídeo processado — {uploadState.fileName}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         UID: <code className="bg-muted px-1 rounded">{uploadState.uid}</code>
+                        {" • "}
+                        Duração: {Math.floor(uploadState.duration / 60)}min {uploadState.duration % 60}s
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        O vídeo ficará disponível em alguns minutos enquanto o Cloudflare processa.
+                        URL de reprodução preenchida automaticamente. Salve a aula para confirmar.
                       </p>
                     </div>
                   )}

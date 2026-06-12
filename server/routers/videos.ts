@@ -327,6 +327,56 @@ export const videosRouter = router({
     cfStatus: adminProcedure.query(() => {
       return { configured: isCloudflareConfigured() };
     }),
+
+    /**
+     * Consulta o status de processamento de um vídeo no Cloudflare Stream.
+     * Quando o vídeo fica "ready", preenche automaticamente
+     * videoPlaybackUrl e duration na aula correspondente (se lessonId for informado).
+     *
+     * O frontend faz polling deste endpoint a cada poucos segundos
+     * após o upload, até receber readyToStream=true.
+     */
+    checkUploadStatus: adminProcedure
+      .input(
+        z.object({
+          uid: z.string(),
+          lessonId: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        if (!isCloudflareConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Cloudflare Stream não configurado.",
+          });
+        }
+
+        const details = await getVideoDetails(input.uid);
+
+        const result = {
+          uid: details.uid,
+          readyToStream: details.readyToStream,
+          status: details.status?.state,
+          duration: details.duration,
+          playbackUrl: details.playback?.hls ?? null,
+          thumbnail: details.thumbnail,
+        };
+
+        // Quando pronto e lessonId informado, salva automaticamente no banco
+        if (details.readyToStream && input.lessonId) {
+          const db = await getDb();
+          await db
+            .update(lessons)
+            .set({
+              videoPlaybackUrl: details.playback?.hls ?? null,
+              duration: Math.round(details.duration || 0),
+              updatedAt: new Date(),
+            })
+            .where(eq(lessons.id, input.lessonId));
+        }
+
+        return result;
+      }),
   }),
 
   // ── Usuário ────────────────────────────────────────────────────────────────

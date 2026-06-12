@@ -23,6 +23,8 @@ import {
   subscriptions,
   coursePurchases,
   userSubscriptions,
+  subscriptionPlans,
+  enrollments,
 } from "../../drizzle/schema";
 import { eq, and, or } from "drizzle-orm";
 import {
@@ -44,6 +46,19 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 // ─── Helper: verifica acesso do usuário a uma aula ────────────────────────────
 
+/**
+ * Regras de acesso por plano:
+ *
+ * 1. Aula não restrita (isAccessRestricted=0) → todos acessam.
+ * 2. Compra avulsa do curso (coursePurchases, status=completed) → libera SEMPRE
+ *    aquele curso, independente de assinatura.
+ * 3. Assinatura ativa (subscriptions OU userSubscriptions+subscription_plans):
+ *    - plano "premium" ou "vip" → libera TODOS os cursos restritos.
+ *    - plano "basic" → libera no máximo `maxCourses` cursos simultâneos
+ *      (matrícula automática via `enrollments` na primeira vez que o aluno
+ *      acessa um curso restrito, respeitando o limite do plano).
+ *    - plano "free" ou sem assinatura → sem acesso (só avulso).
+ */
 async function checkUserHasAccess(
   userId: number,
   lesson: { isAccessRestricted: number; courseId: number }
@@ -53,35 +68,7 @@ async function checkUserHasAccess(
 
   const db = await getDb();
 
-  // Verifica assinatura ativa na tabela subscriptions (gerenciada pelo admin)
-  const activeSub = await db
-    .select()
-    .from(subscriptions)
-    .where(
-      and(
-        eq(subscriptions.userId, userId),
-        eq(subscriptions.status, "active")
-      )
-    )
-    .limit(1);
-
-  if (activeSub.length > 0) return true;
-
-  // Verifica assinatura ativa via Stripe (userSubscriptions)
-  const stripeSub = await db
-    .select()
-    .from(userSubscriptions)
-    .where(
-      and(
-        eq(userSubscriptions.userId, userId),
-        eq(userSubscriptions.status, "active")
-      )
-    )
-    .limit(1);
-
-  if (stripeSub.length > 0) return true;
-
-  // Verifica compra avulsa do curso
+  // 1. Compra avulsa do curso — libera sempre, independente do plano
   const purchase = await db
     .select()
     .from(coursePurchases)
@@ -94,7 +81,104 @@ async function checkUserHasAccess(
     )
     .limit(1);
 
-  return purchase.length > 0;
+  if (purchase.length > 0) return true;
+
+  // 2. Descobrir o plano ativo do usuário (slug: free | basic | premium | vip)
+  let planSlug: string | null = null;
+  let maxCourses: number | null = null;
+
+  // 2a. Assinatura gerenciada manualmente pelo admin (tabela subscriptions)
+  const manualSub = await db
+    .select()
+    .from(subscriptions)
+    .where(
+      and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active"))
+    )
+    .limit(1);
+
+  if (manualSub.length > 0) {
+    planSlug = manualSub[0].plan; // "free" | "basic" | "premium" | "vip"
+  }
+
+  // 2b. Assinatura via Stripe (userSubscriptions) — descobre o plano pelo stripePriceId
+  if (!planSlug) {
+    const stripeSub = await db
+      .select()
+      .from(userSubscriptions)
+      .where(
+        and(
+          eq(userSubscriptions.userId, userId),
+          eq(userSubscriptions.status, "active")
+        )
+      )
+      .limit(1);
+
+    if (stripeSub.length > 0 && stripeSub[0].stripePriceId) {
+      const plan = await db
+        .select()
+        .from(subscriptionPlans)
+        .where(eq(subscriptionPlans.stripePriceId, stripeSub[0].stripePriceId!))
+        .limit(1);
+
+      if (plan.length > 0) {
+        planSlug = plan[0].slug;
+        maxCourses = plan[0].maxCourses ?? null;
+      }
+    }
+  }
+
+  // Sem plano ativo (ou plano "free") → sem acesso a conteúdo restrito
+  if (!planSlug || planSlug === "free") return false;
+
+  // Premium / VIP → acesso ilimitado a todo conteúdo restrito
+  if (planSlug === "premium" || planSlug === "vip") return true;
+
+  // Plano Básico → limite de cursos simultâneos (padrão 3 se não definido)
+  if (planSlug === "basic") {
+    if (maxCourses == null) {
+      const basicPlan = await db
+        .select()
+        .from(subscriptionPlans)
+        .where(eq(subscriptionPlans.slug, "basic"))
+        .limit(1);
+      maxCourses = basicPlan[0]?.maxCourses ?? 3;
+    }
+
+    // Já matriculado neste curso? → acesso liberado
+    const existingEnrollment = await db
+      .select()
+      .from(enrollments)
+      .where(
+        and(
+          eq(enrollments.userId, userId),
+          eq(enrollments.courseId, lesson.courseId)
+        )
+      )
+      .limit(1);
+
+    if (existingEnrollment.length > 0) return true;
+
+    // Ainda não matriculado: verifica se há vaga dentro do limite do plano
+    const allEnrollments = await db
+      .select()
+      .from(enrollments)
+      .where(eq(enrollments.userId, userId));
+
+    if (allEnrollments.length < maxCourses) {
+      // Matrícula automática no primeiro acesso a este curso
+      await db.insert(enrollments).values({
+        userId,
+        courseId: lesson.courseId,
+        progress: 0,
+      });
+      return true;
+    }
+
+    // Limite de cursos simultâneos do plano Básico atingido
+    return false;
+  }
+
+  return false;
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────

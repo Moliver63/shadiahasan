@@ -243,14 +243,64 @@ export const appRouter = router({
     listByCourse: publicProcedure
       .input(z.object({ courseId: z.number() }))
       .query(async ({ input, ctx }) => {
-        const includeUnpublished = ctx.user?.role === 'admin' || ctx.user?.role === 'superadmin';
-        return await db.getLessonsByCourseId(input.courseId, includeUnpublished);
+        const isAdmin = ctx.user?.role === 'admin' || ctx.user?.role === 'superadmin';
+        const lessonsList = await db.getLessonsByCourseId(input.courseId, isAdmin);
+
+        if (isAdmin) return lessonsList;
+
+        // Para cada aula restrita, verifica acesso e remove a URL/asset
+        // do vídeo caso o usuário não tenha permissão. Isso evita que a
+        // URL real do vídeo (Cloudflare/YouTube) seja exposta via API
+        // antes da verificação de assinatura/compra.
+        const { checkUserHasAccess } = await import('./routers/videos');
+        const result = [];
+        for (const lesson of lessonsList) {
+          if (lesson.isAccessRestricted && lesson.isAccessRestricted !== 0) {
+            const hasAccess = ctx.user
+              ? await checkUserHasAccess(ctx.user.id, {
+                  isAccessRestricted: lesson.isAccessRestricted,
+                  courseId: lesson.courseId,
+                })
+              : false;
+
+            if (!hasAccess) {
+              result.push({
+                ...lesson,
+                videoPlaybackUrl: null,
+                videoAssetId: null,
+              });
+              continue;
+            }
+          }
+          result.push(lesson);
+        }
+        return result;
       }),
     
     getById: publicProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return await db.getLessonById(input.id);
+      .query(async ({ input, ctx }) => {
+        const lesson = await db.getLessonById(input.id);
+        if (!lesson) return lesson;
+
+        const isAdmin = ctx.user?.role === 'admin' || ctx.user?.role === 'superadmin';
+        if (isAdmin) return lesson;
+
+        if (lesson.isAccessRestricted && lesson.isAccessRestricted !== 0) {
+          const { checkUserHasAccess } = await import('./routers/videos');
+          const hasAccess = ctx.user
+            ? await checkUserHasAccess(ctx.user.id, {
+                isAccessRestricted: lesson.isAccessRestricted,
+                courseId: lesson.courseId,
+              })
+            : false;
+
+          if (!hasAccess) {
+            return { ...lesson, videoPlaybackUrl: null, videoAssetId: null };
+          }
+        }
+
+        return lesson;
       }),
     
     create: protectedProcedure

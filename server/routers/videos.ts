@@ -59,7 +59,7 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
  *      acessa um curso restrito, respeitando o limite do plano).
  *    - plano "free" ou sem assinatura → sem acesso (só avulso).
  */
-async function checkUserHasAccess(
+export async function checkUserHasAccess(
   userId: number,
   lesson: { isAccessRestricted: number; courseId: number }
 ): Promise<boolean> {

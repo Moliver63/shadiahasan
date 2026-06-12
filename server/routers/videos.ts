@@ -59,6 +59,19 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
  *      acessa um curso restrito, respeitando o limite do plano).
  *    - plano "free" ou sem assinatura → sem acesso (só avulso).
  */
+
+async function ensureEnrollment(db: any, userId: number, courseId: number) {
+  const existing = await db
+    .select()
+    .from(enrollments)
+    .where(and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId)))
+    .limit(1);
+
+  if (existing.length === 0) {
+    await db.insert(enrollments).values({ userId, courseId, progress: 0 });
+  }
+}
+
 export async function checkUserHasAccess(
   userId: number,
   lesson: { isAccessRestricted: number; courseId: number }
@@ -81,7 +94,10 @@ export async function checkUserHasAccess(
     )
     .limit(1);
 
-  if (purchase.length > 0) return true;
+  if (purchase.length > 0) {
+    await ensureEnrollment(db, userId, lesson.courseId);
+    return true;
+  }
 
   // 2. Descobrir o plano ativo do usuário (slug: free | basic | premium | vip)
   let planSlug: string | null = null;
@@ -131,7 +147,10 @@ export async function checkUserHasAccess(
   if (!planSlug || planSlug === "free") return false;
 
   // Premium / VIP → acesso ilimitado a todo conteúdo restrito
-  if (planSlug === "premium" || planSlug === "vip") return true;
+  if (planSlug === "premium" || planSlug === "vip") {
+    await ensureEnrollment(db, userId, lesson.courseId);
+    return true;
+  }
 
   // Plano Básico → limite de cursos simultâneos (padrão 3 se não definido)
   if (planSlug === "basic") {

@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import VideoPlayer from "@/components/VideoPlayer";
 import VRViewer from "@/components/VRViewer";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Maximize2 } from "lucide-react";
+import { ArrowLeft, Maximize2, Lock } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -32,8 +32,11 @@ export default function LessonView() {
     { enabled: !!lesson }
   );
 
-  const { data: enrollmentData } = trpc.enrollments.checkEnrollment.useQuery(
-    { courseId: lesson?.courseId || 0 },
+  // Verifica acesso real (assinatura ativa no nível certo OU compra avulsa),
+  // não apenas "matrícula" — substitui a antiga checagem enrollments.checkEnrollment
+  // que bloqueava assinantes pagantes sem registro de matrícula.
+  const { data: accessData, isLoading: accessLoading } = trpc.videos.hasAccess.useQuery(
+    { lessonId },
     { enabled: !!lesson && isAuthenticated }
   );
 
@@ -44,10 +47,10 @@ export default function LessonView() {
 
   const updateProgressMutation = trpc.enrollments.updateProgress.useMutation();
 
-  const isEnrolled = enrollmentData?.enrolled || false;
+  const hasAccess = accessData?.hasAccess ?? false;
 
   const handleProgress = (progress: number) => {
-    if (lesson && isEnrolled && progress > 90) {
+    if (lesson && hasAccess && progress > 90) {
       updateProgressMutation.mutate({
         courseId: lesson.courseId,
         progress: 100,
@@ -57,7 +60,7 @@ export default function LessonView() {
   };
 
   const handleComplete = () => {
-    if (lesson && isEnrolled) {
+    if (lesson && hasAccess) {
       toast.success("Aula concluída!");
       const currentIndex = allLessons?.findIndex((l) => l.id === lessonId);
       if (
@@ -77,7 +80,7 @@ export default function LessonView() {
     return null;
   }
 
-  if (lessonLoading) {
+  if (lessonLoading || accessLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container py-12">
@@ -103,17 +106,31 @@ export default function LessonView() {
     );
   }
 
-  if (!isEnrolled) {
+  // Aula restrita e usuário sem assinatura adequada / compra avulsa
+  if (!hasAccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card>
           <CardContent className="py-12 text-center max-w-md">
-            <p className="text-lg mb-4">
-              Você precisa estar matriculado neste curso para acessar esta aula
+            <Lock className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-lg mb-2 font-semibold">Conteúdo exclusivo</p>
+            <p className="text-muted-foreground mb-6">
+              Esta aula é exclusiva para assinantes ou para quem adquiriu este
+              curso individualmente. Assine um plano ou compre o curso para
+              continuar.
             </p>
-            <Link href={`/courses/${course?.slug}`}>
-              <Button>Ver Curso</Button>
-            </Link>
+            <div className="flex flex-col gap-2">
+              {course && (
+                <Link href={`/courses/${course.slug}`}>
+                  <Button className="w-full">Ver opções do curso</Button>
+                </Link>
+              )}
+              <Link href="/pricing">
+                <Button variant="outline" className="w-full">
+                  Ver planos de assinatura
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -277,8 +294,11 @@ export default function LessonView() {
                             {index + 1}
                           </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium line-clamp-2">
+                            <p className="text-sm font-medium line-clamp-2 flex items-center gap-1">
                               {l.title}
+                              {l.isAccessRestricted === 1 && !l.videoPlaybackUrl && (
+                                <Lock className="h-3 w-3 shrink-0" />
+                              )}
                             </p>
                             {l.duration && (
                               <p className="text-xs opacity-70 mt-1">

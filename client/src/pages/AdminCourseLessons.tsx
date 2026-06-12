@@ -59,31 +59,34 @@ async function tusUpload(
   uploadUrl: string,
   onProgress: (pct: number) => void
 ): Promise<void> {
-  const CHUNK = 50 * 1024 * 1024; // 50 MB por chunk
-  let offset = 0;
+  // O endpoint de "direct upload" do Cloudflare Stream aceita um
+  // POST multipart/form-data simples com o arquivo no campo "file".
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append("file", file);
 
-  // Upload em chunks via protocolo TUS (Cloudflare Stream)
-  while (offset < file.size) {
-    const chunk = file.slice(offset, offset + CHUNK);
-    const res = await fetch(uploadUrl, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/offset+octet-stream",
-        "Upload-Offset": String(offset),
-        "Tus-Resumable": "1.0.0",
-      },
-      body: chunk,
-    });
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", uploadUrl);
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      throw new Error(`Erro no upload (offset ${offset}): ${res.status} ${errText}`);
-    }
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
 
-    const newOffset = res.headers.get("Upload-Offset");
-    offset = newOffset ? parseInt(newOffset) : offset + chunk.size;
-    onProgress(Math.round((offset / file.size) * 100));
-  }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+      } else {
+        reject(new Error(`Erro no upload: ${xhr.status} ${xhr.responseText}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Erro de rede durante o upload"));
+
+    xhr.send(formData);
+  });
 }
 
 // ─── Componente principal ────────────────────────────────────────────────────

@@ -229,7 +229,7 @@ export const videosRouter = router({
       .input(
         z.object({
           name: z.string().min(1),
-          fileSize: z.number().positive(),
+          fileSize: z.number().positive().optional(),
           mimeType: z.string().optional(),
           isProtected: z.boolean().default(false),
           maxDurationSeconds: z.number().optional(),
@@ -241,6 +241,14 @@ export const videosRouter = router({
             code: "PRECONDITION_FAILED",
             message:
               "Cloudflare Stream não configurado. Adicione CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_API_TOKEN no Render.",
+          });
+        }
+
+        if (!input.fileSize) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Versão da página desatualizada. Recarregue a página (Ctrl+F5) e tente o upload novamente.",
           });
         }
 

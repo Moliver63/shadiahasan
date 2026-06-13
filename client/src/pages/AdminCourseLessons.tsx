@@ -51,6 +51,20 @@ type UploadState =
   | { status: "ready"; uid: string; fileName: string; duration: number }
   | { status: "error"; message: string };
 
+function normalizeUploadError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || "");
+
+  if (message.includes("fileSize") && message.includes("undefined")) {
+    return "A página aberta está desatualizada. Recarregue com Ctrl+F5 e tente novamente.";
+  }
+
+  if (message.includes("Versão da página desatualizada")) {
+    return message;
+  }
+
+  return message || "Falha no upload";
+}
+
 // ─── Helper: upload TUS para Cloudflare Stream ───────────────────────────────
 // O Cloudflare Stream exige TUS para arquivos grandes (>200 MB) e recomenda
 // esse protocolo quando a conexão do usuário pode oscilar, pois o upload é
@@ -311,8 +325,9 @@ export default function AdminCourseLessons() {
       // (no banco, se a aula já existir, e no formulário sempre).
       pollUploadStatus(uid, editingLesson?.id, { fileName: file.name });
     } catch (err: any) {
-      setUploadState({ status: "error", message: err.message || "Falha no upload" });
-      toast.error("Erro no upload: " + (err.message || "tente novamente"));
+      const message = normalizeUploadError(err);
+      setUploadState({ status: "error", message });
+      toast.error("Erro no upload: " + message);
     }
 
     // Limpar input para permitir re-seleção do mesmo arquivo

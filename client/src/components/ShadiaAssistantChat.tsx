@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { safeLocalStorageGet } from "@/lib/safeStorage";
 import { MessageCircle, X } from "lucide-react";
 
 // Mensagens rotativas alinhadas ao propósito do site e da Shadia
@@ -26,7 +27,7 @@ export function ShadiaAssistantChat() {
   // Check cookie consent
   useEffect(() => {
     const checkConsent = () => {
-      const consent = localStorage.getItem("cookie-consent");
+      const consent = safeLocalStorageGet("cookie-consent");
       setHasConsent(!!consent);
     };
 

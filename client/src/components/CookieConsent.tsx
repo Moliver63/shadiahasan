@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Link } from "wouter";
+import { safeLocalStorageGet, safeLocalStorageSet } from "@/lib/safeStorage";
 
 interface CookiePreferences {
   essential: boolean;
@@ -28,7 +29,7 @@ export default function CookieConsent() {
 
   useEffect(() => {
     // Verificar se o usuário já deu consentimento
-    const consent = localStorage.getItem("cookie-consent");
+    const consent = safeLocalStorageGet("cookie-consent");
     if (!consent) {
       // Mostrar banner após 1 segundo
       setTimeout(() => setShowBanner(true), 1000);
@@ -70,7 +71,7 @@ export default function CookieConsent() {
   };
 
   const savePreferences = (prefs: CookiePreferences) => {
-    localStorage.setItem("cookie-consent", JSON.stringify(prefs));
+    safeLocalStorageSet("cookie-consent", JSON.stringify(prefs));
     setPreferences(prefs);
     
     // Aqui você pode adicionar lógica para ativar/desativar cookies baseado nas preferências

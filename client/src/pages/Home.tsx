@@ -1,3 +1,4 @@
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookOpen, Glasses, PlayCircle, Users, Zap, Shield } from "lucide-react";
@@ -15,6 +16,7 @@ import Testimonials from "@/components/Testimonials";
 import FAQSection from "@/components/FAQSection";
 
 export default function Home() {
+  const { isAuthenticated } = useAuth();
   const seoMeta = getSEOMetaTags('/');
 
   return (

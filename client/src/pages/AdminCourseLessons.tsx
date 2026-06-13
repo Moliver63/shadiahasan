@@ -19,7 +19,7 @@ import { trpc } from "@/lib/trpc";
 import {
   Plus, Edit, Trash2, ArrowLeft, Eye, EyeOff,
   PlayCircle, Upload, Youtube, Cloud, Lock, Unlock,
-  CheckCircle2, AlertCircle, Loader2,
+  CheckCircle2, AlertCircle, Loader2, RotateCw,
 } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
@@ -123,6 +123,26 @@ export default function AdminCourseLessons() {
   const createUploadUrlMutation = trpc.videos.admin.createUploadUrl.useMutation();
   const updateLessonVideoMutation = trpc.videos.admin.updateLessonVideo.useMutation();
   const checkUploadStatusMutation = trpc.videos.admin.checkUploadStatus.useMutation();
+  const syncPendingMutation = trpc.videos.admin.syncPendingVideos.useMutation({
+    onSuccess: (result) => {
+      utils.lessons.listByCourse.invalidate();
+      if (result.checked === 0) {
+        toast.info("Nenhum vídeo pendente para sincronizar.");
+      } else if (result.updated > 0) {
+        toast.success(
+          `${result.updated} vídeo(s) sincronizado(s)! ` +
+          (result.stillProcessing > 0
+            ? `${result.stillProcessing} ainda processando.`
+            : "")
+        );
+      } else if (result.stillProcessing > 0) {
+        toast.info(`${result.stillProcessing} vídeo(s) ainda processando no Cloudflare.`);
+      } else {
+        toast.info("Nenhuma atualização necessária.");
+      }
+    },
+    onError: (e) => toast.error(`Erro ao sincronizar: ${e.message}`),
+  });
 
   const createMutation = trpc.lessons.create.useMutation({
     onSuccess: async (result) => {
@@ -394,6 +414,22 @@ export default function AdminCourseLessons() {
                     <><AlertCircle className="h-3 w-3 mr-1" />CF não configurado</>
                   )}
                 </Badge>
+              )}
+              {cfStatus?.configured && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => syncPendingMutation.mutate()}
+                  disabled={syncPendingMutation.isPending}
+                  title="Verifica vídeos enviados ao Cloudflare que ainda não foram vinculados à aula e corrige automaticamente"
+                >
+                  {syncPendingMutation.isPending ? (
+                    <RotateCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RotateCw className="h-4 w-4 mr-2" />
+                  )}
+                  Sincronizar vídeos pendentes
+                </Button>
               )}
               <Button onClick={openCreateDialog}>
                 <Plus className="h-4 w-4 mr-2" />

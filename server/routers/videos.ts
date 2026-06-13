@@ -377,6 +377,79 @@ export const videosRouter = router({
 
         return result;
       }),
+
+    /**
+     * RECONCILIAÇÃO: varre todas as aulas com videoProvider="cloudflare" e
+     * videoAssetId preenchido, mas videoPlaybackUrl vazio/nulo (casos onde o
+     * admin salvou antes do Cloudflare terminar o processamento, ou o
+     * polling foi interrompido). Para cada uma, consulta o status real no
+     * Cloudflare e, se "ready", preenche videoPlaybackUrl + duration.
+     *
+     * Use o botão "Sincronizar vídeos pendentes" no admin sempre que um
+     * vídeo aparecer como "não disponível" mesmo após o upload.
+     */
+    syncPendingVideos: adminProcedure.mutation(async () => {
+      if (!isCloudflareConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Cloudflare Stream não configurado.",
+        });
+      }
+
+      const db = await getDb();
+
+      const pending = await db
+        .select({
+          id: lessons.id,
+          title: lessons.title,
+          videoAssetId: lessons.videoAssetId,
+        })
+        .from(lessons)
+        .where(eq(lessons.videoProvider, "cloudflare"));
+
+      const toCheck = pending.filter(
+        (l) => l.videoAssetId && l.videoAssetId.length > 0
+      );
+
+      let updated = 0;
+      let stillProcessing = 0;
+      let errors = 0;
+      const details: Array<{ id: number; title: string; status: string }> = [];
+
+      for (const lesson of toCheck) {
+        try {
+          const cf = await getVideoDetails(lesson.videoAssetId!);
+
+          if (cf.readyToStream) {
+            await db
+              .update(lessons)
+              .set({
+                videoPlaybackUrl: cf.playback?.hls ?? null,
+                duration: Math.round(cf.duration || 0),
+                updatedAt: new Date(),
+              })
+              .where(eq(lessons.id, lesson.id));
+
+            updated++;
+            details.push({ id: lesson.id, title: lesson.title, status: "atualizado" });
+          } else {
+            stillProcessing++;
+            details.push({ id: lesson.id, title: lesson.title, status: "processando" });
+          }
+        } catch (err) {
+          errors++;
+          details.push({ id: lesson.id, title: lesson.title, status: "erro" });
+        }
+      }
+
+      return {
+        checked: toCheck.length,
+        updated,
+        stillProcessing,
+        errors,
+        details,
+      };
+    }),
   }),
 
   // ── Usuário ────────────────────────────────────────────────────────────────

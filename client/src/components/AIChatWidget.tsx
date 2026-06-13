@@ -17,7 +17,7 @@ export default function AIChatWidget() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Olá! 👋 Sou a consultora de cursos da Shadia Hasan. Estou aqui para te ajudar a encontrar o curso perfeito para sua jornada de transformação. Qual é o seu maior desafio ou objetivo no momento?",
+      content: "Olá! 👋 Sou a assistente virtual da Shadia Hasan. Posso te acolher, te ajudar a organizar o que você está sentindo e indicar conteúdos da Shadia como apoio complementar — sem substituir atendimento psicológico. O que está mais pesando para você neste momento?",
     },
   ]);
   const [inputMessage, setInputMessage] = useState("");
@@ -33,7 +33,11 @@ export default function AIChatWidget() {
     onError: () => {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Desculpe, ocorreu um erro. Por favor, tente novamente." },
+        {
+          role: "assistant",
+          content:
+            "Estou com uma instabilidade técnica no momento. Tente novamente em instantes. Se for algo urgente ou você estiver em sofrimento intenso, procure apoio humano imediato e, em caso de crise, CVV 188 ou emergência 192.",
+        },
       ]);
       setIsTyping(false);
     },
@@ -109,7 +113,7 @@ export default function AIChatWidget() {
   }
 
   return (
-    <Card className="fixed bottom-6 right-6 z-50 w-96 h-[600px] shadow-2xl flex flex-col overflow-hidden border-2 border-purple-200">
+    <Card className="fixed bottom-4 right-4 z-50 flex h-[70vh] w-[calc(100vw-2rem)] max-w-md flex-col overflow-hidden border-2 border-purple-200 shadow-2xl sm:bottom-6 sm:right-6 sm:h-[600px] sm:w-96">
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -130,7 +134,7 @@ export default function AIChatWidget() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+      <div className="flex-1 overflow-y-auto bg-gray-50 p-3 space-y-4 sm:p-4">
         {messages.map((msg, index) => (
           <div
             key={index}

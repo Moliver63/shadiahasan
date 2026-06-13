@@ -18,6 +18,137 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+type ChatCourse = Awaited<ReturnType<typeof db.getAllCourses>>[number];
+
+const normalizeMentalHealthText = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const includesAnyTerm = (text: string, terms: string[]) =>
+  terms.some((term) => text.includes(term));
+
+const CRISIS_TERMS = [
+  "suicid",
+  "me matar",
+  "morrer",
+  "tirar minha vida",
+  "nao quero viver",
+  "não quero viver",
+  "sem vontade de viver",
+  "autoagress",
+  "me machucar",
+  "me cortar",
+  "acabar com tudo",
+];
+
+const HIGH_DISTRESS_TERMS = [
+  "depress",
+  "ansied",
+  "panico",
+  "pânico",
+  "crise",
+  "angust",
+  "vazio",
+  "sem sentido",
+  "luto",
+  "trauma",
+  "exaust",
+  "burnout",
+  "estresse",
+  "stress",
+  "sozinh",
+  "culpa",
+  "desanimo",
+  "desânimo",
+  "triste",
+  "chor",
+];
+
+const COURSE_THEMES = [
+  {
+    triggers: ["depress", "ansied", "panico", "pânico", "estresse", "stress", "angust", "emoc"],
+    hints: ["ansiedade", "emocional", "equilibrio", "equilíbrio", "autoconhecimento", "bem-estar", "respira", "mente"],
+  },
+  {
+    triggers: ["autoestima", "insegur", "autoconfi", "autocrit", "culpa"],
+    hints: ["autoestima", "autoconfi", "amor proprio", "amor-próprio", "identidade", "valor pessoal"],
+  },
+  {
+    triggers: ["relacion", "casamento", "familia", "família", "termino", "término", "ciume", "ciúme"],
+    hints: ["relacionamento", "familia", "família", "comunica", "vinculo", "vínculo"],
+  },
+  {
+    triggers: ["proposito", "propósito", "carreira", "sentido", "direcao", "direção", "clareza"],
+    hints: ["proposito", "propósito", "missao", "missão", "carreira", "direcao", "direção", "clareza"],
+  },
+];
+
+const scoreCourseForMessage = (course: ChatCourse, userMessage: string) => {
+  const message = normalizeMentalHealthText(userMessage);
+  const haystack = normalizeMentalHealthText(
+    `${course.title} ${course.description || ""}`
+  );
+
+  let score = 0;
+  const userTerms = message.split(/[^a-z0-9]+/).filter((term) => term.length >= 4);
+
+  for (const term of userTerms) {
+    if (haystack.includes(term)) score += 2;
+  }
+
+  for (const theme of COURSE_THEMES) {
+    if (includesAnyTerm(message, theme.triggers) && includesAnyTerm(haystack, theme.hints)) {
+      score += 8;
+    }
+  }
+
+  return score;
+};
+
+const pickRelevantCourses = (courses: ChatCourse[], userMessage: string) => {
+  const ranked = courses
+    .map((course) => ({ course, score: scoreCourseForMessage(course, userMessage) }))
+    .sort((a, b) => b.score - a.score);
+
+  const strongMatches = ranked.filter((entry) => entry.score > 0).slice(0, 2).map((entry) => entry.course);
+
+  if (strongMatches.length > 0) {
+    return strongMatches;
+  }
+
+  return courses.slice(0, 2);
+};
+
+const buildCourseLink = (course: ChatCourse) => `[Link: /courses/${course.slug}]`;
+
+const buildCourseRecommendationBlock = (courses: ChatCourse[]) => {
+  if (courses.length === 0) return "";
+
+  const items = courses.map((course) => {
+    const description = course.description || "Conteúdo de desenvolvimento pessoal com a abordagem acolhedora da Shadia Hasan.";
+    return `🌿 **${course.title}**\n${description}\n${buildCourseLink(course)}`;
+  });
+
+  return `\n\nComo apoio complementar, você pode começar por:\n\n${items.join("\n\n")}`;
+};
+
+const buildFallbackPsychologyReply = (userMessage: string, courses: ChatCourse[]) => {
+  const normalized = normalizeMentalHealthText(userMessage);
+  const suggestions = buildCourseRecommendationBlock(pickRelevantCourses(courses, userMessage));
+
+  if (includesAnyTerm(normalized, CRISIS_TERMS)) {
+    return `Sinto muito que você esteja passando por algo tão pesado. Sua segurança vem em primeiro lugar. Se houver risco imediato ou vontade de se machucar, procure ajuda agora: CVV 188, SAMU 192 ou alguém de confiança que possa ficar com você neste momento.\n\nEu posso te acolher e orientar próximos passos, mas não substituo atendimento psicológico ou psiquiátrico.${suggestions}`;
+  }
+
+  if (includesAnyTerm(normalized, HIGH_DISTRESS_TERMS)) {
+    return `Sinto muito que você esteja vivendo isso. O que você descreve merece acolhimento sério e, idealmente, acompanhamento com psicóloga(o) e, se necessário, psiquiatra. Os conteúdos da Shadia podem servir como apoio complementar, mas não como substituto de tratamento.\n\nSe quiser, eu posso te ajudar agora de forma prática: pensar em um primeiro passo de cuidado para hoje, sugerir como buscar ajuda profissional, ou indicar um conteúdo introdutório da Shadia que combine com esse momento.${suggestions}`;
+  }
+
+  return `Estou aqui para te acolher com a abordagem humana e cuidadosa da Shadia Hasan. Posso te ajudar a entender o que você está vivendo, sugerir próximos passos com responsabilidade e indicar conteúdos que façam sentido para o seu momento.\n\nSe você quiser, me conte em uma frase: o que mais está pesando hoje — ansiedade, autoestima, relacionamentos, propósito ou outro tema?${suggestions}`;
+};
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -1044,51 +1175,37 @@ export const appRouter = router({
         })).optional(),
       }))
       .mutation(async ({ input }) => {
-        const { invokeLLM } = await import("./_core/llm");
-        
-        // Get all available courses
         const courses = await db.getAllCourses();
-        
-        // Build system prompt with course information
-        const coursesInfo = courses.map(c => 
-          `- ${c.title}: ${c.description || 'Curso de desenvolvimento pessoal'}`
-        ).join('\n');
-        
-        const systemPrompt = `Voc\u00ea \u00e9 uma consultora especializada em desenvolvimento pessoal e transforma\u00e7\u00e3o interior da Shadia Hasan. Seu objetivo \u00e9 entender os desafios, objetivos e interesses do usu\u00e1rio e recomendar os cursos mais adequados.
+        const coursesInfo = courses
+          .map((course) => `- ${course.title}: ${course.description || 'Curso de desenvolvimento pessoal'}`)
+          .join('\n');
 
-Cursos dispon\u00edveis:
-${coursesInfo}
+        const systemPrompt = `Você é a assistente virtual da Shadia Hasan com tom acolhedor, ético e humano, inspirado na escuta de uma psicóloga.\n\nPrincípios obrigatórios:\n1. Responda sempre em português do Brasil.\n2. Acolha primeiro, não julgue e não banalize a dor.\n3. Não faça diagnóstico, não prescreva tratamento e não prometa cura.\n4. Quando o usuário falar de depressão, ansiedade, trauma, luto, pânico ou sofrimento emocional intenso, valide o sentimento e oriente apoio psicológico/psiquiátrico quando apropriado.\n5. Se houver sinais de risco, suicídio, autoagressão ou perigo iminente, priorize segurança e oriente procurar ajuda imediata no CVV 188, SAMU 192 ou uma pessoa de confiança.\n6. Os cursos da Shadia devem ser apresentados apenas como apoio complementar, nunca como substitutos de psicoterapia ou atendimento médico.\n7. Seja breve, calorosa e responsável. Faça no máximo uma pergunta de acompanhamento por resposta.\n\nCursos disponíveis:\n${coursesInfo}\n\nQuando recomendar, use exatamente este formato:\n**Sugestão de apoio complementar:**\n\n🌿 **[Nome do Curso]**\n[Explique por que pode ajudar neste momento, sem prometer cura]\n[Link: /courses/slug-do-curso]`;
 
-Sua abordagem:
-1. Fa\u00e7a perguntas abertas e emp\u00e1ticas sobre os objetivos e desafios do usu\u00e1rio
-2. Escute ativamente e demonstre compreens\u00e3o
-3. Ap\u00f3s 2-3 trocas de mensagens, recomende 1-2 cursos espec\u00edficos que melhor atendem \u00e0s necessidades
-4. Explique por que cada curso \u00e9 ideal para o perfil do usu\u00e1rio
-5. Seja calorosa, acolhedora e motivadora
-
-Formato de recomenda\u00e7\u00e3o (use exatamente este formato quando recomendar):
-**Recomendo para voc\u00ea:**
-\n\ud83c\udf1f **[Nome do Curso]**
-[Explica\u00e7\u00e3o de por que este curso \u00e9 ideal]
-[Link: /courses/slug-do-curso]
-
-Seja breve e direta nas respostas (m\u00e1ximo 3-4 linhas por mensagem).`;
-        
-        // Build conversation messages
         const messages: any[] = [
           { role: 'system', content: systemPrompt },
-          ...(input.conversationHistory || []).map(msg => ({ role: msg.role, content: msg.content })),
+          ...(input.conversationHistory || []).map((msg) => ({ role: msg.role, content: msg.content })),
           { role: 'user', content: input.message },
         ];
-        
-        // Call LLM
-        const response = await invokeLLM({ messages });
-        const assistantMessage = response.choices[0]?.message?.content || "Desculpe, n\u00e3o consegui processar sua mensagem.";
-        
-        return {
-          message: assistantMessage,
-          courses: courses, // Return all courses for reference
-        };
+
+        try {
+          const { invokeLLM } = await import("./_core/llm");
+          const response = await invokeLLM({ messages });
+          const assistantMessage = response.choices[0]?.message?.content;
+
+          return {
+            message: typeof assistantMessage === 'string' && assistantMessage.trim().length > 0
+              ? assistantMessage
+              : buildFallbackPsychologyReply(input.message, courses),
+            courses,
+          };
+        } catch (error) {
+          console.error('[AI Chat] Falling back to local response:', error);
+          return {
+            message: buildFallbackPsychologyReply(input.message, courses),
+            courses,
+          };
+        }
       }),
   }),
 

@@ -21,7 +21,7 @@ import {
   PlayCircle, Upload, Youtube, Cloud, Lock, Unlock,
   CheckCircle2, AlertCircle, Loader2, RotateCw,
 } from "lucide-react";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { Link, useParams } from "wouter";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -123,6 +123,31 @@ export default function AdminCourseLessons() {
   const createUploadUrlMutation = trpc.videos.admin.createUploadUrl.useMutation();
   const updateLessonVideoMutation = trpc.videos.admin.updateLessonVideo.useMutation();
   const checkUploadStatusMutation = trpc.videos.admin.checkUploadStatus.useMutation();
+
+  // Sincronização SILENCIOSA automática ao abrir a página — corrige
+  // vídeos "pendentes" (videoAssetId preenchido, videoPlaybackUrl vazio)
+  // sem precisar de clique manual. Roda uma vez por carregamento da página.
+  const autoSyncDone = useRef(false);
+  const silentSyncMutation = trpc.videos.admin.syncPendingVideos.useMutation({
+    onSuccess: (result) => {
+      if (result.updated > 0) {
+        utils.lessons.listByCourse.invalidate();
+        toast.success(
+          `${result.updated} vídeo(s) sincronizado(s) automaticamente!`
+        );
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (!autoSyncDone.current && cfStatus?.configured) {
+      autoSyncDone.current = true;
+      silentSyncMutation.mutate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfStatus?.configured]);
+
+  // Botão manual — mesma operação, mas com feedback explícito ao admin.
   const syncPendingMutation = trpc.videos.admin.syncPendingVideos.useMutation({
     onSuccess: (result) => {
       utils.lessons.listByCourse.invalidate();

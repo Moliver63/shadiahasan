@@ -160,18 +160,24 @@ export async function setSignedUrlRequired(
  */
 export async function generateSignedStreamUrl(
   uid: string,
+  manifestUrl?: string | null,
   expiresInSeconds = 3600
 ): Promise<string> {
   const keyId = process.env.CLOUDFLARE_SIGNING_KEY_ID;
   const keyPem = process.env.CLOUDFLARE_SIGNING_KEY_PEM;
 
+  const resolvedManifestUrl = manifestUrl || (await getVideoDetails(uid)).playback?.hls || null;
+
+  if (!resolvedManifestUrl) {
+    throw new Error("Cloudflare Stream: manifest HLS não disponível para este vídeo.");
+  }
+
   if (!keyId || !keyPem) {
-    // Fallback: retorna URL pública se signing key não estiver configurada
+    // Fallback: retorna a URL pública real do manifest já fornecida pela API
     console.warn(
-      "[Cloudflare Stream] CLOUDFLARE_SIGNING_KEY_ID / PEM não configurados — retornando URL pública"
+      "[Cloudflare Stream] CLOUDFLARE_SIGNING_KEY_ID / PEM não configurados — retornando manifest público"
     );
-    const { accountId } = getCFConfig();
-    return `https://customer-${accountId}.cloudflarestream.com/${uid}/manifest/video.m3u8`;
+    return resolvedManifestUrl;
   }
 
   // Importar chave RSA/EC via Web Crypto API (disponível no Node 18+)
@@ -206,7 +212,19 @@ export async function generateSignedStreamUrl(
 
   const token = `${signingInput}.${Buffer.from(signature).toString("base64url")}`;
 
-  return `https://iframe.videodelivery.net/${token}`;
+  const replacedManifestUrl = resolvedManifestUrl.replace(
+    new RegExp(`/${uid}/manifest/video\\.m3u8(?:\\?.*)?$`),
+    `/${token}/manifest/video.m3u8`
+  );
+
+  if (replacedManifestUrl !== resolvedManifestUrl) {
+    return replacedManifestUrl;
+  }
+
+  const manifest = new URL(resolvedManifestUrl);
+  manifest.pathname = `/${token}/manifest/video.m3u8`;
+  manifest.search = "";
+  return manifest.toString();
 }
 
 // ─── Helpers de provider ─────────────────────────────────────────────────────
@@ -233,12 +251,20 @@ export async function resolveVideoUrl(lesson: {
   }
 
   if (lesson.videoProvider === "cloudflare" && lesson.videoAssetId) {
-    if (lesson.isAccessRestricted) {
-      return await generateSignedStreamUrl(lesson.videoAssetId);
+    const manifestUrl =
+      lesson.videoPlaybackUrl ||
+      (await getVideoDetails(lesson.videoAssetId)).playback?.hls ||
+      null;
+
+    if (!manifestUrl) {
+      return null;
     }
-    // URL HLS pública
-    const { accountId } = getCFConfig();
-    return `https://customer-${accountId}.cloudflarestream.com/${lesson.videoAssetId}/manifest/video.m3u8`;
+
+    if (lesson.isAccessRestricted) {
+      return await generateSignedStreamUrl(lesson.videoAssetId, manifestUrl);
+    }
+
+    return manifestUrl;
   }
 
   return lesson.videoPlaybackUrl;

@@ -150,8 +150,23 @@ export default function AdminCourseLessons() {
   });
 
   const updateMutation = trpc.lessons.update.useMutation({
-    onSuccess: () => {
+    onSuccess: async (_result, variables) => {
       toast.success("Aula atualizada com sucesso!");
+
+      // Mesma sincronização do fluxo de criação: garante que
+      // videoPlaybackUrl/duration sejam persistidos mesmo que o admin
+      // tenha salvo antes do polling terminar (ou fechado o modal).
+      if (formData.videoProvider === "cloudflare" && formData.videoAssetId) {
+        try {
+          await checkUploadStatusMutation.mutateAsync({
+            uid: formData.videoAssetId,
+            lessonId: variables.id,
+          });
+        } catch (err) {
+          console.error("Erro ao sincronizar status do vídeo:", err);
+        }
+      }
+
       utils.lessons.listByCourse.invalidate();
       closeDialog();
     },

@@ -20,6 +20,24 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 type ChatCourse = Awaited<ReturnType<typeof db.getAllCourses>>[number];
 
+type MentalHealthIntent =
+  | "emotional_regulation"
+  | "self_esteem"
+  | "relationships"
+  | "communication"
+  | "purpose"
+  | "grief"
+  | "burnout";
+
+type CourseSegment = {
+  slugHints: string[];
+  titleHints: string[];
+  intents: MentalHealthIntent[];
+  keywords: string[];
+  summary: string;
+  rationaleByIntent: Partial<Record<MentalHealthIntent, string>>;
+};
+
 const normalizeMentalHealthText = (value: string) =>
   value
     .normalize("NFD")
@@ -64,43 +82,184 @@ const HIGH_DISTRESS_TERMS = [
   "desânimo",
   "triste",
   "chor",
+  "insonia",
+  "insônia",
+  "medo intenso",
+  "desesper",
 ];
 
-const COURSE_THEMES = [
+const INTENT_RULES: Array<{ intent: MentalHealthIntent; triggers: string[] }> = [
   {
-    triggers: ["depress", "ansied", "panico", "pânico", "estresse", "stress", "angust", "emoc"],
-    hints: ["ansiedade", "emocional", "equilibrio", "equilíbrio", "autoconhecimento", "bem-estar", "respira", "mente"],
+    intent: "emotional_regulation",
+    triggers: [
+      "ansied",
+      "panico",
+      "pânico",
+      "crise",
+      "angust",
+      "estresse",
+      "stress",
+      "medo",
+      "triste",
+      "vazio",
+      "depress",
+      "trauma",
+      "emoc",
+      "insonia",
+      "insônia",
+    ],
   },
   {
-    triggers: ["autoestima", "insegur", "autoconfi", "autocrit", "culpa"],
-    hints: ["autoestima", "autoconfi", "amor proprio", "amor-próprio", "identidade", "valor pessoal"],
+    intent: "self_esteem",
+    triggers: [
+      "autoestima",
+      "insegur",
+      "autoconfi",
+      "autocrit",
+      "culpa",
+      "vergon",
+      "rejei",
+      "nao sou bom",
+      "não sou bom",
+      "fracasso",
+      "comparacao",
+      "comparação",
+    ],
   },
   {
-    triggers: ["relacion", "casamento", "familia", "família", "termino", "término", "ciume", "ciúme"],
-    hints: ["relacionamento", "familia", "família", "comunica", "vinculo", "vínculo"],
+    intent: "relationships",
+    triggers: [
+      "relacion",
+      "casamento",
+      "familia",
+      "família",
+      "termino",
+      "término",
+      "abandono",
+      "ciume",
+      "ciúme",
+      "conflito",
+      "briga",
+      "solidao",
+      "solidão",
+    ],
   },
   {
-    triggers: ["proposito", "propósito", "carreira", "sentido", "direcao", "direção", "clareza"],
-    hints: ["proposito", "propósito", "missao", "missão", "carreira", "direcao", "direção", "clareza"],
+    intent: "communication",
+    triggers: [
+      "comunica",
+      "nao consigo falar",
+      "não consigo falar",
+      "nao consigo me expressar",
+      "não consigo me expressar",
+      "limite",
+      "assertiv",
+      "timidez",
+      "ansiedade social",
+      "conversa dificil",
+      "conversa difícil",
+    ],
+  },
+  {
+    intent: "purpose",
+    triggers: [
+      "proposito",
+      "propósito",
+      "sentido",
+      "direcao",
+      "direção",
+      "clareza",
+      "carreira",
+      "travado",
+      "travada",
+      "sem rumo",
+    ],
+  },
+  {
+    intent: "grief",
+    triggers: ["luto", "perda", "saudade", "rompimento", "separacao", "separação"],
+  },
+  {
+    intent: "burnout",
+    triggers: ["burnout", "exaust", "esgot", "sobrecarga", "cansaco", "cansaço", "trabalho"],
   },
 ];
+
+const COURSE_SEGMENTS: CourseSegment[] = [
+  {
+    slugHints: ["permita-se"],
+    titleHints: ["permita-se ser livre", "permita se ser livre", "permita-se"],
+    intents: ["emotional_regulation", "self_esteem", "grief"],
+    keywords: ["leveza", "liberdade emocional", "autocuidado", "culpa", "autoaceitacao", "autoaceitação"],
+    summary: "Introdução voltada a acolhimento, autocuidado e permissão para sair de padrões de rigidez emocional.",
+    rationaleByIntent: {
+      emotional_regulation: "Pode ser um ponto de partida gentil para quem está precisando reduzir a rigidez interna, ganhar fôlego emocional e retomar autocuidado.",
+      self_esteem: "Pode ajudar quando a pessoa está muito presa à culpa, autoexigência ou dificuldade de se tratar com mais gentileza.",
+      grief: "Pode funcionar como apoio inicial para quem está tentando atravessar perdas sem se cobrar tanto por estar mal.",
+    },
+  },
+  {
+    slugHints: ["jornada-do-codigo-interno"],
+    titleHints: ["jornada do codigo interno", "jornada do código interno"],
+    intents: ["self_esteem", "purpose", "emotional_regulation", "burnout"],
+    keywords: ["autoconhecimento", "identidade", "padroes internos", "padrões internos", "clareza", "valor pessoal"],
+    summary: "Trilha mais alinhada a autoconhecimento, revisão de padrões internos, autoestima e clareza de direção.",
+    rationaleByIntent: {
+      self_esteem: "Pode apoiar quem está lidando com insegurança, autocrítica e necessidade de reconstruir a relação consigo.",
+      purpose: "Faz mais sentido quando a dor principal envolve confusão interna, sensação de travamento ou falta de direção.",
+      emotional_regulation: "Pode ajudar como apoio complementar para reconhecer padrões emocionais e desenvolver mais consciência sobre o que dispara sofrimento.",
+      burnout: "Pode contribuir quando a exaustão vem acompanhada de cobrança interna, perda de sentido e desconexão de si.",
+    },
+  },
+  {
+    slugHints: ["o-poder-da-comunicacao"],
+    titleHints: ["o poder da comunicacao", "o poder da comunicação"],
+    intents: ["communication", "relationships", "self_esteem"],
+    keywords: ["comunicacao", "comunicação", "dialogo", "diálogo", "limites", "assertividade", "relacionamentos"],
+    summary: "Curso mais indicado para comunicação, limites, vínculos, expressão emocional e posicionamento com segurança.",
+    rationaleByIntent: {
+      communication: "É o curso mais aderente quando a dor passa por dificuldade de se expressar, dizer não, pedir ajuda ou conversar sem travar.",
+      relationships: "Pode ajudar em conflitos de relacionamento, porque trabalha clareza, escuta e forma de se posicionar com mais segurança.",
+      self_esteem: "Também pode servir de apoio quando a insegurança aparece na hora de falar, se impor ou sustentar a própria voz.",
+    },
+  },
+];
+
+const detectUserIntents = (userMessage: string): MentalHealthIntent[] => {
+  const normalized = normalizeMentalHealthText(userMessage);
+  return INTENT_RULES.filter((rule) => includesAnyTerm(normalized, rule.triggers)).map((rule) => rule.intent);
+};
+
+const getCourseSegment = (course: ChatCourse) => {
+  const slug = normalizeMentalHealthText(course.slug || "");
+  const title = normalizeMentalHealthText(course.title || "");
+
+  return COURSE_SEGMENTS.find((segment) =>
+    segment.slugHints.some((hint) => slug.includes(normalizeMentalHealthText(hint))) ||
+    segment.titleHints.some((hint) => title.includes(normalizeMentalHealthText(hint)))
+  );
+};
 
 const scoreCourseForMessage = (course: ChatCourse, userMessage: string) => {
   const message = normalizeMentalHealthText(userMessage);
-  const haystack = normalizeMentalHealthText(
-    `${course.title} ${course.description || ""}`
-  );
+  const haystack = normalizeMentalHealthText(`${course.title} ${course.description || ""}`);
+  const userTerms = message.split(/[^a-z0-9]+/).filter((term) => term.length >= 4);
+  const intents = detectUserIntents(userMessage);
+  const segment = getCourseSegment(course);
 
   let score = 0;
-  const userTerms = message.split(/[^a-z0-9]+/).filter((term) => term.length >= 4);
 
   for (const term of userTerms) {
     if (haystack.includes(term)) score += 2;
   }
 
-  for (const theme of COURSE_THEMES) {
-    if (includesAnyTerm(message, theme.triggers) && includesAnyTerm(haystack, theme.hints)) {
-      score += 8;
+  if (segment) {
+    for (const intent of intents) {
+      if (segment.intents.includes(intent)) score += 10;
+    }
+
+    for (const keyword of segment.keywords) {
+      if (message.includes(normalizeMentalHealthText(keyword))) score += 3;
     }
   }
 
@@ -108,45 +267,61 @@ const scoreCourseForMessage = (course: ChatCourse, userMessage: string) => {
 };
 
 const pickRelevantCourses = (courses: ChatCourse[], userMessage: string) => {
+  const normalized = normalizeMentalHealthText(userMessage);
+  if (includesAnyTerm(normalized, CRISIS_TERMS)) {
+    return [];
+  }
+
   const ranked = courses
     .map((course) => ({ course, score: scoreCourseForMessage(course, userMessage) }))
     .sort((a, b) => b.score - a.score);
 
-  const strongMatches = ranked.filter((entry) => entry.score > 0).slice(0, 2).map((entry) => entry.course);
-
-  if (strongMatches.length > 0) {
-    return strongMatches;
-  }
-
-  return courses.slice(0, 2);
+  return ranked
+    .filter((entry) => entry.score >= 6)
+    .slice(0, 2)
+    .map((entry) => entry.course);
 };
 
 const buildCourseLink = (course: ChatCourse) => `[Link: /courses/${course.slug}]`;
 
-const buildCourseRecommendationBlock = (courses: ChatCourse[]) => {
+const buildCourseReason = (course: ChatCourse, userMessage: string) => {
+  const segment = getCourseSegment(course);
+  const intents = detectUserIntents(userMessage);
+
+  if (segment) {
+    const matchedIntent = intents.find((intent) => segment.intents.includes(intent));
+    if (matchedIntent && segment.rationaleByIntent[matchedIntent]) {
+      return segment.rationaleByIntent[matchedIntent] as string;
+    }
+    return segment.summary;
+  }
+
+  return course.description || "Conteúdo de desenvolvimento pessoal com a abordagem acolhedora da Shadia Hasan, para apoio complementar com responsabilidade.";
+};
+
+const buildCourseRecommendationBlock = (courses: ChatCourse[], userMessage: string) => {
   if (courses.length === 0) return "";
 
-  const items = courses.map((course) => {
-    const description = course.description || "Conteúdo de desenvolvimento pessoal com a abordagem acolhedora da Shadia Hasan.";
-    return `🌿 **${course.title}**\n${description}\n${buildCourseLink(course)}`;
-  });
+  const items = courses.map((course) =>
+    `🌿 **${course.title}**\n${buildCourseReason(course, userMessage)}\n${buildCourseLink(course)}`
+  );
 
-  return `\n\nComo apoio complementar, você pode começar por:\n\n${items.join("\n\n")}`;
+  return `\n\n**Sugestão de apoio complementar:**\n\n${items.join("\n\n")}`;
 };
 
 const buildFallbackPsychologyReply = (userMessage: string, courses: ChatCourse[]) => {
   const normalized = normalizeMentalHealthText(userMessage);
-  const suggestions = buildCourseRecommendationBlock(pickRelevantCourses(courses, userMessage));
+  const suggestions = buildCourseRecommendationBlock(pickRelevantCourses(courses, userMessage), userMessage);
 
   if (includesAnyTerm(normalized, CRISIS_TERMS)) {
-    return `Sinto muito que você esteja passando por algo tão pesado. Sua segurança vem em primeiro lugar. Se houver risco imediato ou vontade de se machucar, procure ajuda agora: CVV 188, SAMU 192 ou alguém de confiança que possa ficar com você neste momento.\n\nEu posso te acolher e orientar próximos passos, mas não substituo atendimento psicológico ou psiquiátrico.${suggestions}`;
+    return `Sinto muito que você esteja passando por algo tão pesado. Sua segurança vem em primeiro lugar. Se houver risco imediato ou vontade de se machucar, procure ajuda agora: CVV 188, SAMU 192 ou alguém de confiança que possa ficar com você neste momento.\n\nEu posso te acolher e orientar próximos passos, mas não substituo atendimento psicológico ou psiquiátrico.`;
   }
 
   if (includesAnyTerm(normalized, HIGH_DISTRESS_TERMS)) {
-    return `Sinto muito que você esteja vivendo isso. O que você descreve merece acolhimento sério e, idealmente, acompanhamento com psicóloga(o) e, se necessário, psiquiatra. Os conteúdos da Shadia podem servir como apoio complementar, mas não como substituto de tratamento.\n\nSe quiser, eu posso te ajudar agora de forma prática: pensar em um primeiro passo de cuidado para hoje, sugerir como buscar ajuda profissional, ou indicar um conteúdo introdutório da Shadia que combine com esse momento.${suggestions}`;
+    return `Sinto muito que você esteja vivendo isso. O que você descreve merece acolhimento sério e, idealmente, acompanhamento com psicóloga(o) e, se necessário, psiquiatra. Os conteúdos da Shadia podem servir como apoio complementar, mas não como substituto de tratamento.\n\nSe quiser, eu posso te ajudar agora de forma prática: pensar em um primeiro passo de cuidado para hoje, sugerir como buscar ajuda profissional, ou indicar um conteúdo da Shadia mais alinhado ao que está pesando agora.${suggestions}`;
   }
 
-  return `Estou aqui para te acolher com a abordagem humana e cuidadosa da Shadia Hasan. Posso te ajudar a entender o que você está vivendo, sugerir próximos passos com responsabilidade e indicar conteúdos que façam sentido para o seu momento.\n\nSe você quiser, me conte em uma frase: o que mais está pesando hoje — ansiedade, autoestima, relacionamentos, propósito ou outro tema?${suggestions}`;
+  return `Estou aqui para te acolher com a abordagem humana e cuidadosa da Shadia Hasan. Posso te ajudar a entender o que você está vivendo, sugerir próximos passos com responsabilidade e indicar conteúdos que façam sentido para o seu momento.\n\nSe você quiser, me conte em uma frase: o que mais está pesando hoje — ansiedade, autoestima, relacionamentos, comunicação, propósito ou outro tema?${suggestions}`;
 };
 
 export const appRouter = router({
@@ -1177,10 +1352,14 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const courses = await db.getAllCourses();
         const coursesInfo = courses
-          .map((course) => `- ${course.title}: ${course.description || 'Curso de desenvolvimento pessoal'}`)
+          .map((course) => {
+            const segment = getCourseSegment(course);
+            const segmentSummary = segment?.summary || course.description || 'Curso de desenvolvimento pessoal';
+            return `- ${course.title}: ${segmentSummary}`;
+          })
           .join('\n');
 
-        const systemPrompt = `Você é a assistente virtual da Shadia Hasan com tom acolhedor, ético e humano, inspirado na escuta de uma psicóloga.\n\nPrincípios obrigatórios:\n1. Responda sempre em português do Brasil.\n2. Acolha primeiro, não julgue e não banalize a dor.\n3. Não faça diagnóstico, não prescreva tratamento e não prometa cura.\n4. Quando o usuário falar de depressão, ansiedade, trauma, luto, pânico ou sofrimento emocional intenso, valide o sentimento e oriente apoio psicológico/psiquiátrico quando apropriado.\n5. Se houver sinais de risco, suicídio, autoagressão ou perigo iminente, priorize segurança e oriente procurar ajuda imediata no CVV 188, SAMU 192 ou uma pessoa de confiança.\n6. Os cursos da Shadia devem ser apresentados apenas como apoio complementar, nunca como substitutos de psicoterapia ou atendimento médico.\n7. Seja breve, calorosa e responsável. Faça no máximo uma pergunta de acompanhamento por resposta.\n\nCursos disponíveis:\n${coursesInfo}\n\nQuando recomendar, use exatamente este formato:\n**Sugestão de apoio complementar:**\n\n🌿 **[Nome do Curso]**\n[Explique por que pode ajudar neste momento, sem prometer cura]\n[Link: /courses/slug-do-curso]`;
+        const systemPrompt = `Você é a assistente virtual da Shadia Hasan com tom acolhedor, ético e humano, inspirado na escuta de uma psicóloga.\n\nPrincípios obrigatórios:\n1. Responda sempre em português do Brasil.\n2. Acolha primeiro, não julgue e não banalize a dor.\n3. Não faça diagnóstico, não prescreva tratamento e não prometa cura.\n4. Quando o usuário falar de depressão, ansiedade, trauma, luto, pânico, burnout, insônia, culpa intensa, solidão ou sofrimento emocional importante, valide o sentimento e oriente apoio psicológico/psiquiátrico quando apropriado.\n5. Se houver sinais de risco, suicídio, autoagressão ou perigo iminente, priorize segurança, não ofereça curso na primeira linha e oriente procurar ajuda imediata no CVV 188, SAMU 192 ou uma pessoa de confiança.\n6. Os cursos da Shadia devem ser apresentados apenas como apoio complementar, nunca como substitutos de psicoterapia ou atendimento médico.\n7. Recomende curso somente quando houver aderência clara com a dor relatada. Nunca empurre curso sem contexto.\n8. Seja breve, calorosa e responsável. Faça no máximo uma pergunta de acompanhamento por resposta.\n\nMapeamento de dores prioritárias:\n- regulação emocional: ansiedade, crise, pânico, tristeza intensa, trauma, sobrecarga emocional\n- autoestima: insegurança, culpa, autocrítica, vergonha, rejeição\n- relacionamentos: conflitos, término, ciúme, solidão, família\n- comunicação: dificuldade de se expressar, dizer não, pedir ajuda, colocar limites\n- propósito: travamento, falta de direção, perda de sentido\n- burnout: exaustão, esgotamento, cobrança interna\n\nCursos disponíveis:\n${coursesInfo}\n\nQuando recomendar, use exatamente este formato:\n**Sugestão de apoio complementar:**\n\n🌿 **[Nome do Curso]**\n[Explique por que pode ajudar neste momento, sem prometer cura]\n[Link: /courses/slug-do-curso]`;
 
         const messages: any[] = [
           { role: 'system', content: systemPrompt },

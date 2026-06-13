@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Search, Edit, DollarSign, Power, PowerOff } from "lucide-react";
 import { toast } from "sonner";
 
@@ -233,165 +235,162 @@ export default function AdminManageSubscriptions() {
     return <Badge className={colors[key] || colors.none}>{labels[key] || key}</Badge>;
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando assinaturas...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Gerenciar Assinaturas</h1>
-          <p className="text-gray-600">
+    <DashboardLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Gerenciar Assinaturas</h1>
+          <p className="text-muted-foreground">
             Ative, desative e edite a assinatura de qualquer usuário da plataforma.
           </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="search">Buscar</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="search"
-                  placeholder="Nome ou email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
+        <Card>
+          <CardHeader>
+            <CardTitle>Filtros</CardTitle>
+            <CardDescription>Encontre rapidamente usuários e o estado atual da assinatura.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="search">Buscar</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="search"
+                    placeholder="Nome ou email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger id="status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="active">Ativa</SelectItem>
+                    <SelectItem value="paused">Pausada</SelectItem>
+                    <SelectItem value="cancelled">Cancelada</SelectItem>
+                    <SelectItem value="expired">Expirada</SelectItem>
+                    <SelectItem value="trial">Trial</SelectItem>
+                    <SelectItem value="none">Sem assinatura</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="plan">Plano</Label>
+                <Select value={planFilter} onValueChange={setPlanFilter}>
+                  <SelectTrigger id="plan">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="basic">Basic</SelectItem>
+                    <SelectItem value="premium">Premium</SelectItem>
+                    <SelectItem value="vip">VIP</SelectItem>
+                    <SelectItem value="none">Sem plano</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger id="status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="active">Ativa</SelectItem>
-                  <SelectItem value="paused">Pausada</SelectItem>
-                  <SelectItem value="cancelled">Cancelada</SelectItem>
-                  <SelectItem value="expired">Expirada</SelectItem>
-                  <SelectItem value="trial">Trial</SelectItem>
-                  <SelectItem value="none">Sem assinatura</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="plan">Plano</Label>
-              <Select value={planFilter} onValueChange={setPlanFilter}>
-                <SelectTrigger id="plan">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="free">Free</SelectItem>
-                  <SelectItem value="basic">Basic</SelectItem>
-                  <SelectItem value="premium">Premium</SelectItem>
-                  <SelectItem value="vip">VIP</SelectItem>
-                  <SelectItem value="none">Sem plano</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuário</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Plano</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Data Início</TableHead>
-                <TableHead>Data Fim</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredSubscriptions?.map((item) => {
-                const enabled = isSubscriptionEnabled(item.subscription?.status ?? null);
-
-                return (
-                  <TableRow key={item.user.id}>
-                    <TableCell className="font-medium">{item.user?.name || "N/A"}</TableCell>
-                    <TableCell>{item.user?.email || "N/A"}</TableCell>
-                    <TableCell>{getPlanBadge(item.subscription?.plan)}</TableCell>
-                    <TableCell>{getStatusBadge(item.subscription?.status)}</TableCell>
-                    <TableCell>
-                      {item.subscription?.startDate
-                        ? new Date(item.subscription.startDate).toLocaleDateString("pt-BR")
-                        : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {item.subscription?.endDate
-                        ? new Date(item.subscription.endDate).toLocaleDateString("pt-BR")
-                        : "Sem expiração"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant={enabled ? "destructive" : "default"}
-                          disabled={quickToggleMutation.isPending}
-                          onClick={() => handleToggleSubscription(item)}
-                        >
-                          {enabled ? (
-                            <>
-                              <PowerOff className="h-4 w-4 mr-1" />
-                              Desativar
-                            </>
-                          ) : (
-                            <>
-                              <Power className="h-4 w-4 mr-1" />
-                              Ativar
-                            </>
-                          )}
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openEditModal(item)}
-                        >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Editar
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewPaymentHistory(item.user.id)}
-                        >
-                          <DollarSign className="h-4 w-4 mr-1" />
-                          Pagamentos
-                        </Button>
-                      </div>
-                    </TableCell>
+        <Card>
+          <CardHeader>
+            <CardTitle>Assinaturas</CardTitle>
+            <CardDescription>
+              {isLoading ? "Carregando assinaturas..." : `Total de registros visíveis: ${filteredSubscriptions.length}`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Usuário</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Plano</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Data Início</TableHead>
+                    <TableHead>Data Fim</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredSubscriptions?.map((item) => {
+                    const enabled = isSubscriptionEnabled(item.subscription?.status ?? null);
 
-          {filteredSubscriptions?.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500">Nenhum usuário encontrado</p>
+                    return (
+                      <TableRow key={item.user.id}>
+                        <TableCell className="font-medium">{item.user?.name || "N/A"}</TableCell>
+                        <TableCell>{item.user?.email || "N/A"}</TableCell>
+                        <TableCell>{getPlanBadge(item.subscription?.plan)}</TableCell>
+                        <TableCell>{getStatusBadge(item.subscription?.status)}</TableCell>
+                        <TableCell>
+                          {item.subscription?.startDate
+                            ? new Date(item.subscription.startDate).toLocaleDateString("pt-BR")
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {item.subscription?.endDate
+                            ? new Date(item.subscription.endDate).toLocaleDateString("pt-BR")
+                            : "Sem expiração"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant={enabled ? "destructive" : "default"}
+                              disabled={quickToggleMutation.isPending}
+                              onClick={() => handleToggleSubscription(item)}
+                            >
+                              {enabled ? (
+                                <>
+                                  <PowerOff className="h-4 w-4 mr-1" />
+                                  Desativar
+                                </>
+                              ) : (
+                                <>
+                                  <Power className="h-4 w-4 mr-1" />
+                                  Ativar
+                                </>
+                              )}
+                            </Button>
+
+                            <Button size="sm" variant="outline" onClick={() => openEditModal(item)}>
+                              <Edit className="h-4 w-4 mr-1" />
+                              Editar
+                            </Button>
+
+                            <Button size="sm" variant="outline" onClick={() => handleViewPaymentHistory(item.user.id)}>
+                              <DollarSign className="h-4 w-4 mr-1" />
+                              Pagamentos
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
-          )}
-        </div>
+
+            {!isLoading && filteredSubscriptions?.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-gray-500">Nenhum usuário encontrado</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
@@ -548,6 +547,6 @@ export default function AdminManageSubscriptions() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </DashboardLayout>
   );
 }

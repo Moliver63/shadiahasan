@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import VideoPlayer from "@/components/VideoPlayer";
 import VRViewer from "@/components/VRViewer";
 import { trpc } from "@/lib/trpc";
+import { formatDuration } from "@/lib/formatDuration";
 import { ArrowLeft, Maximize2, Lock } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams, useLocation } from "wouter";
@@ -48,6 +49,20 @@ export default function LessonView() {
   const updateProgressMutation = trpc.enrollments.updateProgress.useMutation();
 
   const hasAccess = accessData?.hasAccess ?? false;
+  const shouldFetchPlaybackUrl =
+    !!lesson &&
+    hasAccess &&
+    (Boolean(lesson.videoPlaybackUrl) ||
+      (lesson.videoProvider === "cloudflare" && Boolean(lesson.videoAssetId)));
+
+  const { data: playbackData, isLoading: playbackLoading } =
+    trpc.videos.getPlaybackUrl.useQuery(
+      { lessonId },
+      {
+        enabled: shouldFetchPlaybackUrl,
+        refetchOnWindowFocus: false,
+      }
+    );
 
   const handleProgress = (progress: number) => {
     if (lesson && hasAccess && progress > 90) {
@@ -145,10 +160,10 @@ export default function LessonView() {
   const prevLesson =
     allLessons && currentIndex > 0 ? allLessons[currentIndex - 1] : null;
 
+  const playbackUrl = playbackData?.url || lesson.videoPlaybackUrl || null;
+
   // YouTube não suporta VR — oculta o botão nesses casos
-  const isYouTube = lesson.videoPlaybackUrl
-    ? isYouTubeUrl(lesson.videoPlaybackUrl)
-    : false;
+  const isYouTube = playbackUrl ? isYouTubeUrl(playbackUrl) : false;
 
   return (
     <div className="min-h-screen bg-background">
@@ -200,13 +215,13 @@ export default function LessonView() {
             </div>
 
             {/* Video Player */}
-            {lesson.videoPlaybackUrl ? (
+            {playbackUrl ? (
               <div className="space-y-4">
                 {!showVR ? (
                   <>
                     {/* VideoPlayer detecta YouTube internamente e renderiza iframe ou HLS */}
                     <VideoPlayer
-                      src={lesson.videoPlaybackUrl}
+                      src={playbackUrl}
                       title={lesson.title}
                       onProgress={handleProgress}
                       onComplete={handleComplete}
@@ -225,12 +240,28 @@ export default function LessonView() {
                   </>
                 ) : (
                   <VRViewer
-                    videoUrl={lesson.videoPlaybackUrl}
+                    videoUrl={playbackUrl}
                     title={lesson.title}
                     onClose={() => setShowVR(false)}
                   />
                 )}
               </div>
+            ) : playbackLoading ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <p className="text-muted-foreground">
+                    Carregando vídeo da aula...
+                  </p>
+                </CardContent>
+              </Card>
+            ) : lesson.videoProvider === "cloudflare" && lesson.videoAssetId ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <p className="text-muted-foreground">
+                    O vídeo ainda está sendo processado. Tente novamente em instantes.
+                  </p>
+                </CardContent>
+              </Card>
             ) : (
               <Card>
                 <CardContent className="py-12 text-center">
@@ -302,7 +333,7 @@ export default function LessonView() {
                             </p>
                             {l.duration && (
                               <p className="text-xs opacity-70 mt-1">
-                                {Math.floor(l.duration / 60)} min
+                                {formatDuration(l.duration)}
                               </p>
                             )}
                           </div>

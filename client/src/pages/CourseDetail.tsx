@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
+import { formatDuration } from "@/lib/formatDuration";
 import { BookOpen, PlayCircle, CheckCircle, Lock, ArrowLeft } from "lucide-react";
 import { Link, useParams, useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -212,7 +213,7 @@ export default function CourseDetail() {
                         <div className="flex items-center gap-2">
                           {lesson.duration && (
                             <span className="text-sm text-muted-foreground">
-                              {Math.floor(lesson.duration / 60)} min
+                              {formatDuration(lesson.duration)}
                             </span>
                           )}
                           {isEnrolled ? (

@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { trpc } from "@/lib/trpc";
+import { formatDuration } from "@/lib/formatDuration";
 import {
   Plus, Edit, Trash2, ArrowLeft, Eye, EyeOff,
   PlayCircle, Upload, Youtube, Cloud, Lock, Unlock,
@@ -100,6 +101,7 @@ export default function AdminCourseLessons() {
   const [uploadState, setUploadState] = useState<UploadState>({ status: "idle" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const backgroundPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const emptyForm = (): FormData => ({
     title: "",
@@ -147,6 +149,17 @@ export default function AdminCourseLessons() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfStatus?.configured]);
 
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+      if (backgroundPollRef.current) {
+        clearInterval(backgroundPollRef.current);
+      }
+    };
+  }, []);
+
   // Botão manual — mesma operação, mas com feedback explícito ao admin.
   const syncPendingMutation = trpc.videos.admin.syncPendingVideos.useMutation({
     onSuccess: (result) => {
@@ -179,10 +192,16 @@ export default function AdminCourseLessons() {
       // lessonId, garantindo que a URL seja persistida.
       if (formData.videoProvider === "cloudflare" && formData.videoAssetId) {
         try {
-          await checkUploadStatusMutation.mutateAsync({
+          const status = await checkUploadStatusMutation.mutateAsync({
             uid: formData.videoAssetId,
             lessonId: result.id,
           });
+
+          if (!status.readyToStream) {
+            pollUploadStatus(formData.videoAssetId, result.id, {
+              keepRunningAfterClose: true,
+            });
+          }
         } catch (err) {
           console.error("Erro ao sincronizar status do vídeo:", err);
         }
@@ -203,10 +222,16 @@ export default function AdminCourseLessons() {
       // tenha salvo antes do polling terminar (ou fechado o modal).
       if (formData.videoProvider === "cloudflare" && formData.videoAssetId) {
         try {
-          await checkUploadStatusMutation.mutateAsync({
+          const status = await checkUploadStatusMutation.mutateAsync({
             uid: formData.videoAssetId,
             lessonId: variables.id,
           });
+
+          if (!status.readyToStream) {
+            pollUploadStatus(formData.videoAssetId, variables.id, {
+              keepRunningAfterClose: true,
+            });
+          }
         } catch (err) {
           console.error("Erro ao sincronizar status do vídeo:", err);
         }
@@ -271,7 +296,7 @@ export default function AdminCourseLessons() {
       // 4. Polling: a cada 5s consulta o status até ficar "ready",
       // então preenche videoPlaybackUrl/duration automaticamente
       // (no banco, se a aula já existir, e no formulário sempre).
-      pollUploadStatus(uid, editingLesson?.id);
+      pollUploadStatus(uid, editingLesson?.id, { fileName: file.name });
     } catch (err: any) {
       setUploadState({ status: "error", message: err.message || "Falha no upload" });
       toast.error("Erro no upload: " + (err.message || "tente novamente"));
@@ -286,11 +311,19 @@ export default function AdminCourseLessons() {
   // preenche videoPlaybackUrl/duration no formulário e, se lessonId existir
   // (edição), também salva direto no banco via checkUploadStatus.
   const pollUploadStatus = useCallback(
-    (uid: string, lessonId?: number) => {
+    (
+      uid: string,
+      lessonId?: number,
+      options?: { keepRunningAfterClose?: boolean; fileName?: string }
+    ) => {
       const fileName =
-        uploadState.status === "processing" ? uploadState.fileName : "vídeo";
+        options?.fileName ??
+        (uploadState.status === "processing" ? uploadState.fileName : "vídeo");
+      const targetRef = options?.keepRunningAfterClose
+        ? backgroundPollRef
+        : pollIntervalRef;
 
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (targetRef.current) clearInterval(targetRef.current);
 
       const interval = setInterval(async () => {
         try {
@@ -301,11 +334,18 @@ export default function AdminCourseLessons() {
 
           if (result.readyToStream) {
             clearInterval(interval);
-            setUploadState({
-              status: "ready",
-              uid,
-              fileName,
-              duration: Math.round(result.duration || 0),
+            targetRef.current = null;
+            setUploadState((prev) => {
+              if (options?.keepRunningAfterClose && prev.status === "idle") {
+                return prev;
+              }
+
+              return {
+                status: "ready",
+                uid,
+                fileName,
+                duration: Math.round(result.duration || 0),
+              };
             });
             setFormData((prev) => ({
               ...prev,
@@ -315,7 +355,11 @@ export default function AdminCourseLessons() {
 
             if (lessonId) {
               utils.lessons.listByCourse.invalidate();
-              toast.success("Vídeo processado e salvo na aula!");
+              toast.success(
+                options?.keepRunningAfterClose
+                  ? "Vídeo processado e aula atualizada automaticamente!"
+                  : "Vídeo processado e salvo na aula!"
+              );
             } else {
               toast.success("Vídeo processado! Pronto para salvar a aula.");
             }
@@ -326,10 +370,15 @@ export default function AdminCourseLessons() {
         }
       }, 5000);
 
-      pollIntervalRef.current = interval;
+      targetRef.current = interval;
 
       // Timeout de segurança: para após 10 minutos
-      setTimeout(() => clearInterval(interval), 10 * 60 * 1000);
+      setTimeout(() => {
+        clearInterval(interval);
+        if (targetRef.current === interval) {
+          targetRef.current = null;
+        }
+      }, 10 * 60 * 1000);
     },
     [checkUploadStatusMutation, utils, uploadState]
   );
@@ -547,9 +596,13 @@ export default function AdminCourseLessons() {
                       {(lesson.videoPlaybackUrl || lesson.videoAssetId) && (
                         <div className="flex items-center gap-2 text-xs">
                           <PlayCircle className="h-3 w-3" />
-                          <span>Vídeo configurado</span>
+                          <span>
+                            {lesson.videoPlaybackUrl
+                              ? "Vídeo configurado"
+                              : "Vídeo enviado, aguardando processamento"}
+                          </span>
                           {lesson.duration ? (
-                            <span>• {Math.floor(lesson.duration / 60)} min</span>
+                            <span>• {formatDuration(lesson.duration)}</span>
                           ) : null}
                         </div>
                       )}
@@ -745,7 +798,7 @@ export default function AdminCourseLessons() {
                       <p className="text-xs text-muted-foreground">
                         UID: <code className="bg-muted px-1 rounded">{uploadState.uid}</code>
                         {" • "}
-                        Duração: {Math.floor(uploadState.duration / 60)}min {uploadState.duration % 60}s
+                        Duração: {formatDuration(uploadState.duration)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         URL de reprodução preenchida automaticamente. Salve a aula para confirmar.

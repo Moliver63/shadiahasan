@@ -33,6 +33,7 @@ import {
   deleteVideo,
   resolveVideoUrl,
   isCloudflareConfigured,
+  getVideoDetails,
 } from "../cloudflare-stream";
 
 // ─── Admin procedure ──────────────────────────────────────────────────────────

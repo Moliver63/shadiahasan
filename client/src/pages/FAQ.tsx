@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
   Accordion,
@@ -9,12 +8,9 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { HelpCircle, MessageCircle } from "lucide-react";
 import { Link } from "wouter";
-import { getLoginUrl } from "@/const";
-import UserMenu from "@/components/UserMenu";
+import PublicHeader from "@/components/PublicHeader";
 
 export default function FAQ() {
-  const { isAuthenticated } = useAuth();
-
   const faqs = [
     {
       category: "Planos e Pagamentos",
@@ -121,48 +117,23 @@ export default function FAQ() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-50 backdrop-blur">
-        <div className="container py-4 flex items-center justify-between">
-          <Link href="/">
-            <img 
-              src="/logo.png" 
-              alt="Shadia Hasan" 
-              className="h-36 w-auto"
-            />
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/courses">
-              <Button variant="ghost">Programas</Button>
-            </Link>
-            <Link href="/about">
-              <Button variant="ghost">Sobre</Button>
-            </Link>
-            <Link href="/contact">
-              <Button variant="ghost">Contato</Button>
-            </Link>
-            <Link href="/community/explore">
-              <Button variant="ghost">Comunidade</Button>
-            </Link>
-            {isAuthenticated ? (
-                <UserMenu />
-              ) : (
-                <Button onClick={() => (window.location.href = getLoginUrl())}>
-                  Entrar
-                </Button>
-              )}
-          </nav>
-        </div>
-      </header>
+      <PublicHeader
+        items={[
+          { label: "Programas", href: "/courses" },
+          { label: "Sobre", href: "/about" },
+          { label: "Contato", href: "/contact" },
+          { label: "Comunidade", href: "/community/explore", match: "prefix" },
+        ]}
+      />
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-primary/10 via-purple-500/5 to-background py-20">
+      <section className="bg-gradient-to-br from-primary/10 via-purple-500/5 to-background py-16 md:py-20">
         <div className="container text-center">
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-primary/10 mb-6">
             <HelpCircle className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-6">Perguntas Frequentes</h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6">Perguntas Frequentes</h1>
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
             Encontre respostas para as dúvidas mais comuns sobre nossos programas, planos e tecnologia VR.
           </p>
         </div>

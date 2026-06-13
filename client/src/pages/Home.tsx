@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookOpen, Glasses, PlayCircle, Users, Zap, Shield } from "lucide-react";
@@ -7,7 +6,7 @@ import { OptimizedImage } from "@/components/OptimizedImage";
 import { SEOHead } from "@/components/SEOHead";
 import { getSEOMetaTags } from "@/lib/seo-meta-tags";
 
-import UserMenu from "@/components/UserMenu";
+import PublicHeader from "@/components/PublicHeader";
 import AIChatWidget from "@/components/AIChatWidget";
 
 import StatsSection from "@/components/StatsSection";
@@ -16,72 +15,22 @@ import Testimonials from "@/components/Testimonials";
 import FAQSection from "@/components/FAQSection";
 
 export default function Home() {
-  const { isAuthenticated, user } = useAuth();
   const seoMeta = getSEOMetaTags('/');
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <SEOHead {...seoMeta} />
-      {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-50 backdrop-blur">
-        <div className="container py-4 flex items-center justify-between">
-          <Link href="/">
-            <img 
-              src="/logo.png" 
-              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano" 
-              className="h-36 w-auto"
-            />
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/courses">
-              <span className="cursor-pointer">
-                <Button variant="ghost">Programas</Button>
-              </span>
-            </Link>
-            <Link href="/about">
-              <span className="cursor-pointer">
-                <Button variant="ghost">Sobre</Button>
-              </span>
-            </Link>
-            <Link href="/contact">
-              <span className="cursor-pointer">
-                <Button variant="ghost">Contato</Button>
-              </span>
-            </Link>
-            {isAuthenticated && (
-              <Link href="/community/explore">
-                <span className="cursor-pointer">
-                  <Button variant="ghost">
-                    <Users className="mr-2 h-4 w-4" />
-                    Comunidade
-                  </Button>
-                </span>
-              </Link>
-            )}
-            {isAuthenticated ? (
-              <>
-                {user?.role === 'admin' && (
-                  <Link href="/admin">
-                    <span className="cursor-pointer">
-                      <Button variant="outline">Admin</Button>
-                    </span>
-                  </Link>
-                )}
-                <UserMenu />
-              </>
-            ) : (
-              <Link href="/login">
-                <Button>
-                  Entrar
-                </Button>
-              </Link>
-            )}
-          </nav>
-        </div>
-      </header>
+      <PublicHeader
+        items={[
+          { label: "Programas", href: "/courses" },
+          { label: "Sobre", href: "/about" },
+          { label: "Contato", href: "/contact" },
+          { label: "Comunidade", href: "/community/explore", authOnly: true, match: "prefix" },
+        ]}
+      />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-purple-500/5 to-background py-20 md:py-32">
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-purple-500/5 to-background py-16 md:py-24 lg:py-32">
         <div className="container relative z-10">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-sm font-medium">
@@ -89,26 +38,26 @@ export default function Home() {
               <span>Experiência em Realidade Virtual</span>
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight">
               Jornada de
               <span className="block bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
                 Transformação Interior
               </span>
             </h1>
             
-            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
               Apoio individual para sua evolução pessoal. Juntos, vamos despertar seu potencial através de experiências imersivas que transformam.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/contact">
-                <Button size="lg" className="text-lg px-8 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
+                <Button size="lg" className="w-full text-base sm:w-auto sm:text-lg px-8 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
                   <Zap className="h-5 w-5 mr-2" />
                   Agende sua Sessão
                 </Button>
               </Link>
               <Link href="/courses">
-                <Button size="lg" variant="outline" className="text-lg px-8">
+                <Button size="lg" variant="outline" className="w-full text-base sm:w-auto sm:text-lg px-8">
                   <PlayCircle className="h-5 w-5 mr-2" />
                   Iniciar Jornada
                 </Button>

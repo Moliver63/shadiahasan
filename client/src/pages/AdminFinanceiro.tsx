@@ -61,14 +61,14 @@ export default function AdminFinanceiro() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Relatórios Financeiros</h1>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Relatórios Financeiros</h1>
             <p className="text-muted-foreground">Acompanhe receitas, assinaturas e transações</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[180px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="week">Última semana</SelectItem>
                 <SelectItem value="month">Último mês</SelectItem>
@@ -76,7 +76,7 @@ export default function AdminFinanceiro() {
                 <SelectItem value="year">Último ano</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={handleExport}>
+            <Button onClick={handleExport} className="w-full sm:w-auto">
               <Download className="mr-2 h-4 w-4" />Exportar CSV
             </Button>
           </div>
@@ -159,17 +159,17 @@ export default function AdminFinanceiro() {
             ) : (
               <div className="space-y-4">
                 {allPayments.slice(0, 10).map((payment) => (
-                  <div key={payment.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                  <div key={payment.id} className="flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
                         <DollarSign className="h-5 w-5 text-primary" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-medium">Usuário #{payment.userId}</p>
-                        <p className="text-sm text-muted-foreground">{payment.description || payment.paymentMethod || "Stripe"}</p>
+                        <p className="text-sm text-muted-foreground break-words">{payment.description || payment.paymentMethod || "Stripe"}</p>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="flex flex-col gap-2 sm:items-end">
                       <p className="font-medium">
                         R$ {((payment.amount || 0) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                       </p>
@@ -177,16 +177,16 @@ export default function AdminFinanceiro() {
                         <Calendar className="h-3 w-3" />
                         {new Date(payment.createdAt).toLocaleDateString("pt-BR")}
                       </div>
+                      <span className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-medium ${
+                        payment.status === "completed"
+                          ? "bg-green-100 text-green-700"
+                          : payment.status === "failed"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}>
+                        {payment.status === "completed" ? "Concluído" : payment.status === "failed" ? "Falhou" : "Pendente"}
+                      </span>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      payment.status === "completed"
-                        ? "bg-green-100 text-green-700"
-                        : payment.status === "failed"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-yellow-100 text-yellow-700"
-                    }`}>
-                      {payment.status === "completed" ? "Concluído" : payment.status === "failed" ? "Falhou" : "Pendente"}
-                    </span>
                   </div>
                 ))}
               </div>

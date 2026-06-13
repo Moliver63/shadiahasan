@@ -1,59 +1,32 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { BookOpen, Clock, PlayCircle } from "lucide-react";
 import { Link } from "wouter";
-import { getLoginUrl } from "@/const";
-import UserMenu from "@/components/UserMenu";
+import PublicHeader from "@/components/PublicHeader";
 
 export default function Courses() {
-  const { isAuthenticated } = useAuth();
   const { data: courses, isLoading } = trpc.courses.list.useQuery();
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container py-4 flex items-center justify-between">
-          <Link href="/">
-            <img 
-              src="/logo.png" 
-              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano" 
-              className="h-36 w-auto"
-            />
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/courses">
-              <Button variant="ghost" className="text-primary">Programas</Button>
-            </Link>
-            <Link href="/about">
-              <Button variant="ghost">Sobre</Button>
-            </Link>
-            <Link href="/contact">
-              <Button variant="ghost">Contato</Button>
-            </Link>
-            <Link href="/community/explore">
-              <Button variant="ghost">Comunidade</Button>
-            </Link>
-            {isAuthenticated ? (
-              <UserMenu />
-            ) : (
-              <Button onClick={() => (window.location.href = getLoginUrl())}>
-                Entrar
-              </Button>
-            )}
-          </nav>
-        </div>
-      </header>
+      <PublicHeader
+        items={[
+          { label: "Programas", href: "/courses" },
+          { label: "Sobre", href: "/about" },
+          { label: "Contato", href: "/contact" },
+          { label: "Comunidade", href: "/community/explore", match: "prefix" },
+        ]}
+        className="bg-card"
+      />
 
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-primary/10 via-background to-background py-16">
         <div className="container text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
             Catálogo de Cursos
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
             Explore nossos cursos e aprenda com experiências imersivas em
             realidade virtual
           </p>

@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,13 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Instagram, Mail, MessageCircle, Send } from "lucide-react";
 import { useState } from "react";
-import { Link } from "wouter";
-import { getLoginUrl } from "@/const";
-import UserMenu from "@/components/UserMenu";
+import PublicHeader from "@/components/PublicHeader";
 import { toast } from "sonner";
 
 export default function Contact() {
-  const { isAuthenticated } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -39,45 +35,20 @@ export default function Contact() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-50 backdrop-blur">
-        <div className="container py-4 flex items-center justify-between">
-          <Link href="/">
-            <img 
-              src="/logo.png" 
-              alt="Shadia Hasan" 
-              className="h-36 w-auto"
-            />
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/courses">
-              <Button variant="ghost">Programas</Button>
-            </Link>
-            <Link href="/about">
-              <Button variant="ghost">Sobre</Button>
-            </Link>
-            <Link href="/contact">
-              <Button variant="ghost" className="text-primary">Contato</Button>
-            </Link>
-            <Link href="/community/explore">
-              <Button variant="ghost">Comunidade</Button>
-            </Link>
-            {isAuthenticated ? (
-                <UserMenu />
-              ) : (
-                <Button onClick={() => (window.location.href = getLoginUrl())}>
-                  Entrar
-                </Button>
-              )}
-          </nav>
-        </div>
-      </header>
+      <PublicHeader
+        items={[
+          { label: "Programas", href: "/courses" },
+          { label: "Sobre", href: "/about" },
+          { label: "Contato", href: "/contact" },
+          { label: "Comunidade", href: "/community/explore", match: "prefix" },
+        ]}
+      />
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-primary/10 via-purple-500/5 to-background py-20">
+      <section className="bg-gradient-to-br from-primary/10 via-purple-500/5 to-background py-16 md:py-20">
         <div className="container text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-6">Entre em Contato</h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6">Entre em Contato</h1>
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
             Estamos aqui para ajudar você em sua jornada de transformação. Escolha a melhor forma de contato.
           </p>
         </div>
@@ -132,7 +103,7 @@ export default function Contact() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="preferredDate">Data Preferida</Label>
                       <Input
@@ -189,7 +160,7 @@ export default function Contact() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-semibold mb-4">+55 47 99142-6662</p>
+                <p className="mb-4 break-all text-xl font-semibold sm:text-2xl">+55 47 99142-6662</p>
                 <Button
                   onClick={() => window.open("https://wa.me/5547991426662", "_blank")}
                   className="w-full"

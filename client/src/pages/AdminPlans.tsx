@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Edit, Trash2, DollarSign, Calendar } from "lucide-react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { toast } from "sonner";
 
 export default function AdminPlans() {
@@ -102,18 +103,19 @@ export default function AdminPlans() {
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-8">
+    <DashboardLayout>
+      <div className="space-y-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Gestão de Planos</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Gestão de Planos</h1>
           <p className="text-gray-600 mt-2">Gerencie os planos de assinatura da plataforma</p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
+        <Button onClick={() => setIsCreateDialogOpen(true)} className="w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" />Novo Plano
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
         {plans?.map((plan) => (
           <Card key={plan.id} className={!plan.isActive ? "opacity-60" : ""}>
             <CardHeader>
@@ -187,19 +189,19 @@ export default function AdminPlans() {
 
       {/* Create Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <form onSubmit={handleCreatePlan}>
             <DialogHeader>
               <DialogTitle>Criar Novo Plano</DialogTitle>
               <DialogDescription>Preencha os detalhes do novo plano de assinatura</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div><Label>Nome do Plano</Label><Input name="name" placeholder="Premium" required /></div>
                 <div><Label>Slug</Label><Input name="slug" placeholder="premium" required /></div>
               </div>
               <div><Label>Descrição</Label><Textarea name="description" placeholder="Acesso completo..." /></div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div><Label>Preço (R$)</Label><Input name="price" type="number" step="0.01" placeholder="97.00" required /></div>
                 <div>
                   <Label>Intervalo</Label>
@@ -214,7 +216,7 @@ export default function AdminPlans() {
               </div>
               <div><Label>Recursos (JSON)</Label><Textarea name="features" placeholder='["Recurso 1", "Recurso 2"]' /></div>
               <div><Label>Máximo de Cursos (vazio = ilimitado)</Label><Input name="maxCourses" type="number" /></div>
-              <div className="flex gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
                 <label className="flex items-center gap-2"><input type="checkbox" name="hasVRAccess" className="rounded" /><span>Acesso VR</span></label>
                 <label className="flex items-center gap-2"><input type="checkbox" name="hasLiveSupport" className="rounded" /><span>Suporte ao Vivo</span></label>
               </div>
@@ -231,7 +233,7 @@ export default function AdminPlans() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <form onSubmit={handleUpdatePlan}>
             <DialogHeader>
               <DialogTitle>Editar Plano</DialogTitle>
@@ -243,7 +245,7 @@ export default function AdminPlans() {
               <div><Label>Preço (R$)</Label><Input name="price" type="number" step="0.01" defaultValue={selectedPlan ? (selectedPlan.price / 100).toFixed(2) : ""} required /></div>
               <div><Label>Recursos (JSON)</Label><Textarea name="features" defaultValue={selectedPlan?.features || ""} /></div>
               <div><Label>Máximo de Cursos</Label><Input name="maxCourses" type="number" defaultValue={selectedPlan?.maxCourses || ""} /></div>
-              <div className="flex gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
                 <label className="flex items-center gap-2"><input type="checkbox" name="hasVRAccess" className="rounded" defaultChecked={selectedPlan?.hasVRAccess === 1} /><span>Acesso VR</span></label>
                 <label className="flex items-center gap-2"><input type="checkbox" name="hasLiveSupport" className="rounded" defaultChecked={selectedPlan?.hasLiveSupport === 1} /><span>Suporte ao Vivo</span></label>
                 <label className="flex items-center gap-2"><input type="checkbox" name="isActive" className="rounded" defaultChecked={selectedPlan?.isActive === 1} /><span>Ativo</span></label>
@@ -258,6 +260,7 @@ export default function AdminPlans() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

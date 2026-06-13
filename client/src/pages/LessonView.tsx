@@ -9,6 +9,7 @@ import { ArrowLeft, Maximize2, Lock } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
+import PublicHeader from "@/components/PublicHeader";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
@@ -167,25 +168,15 @@ export default function LessonView() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container py-4 flex items-center justify-between">
-          <Link href="/">
-            <img
-              src="/logo.png"
-              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano"
-              className="h-36 w-auto"
-            />
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/my-courses">
-              <Button variant="ghost">Meus Cursos</Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <PublicHeader
+        items={[
+          { label: "Meus Cursos", href: "/my-courses" },
+          { label: "Catálogo", href: "/courses", match: "prefix" },
+        ]}
+        className="bg-card"
+      />
 
-      <div className="container py-8">
+      <div className="container py-6 md:py-8">
         {lesson && course && (
           <Breadcrumbs
             items={getBreadcrumbs(`/lesson/${lessonId}`, {
@@ -208,7 +199,7 @@ export default function LessonView() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             <div>
-              <h1 className="text-3xl font-bold mb-2">{lesson.title}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">{lesson.title}</h1>
               {course && (
                 <p className="text-muted-foreground">Curso: {course.title}</p>
               )}

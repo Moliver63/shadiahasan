@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { BookOpen, PlayCircle, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
+import PublicHeader from "@/components/PublicHeader";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
@@ -44,32 +45,19 @@ export default function MyCourses() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container py-4 flex items-center justify-between">
-          <Link href="/">
-            <img
-              src="/logo.png"
-              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano"
-              className="h-36 w-auto"
-            />
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/courses">
-              <Button variant="ghost">Catálogo</Button>
-            </Link>
-            <Link href="/my-courses">
-              <Button>Meus Cursos</Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <PublicHeader
+        items={[
+          { label: "Catálogo", href: "/courses", match: "prefix" },
+          { label: "Meus Cursos", href: "/my-courses" },
+        ]}
+        className="bg-card"
+      />
 
-      <div className="container py-12">
+      <div className="container py-8 md:py-12">
         <Breadcrumbs items={getBreadcrumbs("/my-courses")} />
 
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Meus Cursos</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold mb-2">Meus Cursos</h1>
           <p className="text-lg text-muted-foreground">
             Olá, {user?.name}! Continue seu aprendizado
           </p>

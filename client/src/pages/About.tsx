@@ -1,59 +1,28 @@
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Award, BookOpen, Heart, Sparkles, Target, Users } from "lucide-react";
-import { Link } from "wouter";
-import { getLoginUrl } from "@/const";
-import UserMenu from "@/components/UserMenu";
+import PublicHeader from "@/components/PublicHeader";
 
 export default function About() {
-  const { isAuthenticated } = useAuth();
-
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-50 backdrop-blur">
-        <div className="container py-4 flex items-center justify-between">
-          <Link href="/">
-            <img 
-              src="/logo.png" 
-              alt="Shadia Hasan" 
-              className="h-36 w-auto"
-            />
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/courses">
-              <Button variant="ghost">Programas</Button>
-            </Link>
-            <Link href="/about">
-              <Button variant="ghost" className="text-primary">Sobre</Button>
-            </Link>
-            <Link href="/contact">
-              <Button variant="ghost">Contato</Button>
-            </Link>
-            <Link href="/community/explore">
-              <Button variant="ghost">Comunidade</Button>
-            </Link>
-            {isAuthenticated ? (
-                <UserMenu />
-              ) : (
-                <Button onClick={() => (window.location.href = getLoginUrl())}>
-                  Entrar
-                </Button>
-              )}
-          </nav>
-        </div>
-      </header>
+      <PublicHeader
+        items={[
+          { label: "Programas", href: "/courses" },
+          { label: "Sobre", href: "/about" },
+          { label: "Contato", href: "/contact" },
+          { label: "Comunidade", href: "/community/explore", match: "prefix" },
+        ]}
+      />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-purple-500/5 to-background py-20">
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-purple-500/5 to-background py-16 md:py-20">
         <div className="container">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
-              <h1 className="text-4xl md:text-5xl font-bold">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold">
                 Sobre Shadia Hasan
               </h1>
-              <p className="text-xl text-muted-foreground">
+              <p className="text-lg sm:text-xl text-muted-foreground">
                 Estou aqui para caminhar ao seu lado. Com escuta genuína e apoio individual, vamos juntos descobrir seu verdadeiro potencial.
               </p>
             </div>

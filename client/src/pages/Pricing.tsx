@@ -5,8 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
-import UserMenu from "@/components/UserMenu";
-import { Link } from "wouter";
+import PublicHeader from "@/components/PublicHeader";
 
 export default function Pricing() {
   const { user, isAuthenticated } = useAuth();
@@ -113,53 +112,26 @@ export default function Pricing() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
-      {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-50 backdrop-blur">
-        <div className="container py-4 flex items-center justify-between">
-          <Link href="/">
-            <img 
-              src="/logo.png" 
-              alt="Shadia Hasan" 
-              className="h-36 w-auto cursor-pointer"
-            />
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/courses">
-              <Button variant="ghost">Programas</Button>
-            </Link>
-            <Link href="/pricing">
-              <Button variant="ghost" className="text-primary">Planos</Button>
-            </Link>
-            <Link href="/about">
-              <Button variant="ghost">Sobre</Button>
-            </Link>
-            <Link href="/contact">
-              <Button variant="ghost">Contato</Button>
-            </Link>
-            <Link href="/community/explore">
-              <Button variant="ghost">Comunidade</Button>
-            </Link>
-            {isAuthenticated ? (
-              <UserMenu />
-            ) : (
-              <Button onClick={() => (window.location.href = getLoginUrl())}>
-                Entrar
-              </Button>
-            )}
-          </nav>
-        </div>
-      </header>
+      <PublicHeader
+        items={[
+          { label: "Programas", href: "/courses" },
+          { label: "Planos", href: "/pricing" },
+          { label: "Sobre", href: "/about" },
+          { label: "Contato", href: "/contact" },
+          { label: "Comunidade", href: "/community/explore", match: "prefix" },
+        ]}
+      />
 
       {/* Hero Section */}
-      <section className="py-20 px-4">
+      <section className="px-4 py-16 md:py-20">
         <div className="container mx-auto text-center max-w-3xl">
-          <h1 className="text-5xl font-bold mb-6">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-6">
             Escolha o Plano Ideal para{" "}
             <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
               Sua Transformação
             </span>
           </h1>
-          <p className="text-xl text-gray-600 mb-8">
+          <p className="text-lg sm:text-xl text-gray-600 mb-8">
             Apoio individual para sua evolução. Escolha o plano que melhor atende suas necessidades.
           </p>
         </div>
@@ -174,7 +146,7 @@ export default function Pricing() {
                 key={plan.slug}
                 className={`relative flex flex-col ${
                   plan.popular
-                    ? "border-purple-500 border-2 shadow-xl scale-105"
+                    ? "border-purple-500 border-2 shadow-xl lg:scale-105"
                     : "border-gray-200"
                 }`}
               >

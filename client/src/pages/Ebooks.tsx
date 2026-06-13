@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { BookOpen, Download, Eye, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
-import UserMenu from "@/components/UserMenu";
+import PublicHeader from "@/components/PublicHeader";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
@@ -23,53 +23,29 @@ export default function Ebooks() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/">
-            <img
-              src="/logo.png"
-              alt="Shadia Hasan"
-              className="h-36 cursor-pointer"
-            />
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/courses">
-              <Button variant="ghost">Programas</Button>
-            </Link>
-            <Link href="/about">
-              <Button variant="ghost">Sobre</Button>
-            </Link>
-            <Link href="/contact">
-              <Button variant="ghost">Contato</Button>
-            </Link>
-            <Link href="/community/explore">
-              <Button variant="ghost">Comunidade</Button>
-            </Link>
-            {isAuthenticated ? (
-              <UserMenu />
-            ) : (
-              <Button onClick={() => (window.location.href = getLoginUrl())}>
-                Entrar
-              </Button>
-            )}
-          </nav>
-        </div>
-      </header>
+      <PublicHeader
+        items={[
+          { label: "Programas", href: "/courses" },
+          { label: "Sobre", href: "/about" },
+          { label: "Contato", href: "/contact" },
+          { label: "Comunidade", href: "/community/explore", match: "prefix" },
+        ]}
+        className="bg-white/80"
+      />
 
       {/* Hero Section */}
-      <section className="py-20 text-center">
+      <section className="py-16 text-center md:py-20">
         <div className="container">
           <Breadcrumbs items={getBreadcrumbs('/ebooks')} />
           <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full mb-6">
             <BookOpen className="h-5 w-5" />
             <span className="font-medium">Biblioteca Digital</span>
           </div>
-          <h1 className="text-5xl font-bold mb-6">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-6">
             Ebooks de <span className="text-blue-600">Psicologia</span> e{" "}
             <span className="text-purple-600">Desenvolvimento</span>
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+          <p className="mx-auto max-w-3xl text-lg text-gray-600 sm:text-xl">
             Acesse materiais exclusivos em PDF para aprofundar seus conhecimentos e transformar sua jornada de autoconhecimento.
           </p>
         </div>

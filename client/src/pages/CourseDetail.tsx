@@ -5,8 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { formatDuration } from "@/lib/formatDuration";
 import { BookOpen, PlayCircle, CheckCircle, Lock, ArrowLeft } from "lucide-react";
 import { Link, useParams, useLocation } from "wouter";
-import { getLoginUrl } from "@/const";
-import UserMenu from "@/components/UserMenu";
+import PublicHeader from "@/components/PublicHeader";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
@@ -92,41 +91,17 @@ export default function CourseDetail() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container py-4 flex items-center justify-between">
-          <Link href="/">
-            <img 
-              src="/logo.png" 
-              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano" 
-              className="h-36 w-auto"
-            />
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/courses">
-              <Button variant="ghost">Programas</Button>
-            </Link>
-            <Link href="/about">
-              <Button variant="ghost">Sobre</Button>
-            </Link>
-            <Link href="/contact">
-              <Button variant="ghost">Contato</Button>
-            </Link>
-            <Link href="/community/explore">
-              <Button variant="ghost">Comunidade</Button>
-            </Link>
-            {isAuthenticated ? (
-                <UserMenu />
-              ) : (
-                <Button onClick={() => (window.location.href = getLoginUrl())}>
-                  Entrar
-                </Button>
-              )}
-          </nav>
-        </div>
-      </header>
+      <PublicHeader
+        items={[
+          { label: "Programas", href: "/courses", match: "prefix" },
+          { label: "Sobre", href: "/about" },
+          { label: "Contato", href: "/contact" },
+          { label: "Comunidade", href: "/community/explore", match: "prefix" },
+        ]}
+        className="bg-card"
+      />
 
-      <div className="container py-8">
+      <div className="container py-6 md:py-8">
         {course && (
           <Breadcrumbs 
             items={getBreadcrumbs(`/courses/${course.id}`, { 
@@ -147,7 +122,7 @@ export default function CourseDetail() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             <div>
-              <h1 className="text-4xl font-bold mb-4">{course.title}</h1>
+              <h1 className="text-3xl sm:text-4xl font-bold mb-4">{course.title}</h1>
               {course.description && (
                 <p className="text-lg text-muted-foreground">
                   {course.description}
@@ -156,7 +131,7 @@ export default function CourseDetail() {
             </div>
 
             {course.thumbnail && (
-              <div className="w-full h-96 rounded-lg overflow-hidden bg-muted">
+              <div className="h-56 w-full overflow-hidden rounded-lg bg-muted sm:h-72 md:h-96">
                 <img
                   src={course.thumbnail}
                   alt={course.title}
@@ -188,7 +163,7 @@ export default function CourseDetail() {
                     {lessons.map((lesson, index) => (
                       <div
                         key={lesson.id}
-                        className={`flex items-center justify-between p-4 rounded-lg border ${
+                        className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${
                           isEnrolled
                             ? "hover:bg-accent cursor-pointer"
                             : "opacity-60"
@@ -210,7 +185,7 @@ export default function CourseDetail() {
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
                           {lesson.duration && (
                             <span className="text-sm text-muted-foreground">
                               {formatDuration(lesson.duration)}

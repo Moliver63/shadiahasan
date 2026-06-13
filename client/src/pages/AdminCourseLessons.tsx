@@ -655,7 +655,7 @@ export default function AdminCourseLessons() {
 
       {/* ── Dialog criar/editar aula ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>{editingLesson ? "Editar Aula" : "Nova Aula"}</DialogTitle>
@@ -703,7 +703,7 @@ export default function AdminCourseLessons() {
               {/* Seletor de provider */}
               <div className="space-y-3">
                 <Label>Fonte do vídeo</Label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, videoProvider: "cloudflare", videoPlaybackUrl: "" })}

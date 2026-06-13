@@ -32,39 +32,67 @@ function cfHeaders(apiToken: string): HeadersInit {
 // ─── Upload direto via URL (TUS) ─────────────────────────────────────────────
 
 /**
- * Gera uma URL de upload direto (TUS) para o cliente enviar o vídeo
- * sem passar pelo servidor. Retorna { uploadUrl, uid }
+ * Gera uma URL TUS de upload direto para o cliente enviar o vídeo
+ * sem passar pelo servidor. Esse fluxo suporta arquivos grandes e
+ * upload resumível, conforme recomendado pelo Cloudflare Stream.
  */
-export async function createDirectUploadUrl(meta: {
+export async function createTusDirectUploadUrl(meta: {
   name: string;
+  fileSize: number;
+  fileType?: string;
   maxDurationSeconds?: number;
   requireSignedURLs?: boolean;
 }): Promise<{ uploadUrl: string; uid: string }> {
   const { accountId, apiToken } = getCFConfig();
 
-  const res = await fetch(
-    `${CF_BASE}/accounts/${accountId}/stream/direct_upload`,
-    {
-      method: "POST",
-      headers: cfHeaders(apiToken),
-      body: JSON.stringify({
-        maxDurationSeconds: meta.maxDurationSeconds ?? 7200,
-        requireSignedURLs: meta.requireSignedURLs ?? false,
-        meta: { name: meta.name },
-      }),
-    }
-  );
+  const metadataParts = [
+    `name ${Buffer.from(meta.name).toString("base64")}`,
+  ];
 
-  const data = await res.json() as any;
-  if (!data.success) {
-    throw new Error(
-      `Cloudflare Stream erro: ${JSON.stringify(data.errors)}`
+  if (meta.fileType) {
+    metadataParts.push(`filetype ${Buffer.from(meta.fileType).toString("base64")}`);
+  }
+
+  if (meta.maxDurationSeconds != null) {
+    metadataParts.push(
+      `maxDurationSeconds ${Buffer.from(String(meta.maxDurationSeconds)).toString("base64")}`
     );
   }
 
+  if (meta.requireSignedURLs) {
+    metadataParts.push("requiresignedurls");
+  }
+
+  const res = await fetch(
+    `${CF_BASE}/accounts/${accountId}/stream?direct_user=true`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Tus-Resumable": "1.0.0",
+        "Upload-Length": String(meta.fileSize),
+        "Upload-Metadata": metadataParts.join(","),
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const message = await res.text();
+    throw new Error(`Cloudflare Stream erro (${res.status}): ${message}`);
+  }
+
+  const uploadUrl = res.headers.get("Location");
+  const uidFromHeader = res.headers.get("stream-media-id");
+  const uidFromUrl = uploadUrl?.split("/").filter(Boolean).pop() ?? null;
+  const uid = uidFromHeader || uidFromUrl;
+
+  if (!uploadUrl || !uid) {
+    throw new Error("Cloudflare Stream não retornou upload URL/UID para upload TUS.");
+  }
+
   return {
-    uploadUrl: data.result.uploadURL,
-    uid: data.result.uid,
+    uploadUrl,
+    uid,
   };
 }
 

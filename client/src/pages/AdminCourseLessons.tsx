@@ -52,41 +52,52 @@ type UploadState =
   | { status: "error"; message: string };
 
 // ─── Helper: upload TUS para Cloudflare Stream ───────────────────────────────
-// O Cloudflare Stream usa o protocolo TUS para upload resumível.
-// Fazemos o upload direto do browser → Cloudflare (sem passar pelo servidor).
+// O Cloudflare Stream exige TUS para arquivos grandes (>200 MB) e recomenda
+// esse protocolo quando a conexão do usuário pode oscilar, pois o upload é
+// resumível e mais robusto do que um POST multipart simples.
 
 async function tusUpload(
   file: File,
   uploadUrl: string,
   onProgress: (pct: number) => void
 ): Promise<void> {
-  // O endpoint de "direct upload" do Cloudflare Stream aceita um
-  // POST multipart/form-data simples com o arquivo no campo "file".
-  return new Promise((resolve, reject) => {
-    const formData = new FormData();
-    formData.append("file", file);
+  const tus = await import("tus-js-client");
 
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", uploadUrl);
-
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
+  return new Promise(async (resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      uploadUrl,
+      uploadSize: file.size,
+      chunkSize: 50 * 1024 * 1024,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      storeFingerprintForResuming: true,
+      removeFingerprintOnSuccess: true,
+      metadata: {
+        name: file.name,
+        filetype: file.type || "video/mp4",
+      },
+      onProgress: (bytesUploaded, bytesTotal) => {
+        if (bytesTotal > 0) {
+          onProgress(Math.round((bytesUploaded / bytesTotal) * 100));
+        }
+      },
+      onError: (error) => {
+        reject(new Error(error.message || "Erro de rede durante o upload"));
+      },
+      onSuccess: () => {
         onProgress(100);
         resolve();
-      } else {
-        reject(new Error(`Erro no upload: ${xhr.status} ${xhr.responseText}`));
+      },
+    });
+
+    try {
+      const previousUploads = await upload.findPreviousUploads();
+      if (previousUploads.length > 0) {
+        upload.resumeFromPreviousUpload(previousUploads[0]);
       }
-    };
-
-    xhr.onerror = () => reject(new Error("Erro de rede durante o upload"));
-
-    xhr.send(formData);
+      upload.start();
+    } catch (error: any) {
+      reject(new Error(error?.message || "Falha ao iniciar upload resumível"));
+    }
   });
 }
 
@@ -274,6 +285,8 @@ export default function AdminCourseLessons() {
       // 1. Obter URL de upload direto do servidor
       const { uploadUrl, uid } = await createUploadUrlMutation.mutateAsync({
         name: formData.title || file.name,
+        fileSize: file.size,
+        mimeType: file.type,
         isProtected: formData.isAccessRestricted === 1,
       });
 
@@ -291,7 +304,7 @@ export default function AdminCourseLessons() {
         videoPlaybackUrl: "", // será preenchido automaticamente quando o CF terminar
       }));
 
-      toast.success("Vídeo enviado! Processando no Cloudflare...");
+      toast.success("Vídeo enviado! Cloudflare está processando a aula...");
 
       // 4. Polling: a cada 5s consulta o status até ficar "ready",
       // então preenche videoPlaybackUrl/duration automaticamente

@@ -28,7 +28,7 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, or } from "drizzle-orm";
 import {
-  createDirectUploadUrl,
+  createTusDirectUploadUrl,
   listVideos,
   deleteVideo,
   resolveVideoUrl,
@@ -229,6 +229,8 @@ export const videosRouter = router({
       .input(
         z.object({
           name: z.string().min(1),
+          fileSize: z.number().positive(),
+          mimeType: z.string().optional(),
           isProtected: z.boolean().default(false),
           maxDurationSeconds: z.number().optional(),
         })
@@ -242,8 +244,10 @@ export const videosRouter = router({
           });
         }
 
-        const result = await createDirectUploadUrl({
+        const result = await createTusDirectUploadUrl({
           name: input.name,
+          fileSize: input.fileSize,
+          fileType: input.mimeType,
           requireSignedURLs: input.isProtected,
           maxDurationSeconds: input.maxDurationSeconds,
         });

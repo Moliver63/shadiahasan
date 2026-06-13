@@ -13,15 +13,18 @@ import {
 import { createCheckoutSession, createCustomerPortalSession, isStripeConfigured } from "../stripe";
 import { getStripePriceId, isPlanStripeConfigured } from "../../shared/stripe-config";
 
+function ensureAdminAccess(role?: string) {
+  if (role !== "admin" && role !== "superadmin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+  }
+}
+
 export const subscriptionsRouter = router({
   /**
-   * Get all subscriptions (admin only)
+   * Get all users with their subscription state (admin only)
    */
   getAll: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
-    }
-
+    ensureAdminAccess(ctx.user.role);
     return await getAllSubscriptions();
   }),
 
@@ -31,8 +34,7 @@ export const subscriptionsRouter = router({
   getByUserId: protectedProcedure
     .input(z.object({ userId: z.number() }))
     .query(async ({ input, ctx }) => {
-      // Admin can view any subscription, users can only view their own
-      if (ctx.user.role !== "admin" && ctx.user.id !== input.userId) {
+      if (ctx.user.role !== "admin" && ctx.user.role !== "superadmin" && ctx.user.id !== input.userId) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
 
@@ -57,9 +59,7 @@ export const subscriptionsRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
-      }
+      ensureAdminAccess(ctx.user.role);
 
       const result = await upsertSubscription({
         ...input,
@@ -81,10 +81,7 @@ export const subscriptionsRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
-      }
-
+      ensureAdminAccess(ctx.user.role);
       return await updateSubscriptionStatus(input.subscriptionId, input.status);
     }),
 
@@ -94,8 +91,7 @@ export const subscriptionsRouter = router({
   getPaymentHistory: protectedProcedure
     .input(z.object({ userId: z.number() }))
     .query(async ({ input, ctx }) => {
-      // Admin can view any payment history, users can only view their own
-      if (ctx.user.role !== "admin" && ctx.user.id !== input.userId) {
+      if (ctx.user.role !== "admin" && ctx.user.role !== "superadmin" && ctx.user.id !== input.userId) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
 
@@ -106,10 +102,7 @@ export const subscriptionsRouter = router({
    * Get all payment history (admin only)
    */
   getAllPaymentHistory: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
-    }
-
+    ensureAdminAccess(ctx.user.role);
     return await getAllPaymentHistory();
   }),
 
@@ -131,10 +124,7 @@ export const subscriptionsRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
-      }
-
+      ensureAdminAccess(ctx.user.role);
       return await createPaymentRecord(input);
     }),
 
@@ -156,7 +146,7 @@ export const subscriptionsRouter = router({
       }
 
       const priceId = getStripePriceId(input.planSlug);
-      
+
       if (!priceId || !isPlanStripeConfigured(input.planSlug)) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
@@ -164,8 +154,8 @@ export const subscriptionsRouter = router({
         });
       }
 
-      const origin = ctx.req.headers.origin || 'https://shadia-vr-platform.manus.space';
-      
+      const origin = ctx.req.headers.origin || "https://shadia-vr-platform.manus.space";
+
       const session = await createCheckoutSession({
         priceId,
         userId: ctx.user.id,
@@ -195,9 +185,8 @@ export const subscriptionsRouter = router({
       });
     }
 
-    // Get user's subscription to find Stripe customer ID
     const subscription = await getSubscriptionByUserId(ctx.user.id);
-    
+
     if (!subscription?.stripeCustomerId) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -205,7 +194,7 @@ export const subscriptionsRouter = router({
       });
     }
 
-    const origin = ctx.req.headers.origin || 'https://shadia-vr-platform.manus.space';
+    const origin = ctx.req.headers.origin || "https://shadia-vr-platform.manus.space";
     const portalUrl = await createCustomerPortalSession(
       subscription.stripeCustomerId,
       `${origin}/dashboard`

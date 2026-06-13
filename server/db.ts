@@ -1871,9 +1871,9 @@ export async function getAllSubscriptions() {
         email: users.email,
       },
     })
-    .from(subscriptions)
-    .leftJoin(users, eq(subscriptions.userId, users.id))
-    .orderBy(desc(subscriptions.createdAt));
+    .from(users)
+    .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
+    .orderBy(desc(users.createdAt));
 
   return result;
 }
@@ -1888,7 +1888,9 @@ export async function getSubscriptionByUserId(userId: number) {
   const [subscription] = await db
     .select()
     .from(subscriptions)
-    .where(eq(subscriptions.userId, userId));
+    .where(eq(subscriptions.userId, userId))
+    .orderBy(desc(subscriptions.createdAt))
+    .limit(1);
 
   return subscription || null;
 }

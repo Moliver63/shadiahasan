@@ -1,7 +1,8 @@
 # Shadia Hasan — Memória do Sistema (Manutenção)
 
 > Documento de referência para manutenções futuras (humanas ou IA).  
-> Última atualização: 2026-06-13.
+> Última atualização: 2026-06-13.  
+> Arquivo canônico atual: `docs/memoria-do-sistema/memory_system.md`.
 
 -----
 

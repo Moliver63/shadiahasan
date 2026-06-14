@@ -869,6 +869,64 @@ export const appRouter = router({
       }),
   }),
 
+  testimonials: router({
+    listApproved: publicProcedure.query(async () => {
+      return await db.getApprovedTestimonials();
+    }),
+
+    listMine: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getUserTestimonials(ctx.user.id);
+    }),
+
+    create: protectedProcedure
+      .input(z.object({
+        courseId: z.number(),
+        text: z.string().min(20).max(1200),
+        consentPublicDisplay: z.boolean(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const enrollment = await db.getEnrollmentByCourseAndUser(input.courseId, ctx.user.id);
+        if (!enrollment) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Somente alunos matriculados podem enviar depoimentos.' });
+        }
+
+        if (!input.consentPublicDisplay) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'É necessário autorizar a publicação do depoimento.' });
+        }
+
+        const existing = await db.getTestimonialByUserAndCourse(ctx.user.id, input.courseId);
+        if (existing) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Você já enviou um depoimento para este curso.' });
+        }
+
+        await db.createTestimonial({
+          userId: ctx.user.id,
+          courseId: input.courseId,
+          displayName: ctx.user.name || 'Aluno(a)',
+          text: input.text.trim(),
+          status: 'pending',
+          consentPublicDisplay: 1,
+        });
+
+        return { success: true };
+      }),
+
+    adminList: adminProcedure.query(async () => {
+      return await db.getAllTestimonialsAdmin();
+    }),
+
+    adminUpdateStatus: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['approved', 'rejected']),
+        rejectedReason: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await db.updateTestimonialStatus(input.id, input.status, ctx.user.id, input.rejectedReason);
+        return { success: true };
+      }),
+  }),
+
   ebooks: router({
     list: publicProcedure.query(async () => {
       return await db.getAllEbooks();

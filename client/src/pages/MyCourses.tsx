@@ -1,16 +1,32 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, PlayCircle, TrendingUp } from "lucide-react";
+import { BookOpen, MessageSquareQuote, PlayCircle, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
 import PublicHeader from "@/components/PublicHeader";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 export default function MyCourses() {
   const { user, isAuthenticated, loading } = useAuth();
+  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+  const [testimonialText, setTestimonialText] = useState("");
+  const [testimonialConsent, setTestimonialConsent] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { data: enrollments, isLoading } =
     trpc.enrollments.myEnrollments.useQuery(undefined, {
       enabled: isAuthenticated,
@@ -22,9 +38,30 @@ export default function MyCourses() {
     { ids: courseIds },
     { enabled: courseIds.length > 0 }
   );
+  const { data: myTestimonials } = trpc.testimonials.listMine.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+  const utils = trpc.useUtils();
+  const createTestimonial = trpc.testimonials.create.useMutation({
+    onSuccess: () => {
+      toast.success("Depoimento enviado para aprovação do admin.");
+      utils.testimonials.listMine.invalidate();
+      setDialogOpen(false);
+      setSelectedCourseId(null);
+      setTestimonialText("");
+      setTestimonialConsent(false);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   // Monta mapa id -> curso para acesso rápido
   const courseMap = new Map(coursesData?.map((c) => [c.id, c]) ?? []);
+  const testimonialMap = useMemo(
+    () => new Map((myTestimonials ?? []).map((item) => [item.courseId, item])),
+    [myTestimonials]
+  );
 
   // Aguarda estado de autenticação ser resolvido antes de redirecionar
   if (loading) {
@@ -42,6 +79,24 @@ export default function MyCourses() {
     window.location.href = getLoginUrl();
     return null;
   }
+
+  const selectedCourse = selectedCourseId ? courseMap.get(selectedCourseId) : undefined;
+
+  const openTestimonialDialog = (courseId: number) => {
+    setSelectedCourseId(courseId);
+    setTestimonialText("");
+    setTestimonialConsent(false);
+    setDialogOpen(true);
+  };
+
+  const handleSubmitTestimonial = () => {
+    if (!selectedCourseId) return;
+    createTestimonial.mutate({
+      courseId: selectedCourseId,
+      text: testimonialText,
+      consentPublicDisplay: testimonialConsent,
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -127,12 +182,37 @@ export default function MyCourses() {
                       </div>
                     </div>
 
-                    <Link href={`/courses/${course.slug}`}>
-                      <Button className="w-full">
-                        <PlayCircle className="h-4 w-4 mr-2" />
-                        Continuar Aprendendo
-                      </Button>
-                    </Link>
+                    <div className="grid gap-2">
+                      <Link href={`/courses/${course.slug}`}>
+                        <Button className="w-full">
+                          <PlayCircle className="h-4 w-4 mr-2" />
+                          Continuar Aprendendo
+                        </Button>
+                      </Link>
+                      {(() => {
+                        const testimonial = testimonialMap.get(course.id);
+                        return testimonial ? (
+                          <Button variant="outline" className="w-full" disabled>
+                            <MessageSquareQuote className="mr-2 h-4 w-4" />
+                            {testimonial.status === "approved"
+                              ? "Depoimento aprovado"
+                              : testimonial.status === "rejected"
+                                ? "Depoimento rejeitado"
+                                : "Depoimento em análise"}
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => openTestimonialDialog(course.id)}
+                          >
+                            <MessageSquareQuote className="mr-2 h-4 w-4" />
+                            Enviar depoimento
+                          </Button>
+                        );
+                      })()}
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -155,6 +235,59 @@ export default function MyCourses() {
           </Card>
         )}
       </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Enviar depoimento</DialogTitle>
+            <DialogDescription>
+              Seu relato será enviado para revisão e só poderá ser publicado após aprovação do admin.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Curso: {selectedCourse?.title ?? "-"}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="testimonial-text">Seu depoimento</Label>
+              <Textarea
+                id="testimonial-text"
+                value={testimonialText}
+                onChange={(e) => setTestimonialText(e.target.value)}
+                placeholder="Escreva um relato real sobre sua experiência com o curso."
+                rows={6}
+              />
+            </div>
+            <label className="flex items-start gap-3 rounded-lg border p-3 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={testimonialConsent}
+                onChange={(e) => setTestimonialConsent(e.target.checked)}
+              />
+              <span>
+                Autorizo a publicação do meu depoimento no site, sujeito à aprovação administrativa.
+              </span>
+            </label>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSubmitTestimonial}
+              disabled={createTestimonial.isPending || testimonialText.trim().length < 20 || !testimonialConsent}
+            >
+              {createTestimonial.isPending ? "Enviando..." : "Enviar para aprovação"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Footer */}
       <footer className="border-t bg-card mt-12">

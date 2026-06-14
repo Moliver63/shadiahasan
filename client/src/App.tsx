@@ -16,6 +16,7 @@ import AdminFinanceiro from "./pages/AdminFinanceiro";
 import AdminPrograms from "./pages/AdminPrograms";
 import AdminCourses from "./pages/AdminCourses";
 import AdminPlans from "./pages/AdminPlans";
+import AdminTestimonials from "./pages/AdminTestimonials";
 import AdminCourseLessons from "./pages/AdminCourseLessons";
 import AdminSettings from "./pages/AdminSettings";
 import AdminLessons from "./pages/AdminLessons";
@@ -103,6 +104,7 @@ function Router() {
       <ProtectedRoute path={"/admin/programs"} component={AdminPrograms} requireAdmin />
       <ProtectedRoute path={"/admin/courses"} component={AdminCourses} requireAdmin />
       <ProtectedRoute path={"/admin/plans"} component={AdminPlans} requireAdmin />
+      <ProtectedRoute path={"/admin/testimonials"} component={AdminTestimonials} requireAdmin />
       <ProtectedRoute path={"/admin/courses/:id/lessons"} component={AdminCourseLessons} requireAdmin />
       <ProtectedRoute path={"/admin/settings"} component={AdminSettings} requireAdmin />
       <ProtectedRoute path={"/admin/lessons"} component={AdminLessons} requireAdmin />

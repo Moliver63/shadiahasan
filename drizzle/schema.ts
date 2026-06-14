@@ -22,6 +22,7 @@ export const connectionRequestStatusEnum = pgEnum("connection_request_status", [
 export const reportStatusEnum = pgEnum("report_status", ["pending", "reviewed", "resolved", "dismissed"]);
 export const notificationTypeEnum = pgEnum("notification_type", ["info", "success", "warning", "error", "appointment"]);
 export const coursePurchaseStatusEnum = pgEnum("course_purchase_status", ["pending", "completed", "failed", "refunded"]);
+export const testimonialStatusEnum = pgEnum("testimonial_status", ["pending", "approved", "rejected"]);
 
 // ============ TABLES ============
 
@@ -205,6 +206,27 @@ export const courseReviews = pgTable("course_reviews", {
 
 export type CourseReview = typeof courseReviews.$inferSelect;
 export type InsertCourseReview = typeof courseReviews.$inferInsert;
+
+/**
+ * Testimonials
+ */
+export const testimonials = pgTable("testimonials", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  courseId: integer("courseId").notNull(),
+  displayName: varchar("displayName", { length: 255 }).notNull(),
+  text: text("text").notNull(),
+  status: testimonialStatusEnum("status").default("pending").notNull(),
+  consentPublicDisplay: integer("consentPublicDisplay").default(0).notNull(),
+  approvedBy: integer("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  rejectedReason: text("rejectedReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type Testimonial = typeof testimonials.$inferSelect;
+export type InsertTestimonial = typeof testimonials.$inferInsert;
 
 /**
  * Ebooks

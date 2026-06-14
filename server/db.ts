@@ -383,7 +383,7 @@ export async function getUserSubscriptionByStripeId(stripeSubscriptionId: string
 
 // ============ COURSE REVIEWS ============
 
-import { courseReviews, CourseReview, InsertCourseReview } from "../drizzle/schema";
+import { courseReviews, testimonials, CourseReview, InsertCourseReview, InsertTestimonial } from "../drizzle/schema";
 
 export async function getReviewsByCourseId(courseId: number) {
   const db = await getDb();
@@ -424,6 +424,111 @@ export async function getUserReviewForCourse(courseId: number, userId: number) {
     .where(and(eq(courseReviews.courseId, courseId), eq(courseReviews.userId, userId)))
     .limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+// ============ TESTIMONIALS ============
+
+export async function getApprovedTestimonials() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select({
+      id: testimonials.id,
+      courseId: testimonials.courseId,
+      displayName: testimonials.displayName,
+      text: testimonials.text,
+      createdAt: testimonials.createdAt,
+      courseTitle: courses.title,
+    })
+    .from(testimonials)
+    .innerJoin(courses, eq(testimonials.courseId, courses.id))
+    .where(and(eq(testimonials.status, "approved"), eq(testimonials.consentPublicDisplay, 1)))
+    .orderBy(desc(testimonials.approvedAt), desc(testimonials.createdAt));
+}
+
+export async function getUserTestimonials(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select({
+      id: testimonials.id,
+      courseId: testimonials.courseId,
+      displayName: testimonials.displayName,
+      text: testimonials.text,
+      status: testimonials.status,
+      rejectedReason: testimonials.rejectedReason,
+      createdAt: testimonials.createdAt,
+      courseTitle: courses.title,
+    })
+    .from(testimonials)
+    .innerJoin(courses, eq(testimonials.courseId, courses.id))
+    .where(eq(testimonials.userId, userId))
+    .orderBy(desc(testimonials.createdAt));
+}
+
+export async function getTestimonialByUserAndCourse(userId: number, courseId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(testimonials)
+    .where(and(eq(testimonials.userId, userId), eq(testimonials.courseId, courseId)))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createTestimonial(testimonial: InsertTestimonial) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(testimonials).values(testimonial);
+}
+
+export async function getAllTestimonialsAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select({
+      id: testimonials.id,
+      userId: testimonials.userId,
+      courseId: testimonials.courseId,
+      displayName: testimonials.displayName,
+      text: testimonials.text,
+      status: testimonials.status,
+      consentPublicDisplay: testimonials.consentPublicDisplay,
+      approvedBy: testimonials.approvedBy,
+      approvedAt: testimonials.approvedAt,
+      rejectedReason: testimonials.rejectedReason,
+      createdAt: testimonials.createdAt,
+      updatedAt: testimonials.updatedAt,
+      courseTitle: courses.title,
+      userEmail: users.email,
+    })
+    .from(testimonials)
+    .innerJoin(courses, eq(testimonials.courseId, courses.id))
+    .innerJoin(users, eq(testimonials.userId, users.id))
+    .orderBy(desc(testimonials.createdAt));
+}
+
+export async function updateTestimonialStatus(
+  id: number,
+  status: "approved" | "rejected",
+  adminUserId: number,
+  rejectedReason?: string,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(testimonials).set({
+    status,
+    approvedBy: status === "approved" ? adminUserId : null,
+    approvedAt: status === "approved" ? new Date() : null,
+    rejectedReason: status === "rejected" ? rejectedReason || null : null,
+    updatedAt: new Date(),
+  }).where(eq(testimonials.id, id));
 }
 
 // ============ EBOOKS ============

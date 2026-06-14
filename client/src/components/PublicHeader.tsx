@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import UserMenu from "@/components/UserMenu";
+import InstallAppButton from "@/components/InstallAppButton";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -96,6 +97,7 @@ export default function PublicHeader({
 
         <nav className="hidden items-center gap-2 lg:flex xl:gap-3">
           {visibleItems.map((item) => renderNavButton(item))}
+          <InstallAppButton />
 
           {isAuthenticated ? (
             <>
@@ -140,6 +142,7 @@ export default function PublicHeader({
 
               <div className="flex flex-col gap-2 px-1 pb-6">
                 {visibleItems.map((item) => renderNavButton(item, true))}
+                <InstallAppButton mobile />
 
                 {isAuthenticated && user?.role === "admin" && (
                   <Button asChild variant="outline" size="lg" className="justify-start">

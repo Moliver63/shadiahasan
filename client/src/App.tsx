@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import InstallAppButton from "./components/InstallAppButton";
 import { ShadiaAssistantChat } from "./components/ShadiaAssistantChat";
 import CookieConsent from "./components/CookieConsent";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -157,6 +158,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          <InstallAppButton mode="floating" />
           <ShadiaAssistantChat />
           <CookieConsent />
         </TooltipProvider>

@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Download, Share2 } from "lucide-react";
+import { Download, Share2, X } from "lucide-react";
 import { toast } from "sonner";
 
 type BeforeInstallPromptEvent = Event & {
@@ -33,6 +33,7 @@ declare global {
 type InstallAppButtonProps = {
   className?: string;
   mobile?: boolean;
+  mode?: "inline" | "floating";
 };
 
 function isStandaloneMode() {
@@ -64,19 +65,27 @@ function detectPlatform() {
   return { isIOS, isAndroid, isSafari, isMobile };
 }
 
-export default function InstallAppButton({ className, mobile = false }: InstallAppButtonProps) {
+export default function InstallAppButton({
+  className,
+  mobile = false,
+  mode = "inline",
+}: InstallAppButtonProps) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
 
   const platform = useMemo(() => detectPlatform(), []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    const dismissed = window.sessionStorage.getItem("shadia-install-cta-dismissed") === "true";
+
     setIsReady(true);
     setIsStandalone(isStandaloneMode());
+    setIsDismissed(dismissed);
 
     const handleBeforeInstallPrompt = (event: BeforeInstallPromptEvent) => {
       event.preventDefault();
@@ -87,6 +96,7 @@ export default function InstallAppButton({ className, mobile = false }: InstallA
       setDeferredPrompt(null);
       setIsStandalone(true);
       setDialogOpen(false);
+      window.sessionStorage.removeItem("shadia-install-cta-dismissed");
       toast.success("App instalado com sucesso.");
     };
 
@@ -139,7 +149,14 @@ export default function InstallAppButton({ className, mobile = false }: InstallA
     );
   };
 
-  if (!isReady || isStandalone) {
+  const dismissFloatingCta = () => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("shadia-install-cta-dismissed", "true");
+    }
+    setIsDismissed(true);
+  };
+
+  if (!isReady || isStandalone || (mode === "floating" && isDismissed)) {
     return null;
   }
 
@@ -157,9 +174,47 @@ export default function InstallAppButton({ className, mobile = false }: InstallA
     </Button>
   );
 
+  const floatingButton = (
+    <div
+      className={cn(
+        "fixed inset-x-3 bottom-4 z-50 sm:inset-x-auto sm:right-4 sm:bottom-4",
+        className,
+      )}
+    >
+      <div className="mx-auto flex max-w-md items-center gap-3 rounded-2xl border bg-background/95 p-3 shadow-2xl backdrop-blur sm:max-w-sm">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Download className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">Instale o app</p>
+            <p className="text-xs text-muted-foreground">
+              Acesso rápido na tela inicial do celular ou computador.
+            </p>
+          </div>
+        </div>
+
+        <Button type="button" onClick={handleInstallClick} size="sm" className="shrink-0">
+          Instalar
+        </Button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0"
+          aria-label="Fechar sugestão de instalação"
+          onClick={dismissFloatingCta}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <>
-      {button}
+      {mode === "floating" ? floatingButton : button}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">

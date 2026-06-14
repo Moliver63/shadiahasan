@@ -1,6 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Volume2, VolumeX, Maximize, Minimize } from "lucide-react";
+import {
+  Languages,
+  Maximize,
+  Minimize,
+  Pause,
+  Play,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { Button } from "./ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import { Slider } from "./ui/slider";
 
 interface VideoPlayerProps {
@@ -9,6 +24,12 @@ interface VideoPlayerProps {
   onProgress?: (progress: number) => void;
   onComplete?: () => void;
 }
+
+type AudioTrackOption = {
+  id: number;
+  label: string;
+  language: string;
+};
 
 // Detecta se a URL é do YouTube e retorna o ID do vídeo
 function getYouTubeId(url: string): string | null {
@@ -26,6 +47,9 @@ export default function VideoPlayer({
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hlsRef = useRef<any>(null);
+  const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(100);
@@ -33,29 +57,105 @@ export default function VideoPlayer({
   const [duration, setDuration] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [audioTracks, setAudioTracks] = useState<AudioTrackOption[]>([]);
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState("0");
 
   const youtubeId = getYouTubeId(src);
 
   useEffect(() => {
-    // Se for YouTube, não usa o player nativo
+    if (youtubeId) return;
+
+    const handleFullscreenChange = () => {
+      const doc = document as Document & { webkitFullscreenElement?: Element };
+      setIsFullscreen(Boolean(document.fullscreenElement || doc.webkitFullscreenElement));
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener(
+      "webkitfullscreenchange",
+      handleFullscreenChange as EventListener
+    );
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        handleFullscreenChange as EventListener
+      );
+    };
+  }, [youtubeId]);
+
+  useEffect(() => {
     if (youtubeId) return;
 
     const video = videoRef.current;
     if (!video) return;
 
-    // Load HLS if needed
+    hlsRef.current?.destroy?.();
+    hlsRef.current = null;
+    setAudioTracks([]);
+    setSelectedAudioTrack("0");
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+    setShowControls(true);
+
+    const syncNativeAudioTracks = () => {
+      const nativeTracks = Array.from(
+        ((video as HTMLVideoElement & { audioTracks?: ArrayLike<any> }).audioTracks || []) as ArrayLike<any>
+      ).map((track: any, index) => ({
+        id: index,
+        label: track.label || track.language || `Áudio ${index + 1}`,
+        language: track.language || "",
+      }));
+
+      if (nativeTracks.length > 1) {
+        setAudioTracks(nativeTracks);
+        const enabledIndex = nativeTracks.findIndex((_, index) =>
+          Boolean(
+            (video as HTMLVideoElement & { audioTracks?: ArrayLike<any> }).audioTracks?.[index]?.enabled
+          )
+        );
+        setSelectedAudioTrack(String(enabledIndex >= 0 ? enabledIndex : 0));
+      }
+    };
+
     if (src.includes(".m3u8")) {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
       } else {
-        import("hls.js").then((module) => {
+        void import("hls.js").then((module) => {
           const Hls = module.default;
-          if (Hls.isSupported()) {
-            const hls = new Hls();
-            hls.loadSource(src);
-            hls.attachMedia(video);
-          }
+          if (!Hls.isSupported()) return;
+
+          const hls = new Hls();
+          hlsRef.current = hls;
+          hls.loadSource(src);
+          hls.attachMedia(video);
+
+          const extractTracks = (tracksSource: any[]) =>
+            (tracksSource || []).map((track: any, index: number) => ({
+              id: index,
+              label: track.name || track.label || track.lang || `Áudio ${index + 1}`,
+              language: track.lang || track.language || "",
+            }));
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            const tracks = extractTracks(hls.audioTracks || []);
+            setAudioTracks(tracks.length > 1 ? tracks : []);
+            if (tracks.length > 1) {
+              setSelectedAudioTrack(String(hls.audioTrack >= 0 ? hls.audioTrack : 0));
+            }
+          });
+
+          hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_event: unknown, data: any) => {
+            const tracks = extractTracks(data.audioTracks || []);
+            setAudioTracks(tracks.length > 1 ? tracks : []);
+          });
+
+          hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event: unknown, data: any) => {
+            setSelectedAudioTrack(String(data.id ?? 0));
+          });
         });
       }
     } else {
@@ -64,15 +164,19 @@ export default function VideoPlayer({
 
     const handleTimeUpdate = () => {
       setCurrentTime(video.currentTime);
-      if (onProgress && duration > 0) {
-        const progress = (video.currentTime / duration) * 100;
+      if (onProgress && video.duration > 0) {
+        const progress = (video.currentTime / video.duration) * 100;
         onProgress(progress);
       }
     };
 
     const handleLoadedMetadata = () => {
-      setDuration(video.duration);
+      setDuration(video.duration || 0);
+      syncNativeAudioTracks();
     };
+
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
 
     const handleEnded = () => {
       setIsPlaying(false);
@@ -83,24 +187,33 @@ export default function VideoPlayer({
 
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("play", handlePlay);
+    video.addEventListener("pause", handlePause);
     video.addEventListener("ended", handleEnded);
 
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("play", handlePlay);
+      video.removeEventListener("pause", handlePause);
       video.removeEventListener("ended", handleEnded);
+      hlsRef.current?.destroy?.();
+      hlsRef.current = null;
+      if (hideControlsTimeout.current) {
+        clearTimeout(hideControlsTimeout.current);
+      }
     };
-  }, [src, duration, onProgress, onComplete, youtubeId]);
+  }, [src, onProgress, onComplete, youtubeId]);
 
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
+
     if (isPlaying) {
       video.pause();
     } else {
-      video.play();
+      void video.play();
     }
-    setIsPlaying(!isPlaying);
   };
 
   const toggleMute = () => {
@@ -115,6 +228,7 @@ export default function VideoPlayer({
     if (!video) return;
     const newVolume = value[0] || 0;
     video.volume = newVolume / 100;
+    video.muted = newVolume === 0;
     setVolume(newVolume);
     setIsMuted(newVolume === 0);
   };
@@ -122,24 +236,62 @@ export default function VideoPlayer({
   const handleSeek = (value: number[]) => {
     const video = videoRef.current;
     if (!video || !duration) return;
-    const newTime = (value[0] || 0) / 100 * duration;
+    const newTime = ((value[0] || 0) / 100) * duration;
     video.currentTime = newTime;
     setCurrentTime(newTime);
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     const container = containerRef.current;
+    const video = videoRef.current;
     if (!container) return;
+
+    const containerWithWebkit = container as HTMLDivElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const videoWithWebkit = video as HTMLVideoElement & {
+      webkitEnterFullscreen?: () => void;
+    };
+    const documentWithWebkit = document as Document & {
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+
     if (!isFullscreen) {
       if (container.requestFullscreen) {
-        container.requestFullscreen();
+        await container.requestFullscreen();
+      } else if (containerWithWebkit.webkitRequestFullscreen) {
+        await containerWithWebkit.webkitRequestFullscreen();
+      } else if (videoWithWebkit?.webkitEnterFullscreen) {
+        videoWithWebkit.webkitEnterFullscreen();
       }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
+      return;
     }
-    setIsFullscreen(!isFullscreen);
+
+    if (document.exitFullscreen) {
+      await document.exitFullscreen();
+    } else if (documentWithWebkit.webkitExitFullscreen) {
+      await documentWithWebkit.webkitExitFullscreen();
+    }
+  };
+
+  const handleAudioTrackChange = (value: string) => {
+    const trackIndex = Number(value);
+    setSelectedAudioTrack(value);
+
+    if (Number.isNaN(trackIndex)) return;
+
+    if (hlsRef.current) {
+      hlsRef.current.audioTrack = trackIndex;
+      return;
+    }
+
+    const video = videoRef.current as HTMLVideoElement & { audioTracks?: ArrayLike<any> };
+    const nativeTracks = video?.audioTracks;
+    if (!nativeTracks) return;
+
+    Array.from(nativeTracks as ArrayLike<any>).forEach((track: any, index) => {
+      track.enabled = index === trackIndex;
+    });
   };
 
   const formatTime = (seconds: number) => {
@@ -184,14 +336,15 @@ export default function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      className="relative w-full bg-black rounded-lg overflow-hidden group"
+      className="relative w-full overflow-hidden rounded-lg bg-black group"
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
       <video
         ref={videoRef}
-        className="w-full aspect-video"
+        className="aspect-video w-full"
         onClick={togglePlay}
+        onDoubleClick={() => void toggleFullscreen()}
         playsInline
       />
 
@@ -201,8 +354,8 @@ export default function VideoPlayer({
         }`}
       >
         {title && (
-          <div className="absolute top-0 left-0 right-0 p-4">
-            <h3 className="text-white font-semibold">{title}</h3>
+          <div className="absolute left-0 right-0 top-0 p-4">
+            <h3 className="font-semibold text-white">{title}</h3>
           </div>
         )}
 
@@ -219,7 +372,28 @@ export default function VideoPlayer({
           </div>
         )}
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
+        <div className="absolute bottom-0 left-0 right-0 space-y-2 p-4">
+          {audioTracks.length > 1 && (
+            <div className="flex justify-end">
+              <div className="flex items-center gap-2 rounded-md bg-black/45 px-2 py-1.5 backdrop-blur-sm">
+                <Languages className="h-4 w-4 text-white" />
+                <Select value={selectedAudioTrack} onValueChange={handleAudioTrackChange}>
+                  <SelectTrigger className="h-8 min-w-[160px] border-white/20 bg-transparent px-2 text-xs text-white focus:ring-white/30">
+                    <SelectValue placeholder="Áudio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {audioTracks.map((track) => (
+                      <SelectItem key={track.id} value={String(track.id)}>
+                        {track.label}
+                        {track.language ? ` (${track.language})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
           <Slider
             value={[duration > 0 ? (currentTime / duration) * 100 : 0]}
             onValueChange={handleSeek}
@@ -228,8 +402,8 @@ export default function VideoPlayer({
             className="cursor-pointer"
           />
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Button
                 size="sm"
                 variant="ghost"
@@ -264,7 +438,7 @@ export default function VideoPlayer({
                 />
               </div>
 
-              <span className="text-white text-sm ml-2">
+              <span className="ml-2 text-sm text-white">
                 {formatTime(currentTime)} / {formatTime(duration)}
               </span>
             </div>
@@ -273,7 +447,9 @@ export default function VideoPlayer({
               size="sm"
               variant="ghost"
               className="text-white hover:bg-white/20"
-              onClick={toggleFullscreen}
+              onClick={() => void toggleFullscreen()}
+              aria-label={isFullscreen ? "Sair da tela cheia" : "Entrar em tela cheia"}
+              title={isFullscreen ? "Sair da tela cheia" : "Entrar em tela cheia"}
             >
               {isFullscreen ? (
                 <Minimize className="h-5 w-5" />

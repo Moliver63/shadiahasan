@@ -109,6 +109,13 @@ export interface CFVideoDetails {
   readyToStream: boolean;
 }
 
+export interface CFAudioTrack {
+  uid: string;
+  label: string;
+  default: boolean;
+  status: "queued" | "ready" | "error" | string;
+}
+
 export async function getVideoDetails(uid: string): Promise<CFVideoDetails> {
   const { accountId, apiToken } = getCFConfig();
 
@@ -123,6 +130,94 @@ export async function getVideoDetails(uid: string): Promise<CFVideoDetails> {
   }
 
   return data.result as CFVideoDetails;
+}
+
+// ─── Faixas de áudio adicionais (dublagem) ───────────────────────────────────
+
+export async function listAudioTracks(videoUid: string): Promise<CFAudioTrack[]> {
+  const { accountId, apiToken } = getCFConfig();
+
+  const res = await fetch(
+    `${CF_BASE}/accounts/${accountId}/stream/${videoUid}/audio`,
+    { headers: cfHeaders(apiToken) }
+  );
+
+  const data = (await res.json()) as any;
+  if (!data.success) {
+    throw new Error(`Cloudflare Stream erro: ${JSON.stringify(data.errors)}`);
+  }
+
+  return (data.result?.audio || []) as CFAudioTrack[];
+}
+
+export async function addAudioTrackByUrl(
+  videoUid: string,
+  input: { url: string; label: string; default?: boolean }
+): Promise<CFAudioTrack> {
+  const { accountId, apiToken } = getCFConfig();
+
+  const res = await fetch(
+    `${CF_BASE}/accounts/${accountId}/stream/${videoUid}/audio/copy`,
+    {
+      method: "POST",
+      headers: cfHeaders(apiToken),
+      body: JSON.stringify({ url: input.url, label: input.label }),
+    }
+  );
+
+  const data = (await res.json()) as any;
+  if (!data.success) {
+    throw new Error(`Cloudflare Stream erro: ${JSON.stringify(data.errors)}`);
+  }
+
+  const track = data.result as CFAudioTrack;
+
+  if (input.default && track?.uid) {
+    return await updateAudioTrack(videoUid, track.uid, { default: true });
+  }
+
+  return track;
+}
+
+export async function updateAudioTrack(
+  videoUid: string,
+  audioUid: string,
+  input: { label?: string; default?: boolean }
+): Promise<CFAudioTrack> {
+  const { accountId, apiToken } = getCFConfig();
+
+  const res = await fetch(
+    `${CF_BASE}/accounts/${accountId}/stream/${videoUid}/audio/${audioUid}`,
+    {
+      method: "PATCH",
+      headers: cfHeaders(apiToken),
+      body: JSON.stringify(input),
+    }
+  );
+
+  const data = (await res.json()) as any;
+  if (!data.success) {
+    throw new Error(`Cloudflare Stream erro: ${JSON.stringify(data.errors)}`);
+  }
+
+  return data.result as CFAudioTrack;
+}
+
+export async function deleteAudioTrack(videoUid: string, audioUid: string): Promise<void> {
+  const { accountId, apiToken } = getCFConfig();
+
+  const res = await fetch(
+    `${CF_BASE}/accounts/${accountId}/stream/${videoUid}/audio/${audioUid}`,
+    {
+      method: "DELETE",
+      headers: cfHeaders(apiToken),
+    }
+  );
+
+  const data = (await res.json()) as any;
+  if (!data.success) {
+    throw new Error(`Cloudflare Stream erro: ${JSON.stringify(data.errors)}`);
+  }
 }
 
 // ─── Listar vídeos ───────────────────────────────────────────────────────────

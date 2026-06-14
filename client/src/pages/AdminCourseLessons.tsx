@@ -11,6 +11,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +27,7 @@ import { formatDuration } from "@/lib/formatDuration";
 import {
   Plus, Edit, Trash2, ArrowLeft, Eye, EyeOff,
   PlayCircle, Upload, Youtube, Cloud, Lock, Unlock,
-  CheckCircle2, AlertCircle, Loader2, RotateCw,
+  CheckCircle2, AlertCircle, Loader2, RotateCw, Languages, Star,
 } from "lucide-react";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
@@ -44,12 +51,36 @@ interface FormData {
   isAccessRestricted: number;
 }
 
+interface AudioTrackItem {
+  uid: string;
+  label: string;
+  isDefault: boolean;
+  status: string;
+}
+
+interface DubbingFormData {
+  languageCode: string;
+  label: string;
+  audioUrl: string;
+  makeDefault: boolean;
+}
+
 type UploadState =
   | { status: "idle" }
   | { status: "uploading"; progress: number; fileName: string }
   | { status: "processing"; uid: string; fileName: string }
   | { status: "ready"; uid: string; fileName: string; duration: number }
   | { status: "error"; message: string };
+
+const DUBBING_LANGUAGE_OPTIONS = [
+  { value: "pt-BR", label: "Português (Brasil)" },
+  { value: "en", label: "English" },
+  { value: "es", label: "Español" },
+  { value: "fr", label: "Français" },
+  { value: "de", label: "Deutsch" },
+  { value: "it", label: "Italiano" },
+  { value: "ja", label: "日本語" },
+];
 
 function normalizeUploadError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error || "");
@@ -141,15 +172,53 @@ export default function AdminCourseLessons() {
   });
 
   const [formData, setFormData] = useState<FormData>(emptyForm());
+  const [dubbingForm, setDubbingForm] = useState<DubbingFormData>({
+    languageCode: "en",
+    label: "English",
+    audioUrl: "",
+    makeDefault: false,
+  });
 
   const utils = trpc.useUtils();
   const { data: course } = trpc.courses.getById.useQuery({ id: courseId });
   const { data: lessons, isLoading } = trpc.lessons.listByCourse.useQuery({ courseId });
   const { data: cfStatus } = trpc.videos.admin.cfStatus.useQuery();
+  const { data: audioTracks, isLoading: audioTracksLoading, refetch: refetchAudioTracks } =
+    trpc.videos.admin.listAudioTracks.useQuery(
+      { videoUid: formData.videoAssetId },
+      {
+        enabled:
+          dialogOpen &&
+          formData.videoProvider === "cloudflare" &&
+          Boolean(formData.videoAssetId),
+      }
+    );
 
   const createUploadUrlMutation = trpc.videos.admin.createUploadUrl.useMutation();
   const updateLessonVideoMutation = trpc.videos.admin.updateLessonVideo.useMutation();
   const checkUploadStatusMutation = trpc.videos.admin.checkUploadStatus.useMutation();
+  const addAudioTrackMutation = trpc.videos.admin.addAudioTrack.useMutation({
+    onSuccess: async () => {
+      toast.success("Faixa de dublagem adicionada com sucesso!");
+      setDubbingForm((prev) => ({ ...prev, audioUrl: "", makeDefault: false }));
+      await refetchAudioTracks();
+    },
+    onError: (e) => toast.error(`Erro ao adicionar dublagem: ${e.message}`),
+  });
+  const setDefaultAudioTrackMutation = trpc.videos.admin.setDefaultAudioTrack.useMutation({
+    onSuccess: async () => {
+      toast.success("Áudio padrão atualizado.");
+      await refetchAudioTracks();
+    },
+    onError: (e) => toast.error(`Erro ao definir áudio padrão: ${e.message}`),
+  });
+  const deleteAudioTrackMutation = trpc.videos.admin.deleteAudioTrack.useMutation({
+    onSuccess: async () => {
+      toast.success("Faixa de dublagem removida.");
+      await refetchAudioTracks();
+    },
+    onError: (e) => toast.error(`Erro ao remover dublagem: ${e.message}`),
+  });
 
   // Sincronização SILENCIOSA automática ao abrir a página — corrige
   // vídeos "pendentes" (videoAssetId preenchido, videoPlaybackUrl vazio)
@@ -417,6 +486,12 @@ export default function AdminCourseLessons() {
     setEditingLesson(null);
     const nextOrder = lessons ? lessons.length + 1 : 1;
     setFormData({ ...emptyForm(), order: nextOrder });
+    setDubbingForm({
+      languageCode: "en",
+      label: "English",
+      audioUrl: "",
+      makeDefault: false,
+    });
     setUploadState({ status: "idle" });
     setDialogOpen(true);
   };
@@ -434,6 +509,12 @@ export default function AdminCourseLessons() {
       isPublished: lesson.isPublished,
       isAccessRestricted: lesson.isAccessRestricted ?? 0,
     });
+    setDubbingForm({
+      languageCode: "en",
+      label: "English",
+      audioUrl: "",
+      makeDefault: false,
+    });
     setUploadState({ status: "idle" });
     setDialogOpen(true);
   };
@@ -441,11 +522,48 @@ export default function AdminCourseLessons() {
   const closeDialog = () => {
     setDialogOpen(false);
     setEditingLesson(null);
+    setDubbingForm({
+      languageCode: "en",
+      label: "English",
+      audioUrl: "",
+      makeDefault: false,
+    });
     setUploadState({ status: "idle" });
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
     }
+  };
+
+  const handleLanguageChange = (value: string) => {
+    const option = DUBBING_LANGUAGE_OPTIONS.find((item) => item.value === value);
+    setDubbingForm((prev) => ({
+      ...prev,
+      languageCode: value,
+      label:
+        !prev.label || DUBBING_LANGUAGE_OPTIONS.some((item) => item.label === prev.label)
+          ? option?.label || prev.label
+          : prev.label,
+    }));
+  };
+
+  const handleAddAudioTrack = () => {
+    if (!formData.videoAssetId) {
+      toast.error("Envie ou vincule um vídeo Cloudflare antes de adicionar dublagem.");
+      return;
+    }
+
+    if (!dubbingForm.label.trim() || !dubbingForm.audioUrl.trim()) {
+      toast.error("Informe o idioma e a URL pública do áudio dublado.");
+      return;
+    }
+
+    addAudioTrackMutation.mutate({
+      videoUid: formData.videoAssetId,
+      label: dubbingForm.label.trim(),
+      audioUrl: dubbingForm.audioUrl.trim(),
+      makeDefault: dubbingForm.makeDefault,
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -740,114 +858,296 @@ export default function AdminCourseLessons() {
 
               {/* ── Cloudflare: upload de arquivo ── */}
               {formData.videoProvider === "cloudflare" && (
-                <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
-                  <Label>Upload do vídeo</Label>
+                <>
+                  <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
+                    <Label>Upload do vídeo</Label>
 
-                  {/* Estado: idle ou erro */}
-                  {(uploadState.status === "idle" || uploadState.status === "error") && (
-                    <>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="video/*"
-                        className="hidden"
-                        onChange={handleFileSelect}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full h-20 border-dashed flex flex-col gap-1"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={!cfStatus?.configured}
-                      >
-                        <Upload className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-sm">
-                          {cfStatus?.configured
-                            ? "Clique para selecionar o vídeo"
-                            : "Configure o Cloudflare Stream primeiro"}
-                        </span>
-                        <span className="text-xs text-muted-foreground">MP4, MOV, AVI — até 10 GB</span>
-                      </Button>
-                      {uploadState.status === "error" && (
-                        <p className="text-sm text-destructive flex items-center gap-1">
-                          <AlertCircle className="h-4 w-4" />
-                          {uploadState.message}
-                        </p>
-                      )}
-                      {/* Se já tem UID salvo (edição) */}
-                      {formData.videoAssetId && uploadState.status === "idle" && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
-                          Vídeo atual: <code className="text-xs bg-muted px-1 rounded">{formData.videoAssetId}</code>
-                          <span className="text-xs">(enviar novo arquivo substitui)</span>
-                        </p>
-                      )}
-                    </>
-                  )}
+                    {/* Estado: idle ou erro */}
+                    {(uploadState.status === "idle" || uploadState.status === "error") && (
+                      <>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          onChange={handleFileSelect}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full h-20 border-dashed flex flex-col gap-1"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={!cfStatus?.configured}
+                        >
+                          <Upload className="h-5 w-5 text-muted-foreground" />
+                          <span className="text-sm">
+                            {cfStatus?.configured
+                              ? "Clique para selecionar o vídeo"
+                              : "Configure o Cloudflare Stream primeiro"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">MP4, MOV, AVI — até 10 GB</span>
+                        </Button>
+                        {uploadState.status === "error" && (
+                          <p className="text-sm text-destructive flex items-center gap-1">
+                            <AlertCircle className="h-4 w-4" />
+                            {uploadState.message}
+                          </p>
+                        )}
+                        {/* Se já tem UID salvo (edição) */}
+                        {formData.videoAssetId && uploadState.status === "idle" && (
+                          <p className="text-sm text-muted-foreground flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            Vídeo atual: <code className="text-xs bg-muted px-1 rounded">{formData.videoAssetId}</code>
+                            <span className="text-xs">(enviar novo arquivo substitui)</span>
+                          </p>
+                        )}
+                      </>
+                    )}
 
-                  {/* Estado: enviando */}
-                  {uploadState.status === "uploading" && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-2">
+                    {/* Estado: enviando */}
+                    {uploadState.status === "uploading" && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Enviando {uploadState.fileName}...
+                          </span>
+                          <span className="font-mono">{uploadState.progress}%</span>
+                        </div>
+                        <Progress value={uploadState.progress} className="h-2" />
+                        <p className="text-xs text-muted-foreground">
+                          Não feche esta janela enquanto o upload estiver em andamento.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Estado: processando (polling a cada 5s) */}
+                    {uploadState.status === "processing" && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Enviando {uploadState.fileName}...
-                        </span>
-                        <span className="font-mono">{uploadState.progress}%</span>
+                          Cloudflare está processando {uploadState.fileName}...
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          UID: <code className="bg-muted px-1 rounded">{uploadState.uid}</code>
+                          {" — "}isso costuma levar de 30s a poucos minutos.
+                        </p>
                       </div>
-                      <Progress value={uploadState.progress} className="h-2" />
-                      <p className="text-xs text-muted-foreground">
-                        Não feche esta janela enquanto o upload estiver em andamento.
-                      </p>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Estado: processando (polling a cada 5s) */}
-                  {uploadState.status === "processing" && (
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Cloudflare está processando {uploadState.fileName}...
+                    {/* Estado: pronto (videoPlaybackUrl já preenchido automaticamente) */}
+                    {uploadState.status === "ready" && (
+                      <div className="space-y-1">
+                        <p className="text-sm text-green-600 flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Vídeo processado — {uploadState.fileName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          UID: <code className="bg-muted px-1 rounded">{uploadState.uid}</code>
+                          {" • "}
+                          Duração: {formatDuration(uploadState.duration)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          URL de reprodução preenchida automaticamente. Salve a aula para confirmar.
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        UID: <code className="bg-muted px-1 rounded">{uploadState.uid}</code>
-                        {" — "}isso costuma levar de 30s a poucos minutos.
-                      </p>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Estado: pronto (videoPlaybackUrl já preenchido automaticamente) */}
-                  {uploadState.status === "ready" && (
-                    <div className="space-y-1">
-                      <p className="text-sm text-green-600 flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4" />
-                        Vídeo processado — {uploadState.fileName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        UID: <code className="bg-muted px-1 rounded">{uploadState.uid}</code>
-                        {" • "}
-                        Duração: {formatDuration(uploadState.duration)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        URL de reprodução preenchida automaticamente. Salve a aula para confirmar.
-                      </p>
+                    {/* Campo manual de UID (opcional) */}
+                    <div className="space-y-1 pt-1">
+                      <Label htmlFor="videoAssetId" className="text-xs text-muted-foreground">
+                        UID do vídeo (preenchido automaticamente após upload)
+                      </Label>
+                      <Input
+                        id="videoAssetId"
+                        value={formData.videoAssetId}
+                        onChange={(e) => setFormData({ ...formData, videoAssetId: e.target.value })}
+                        placeholder="a1b2c3d4e5f6..."
+                        className="font-mono text-xs"
+                      />
                     </div>
-                  )}
-
-                  {/* Campo manual de UID (opcional) */}
-                  <div className="space-y-1 pt-1">
-                    <Label htmlFor="videoAssetId" className="text-xs text-muted-foreground">
-                      UID do vídeo (preenchido automaticamente após upload)
-                    </Label>
-                    <Input
-                      id="videoAssetId"
-                      value={formData.videoAssetId}
-                      onChange={(e) => setFormData({ ...formData, videoAssetId: e.target.value })}
-                      placeholder="a1b2c3d4e5f6..."
-                      className="font-mono text-xs"
-                    />
                   </div>
-                </div>
+
+                  <div className="space-y-4 rounded-lg border p-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Languages className="h-4 w-4 text-primary" />
+                        <Label className="text-sm font-medium">Dublagem por idioma</Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Adicione faixas extras de áudio para o mesmo vídeo Cloudflare. O player mostrará a troca de idioma automaticamente quando houver mais de uma faixa.
+                      </p>
+                    </div>
+
+                    {!formData.videoAssetId ? (
+                      <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                        Primeiro envie ou vincule um vídeo Cloudflare para liberar o gerenciamento de dublagem.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Idioma</Label>
+                            <Select value={dubbingForm.languageCode} onValueChange={handleLanguageChange}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Selecione o idioma" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {DUBBING_LANGUAGE_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="dubbing-label">Rótulo exibido no player</Label>
+                            <Input
+                              id="dubbing-label"
+                              value={dubbingForm.label}
+                              onChange={(e) => setDubbingForm((prev) => ({ ...prev, label: e.target.value }))}
+                              placeholder="Ex: English"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="dubbing-url">URL pública do áudio dublado</Label>
+                          <Input
+                            id="dubbing-url"
+                            type="url"
+                            value={dubbingForm.audioUrl}
+                            onChange={(e) => setDubbingForm((prev) => ({ ...prev, audioUrl: e.target.value }))}
+                            placeholder="https://cdn.seusite.com/audio/lesson-01-english.mp3"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Use um arquivo MP3, M4A ou outro áudio acessível por URL pública. O Cloudflare anexará essa faixa ao vídeo sem reenviar o vídeo principal.
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between rounded-lg border p-3">
+                          <div>
+                            <p className="text-sm font-medium">Definir como idioma padrão</p>
+                            <p className="text-xs text-muted-foreground">
+                              Novos alunos ouvirão esta faixa por padrão, se o navegador suportar a troca.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={dubbingForm.makeDefault}
+                            onCheckedChange={(checked) =>
+                              setDubbingForm((prev) => ({ ...prev, makeDefault: checked }))
+                            }
+                          />
+                        </div>
+
+                        <Button
+                          type="button"
+                          className="w-full"
+                          onClick={handleAddAudioTrack}
+                          disabled={addAudioTrackMutation.isPending}
+                        >
+                          {addAudioTrackMutation.isPending ? (
+                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adicionando dublagem...</>
+                          ) : (
+                            <><Languages className="mr-2 h-4 w-4" />Adicionar faixa de idioma</>
+                          )}
+                        </Button>
+
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium">Faixas cadastradas</p>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => refetchAudioTracks()}
+                              disabled={audioTracksLoading}
+                            >
+                              {audioTracksLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RotateCw className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+
+                          {audioTracksLoading ? (
+                            <div className="rounded-md border p-3 text-sm text-muted-foreground flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />Carregando faixas adicionais...
+                            </div>
+                          ) : audioTracks && audioTracks.length > 0 ? (
+                            <div className="space-y-2">
+                              {audioTracks.map((track: AudioTrackItem) => (
+                                <div
+                                  key={track.uid}
+                                  className="flex flex-col gap-3 rounded-lg border p-3 md:flex-row md:items-center md:justify-between"
+                                >
+                                  <div className="min-w-0 space-y-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="font-medium">{track.label}</span>
+                                      {track.isDefault && (
+                                        <Badge variant="default" className="text-xs">
+                                          <Star className="mr-1 h-3 w-3" />Padrão
+                                        </Badge>
+                                      )}
+                                      <Badge variant="outline" className="text-xs">
+                                        {track.status}
+                                      </Badge>
+                                    </div>
+                                    <p className="truncate text-xs text-muted-foreground">
+                                      UID: <code>{track.uid}</code>
+                                    </p>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-2">
+                                    {!track.isDefault && (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          setDefaultAudioTrackMutation.mutate({
+                                            videoUid: formData.videoAssetId,
+                                            audioUid: track.uid,
+                                          })
+                                        }
+                                        disabled={setDefaultAudioTrackMutation.isPending}
+                                      >
+                                        <Star className="mr-2 h-3 w-3" />Tornar padrão
+                                      </Button>
+                                    )}
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        if (confirm(`Remover a faixa \"${track.label}\"?`)) {
+                                          deleteAudioTrackMutation.mutate({
+                                            videoUid: formData.videoAssetId,
+                                            audioUid: track.uid,
+                                          });
+                                        }
+                                      }}
+                                      disabled={deleteAudioTrackMutation.isPending}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                              Nenhuma faixa adicional cadastrada ainda. A faixa original do vídeo continuará sendo usada até você adicionar uma dublagem.
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </>
               )}
 
               {/* ── YouTube: URL ── */}

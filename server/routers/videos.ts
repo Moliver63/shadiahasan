@@ -28,12 +28,16 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, or } from "drizzle-orm";
 import {
+  addAudioTrackByUrl,
   createTusDirectUploadUrl,
-  listVideos,
+  deleteAudioTrack,
   deleteVideo,
-  resolveVideoUrl,
-  isCloudflareConfigured,
   getVideoDetails,
+  isCloudflareConfigured,
+  listAudioTracks,
+  listVideos,
+  resolveVideoUrl,
+  updateAudioTrack,
 } from "../cloudflare-stream";
 
 // ─── Admin procedure ──────────────────────────────────────────────────────────
@@ -290,6 +294,114 @@ export const videosRouter = router({
           })
           .where(eq(lessons.id, lessonId));
 
+        return { success: true };
+      }),
+
+    /**
+     * Lista todas as faixas de áudio adicionais (dublagem) de um vídeo Cloudflare
+     */
+    listAudioTracks: adminProcedure
+      .input(z.object({ videoUid: z.string().min(1) }))
+      .query(async ({ input }) => {
+        if (!isCloudflareConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Cloudflare Stream não configurado.",
+          });
+        }
+
+        const tracks = await listAudioTracks(input.videoUid);
+        return tracks.map((track) => ({
+          uid: track.uid,
+          label: track.label,
+          isDefault: track.default,
+          status: track.status,
+        }));
+      }),
+
+    /**
+     * Adiciona uma nova faixa de áudio por URL pública
+     */
+    addAudioTrack: adminProcedure
+      .input(
+        z.object({
+          videoUid: z.string().min(1),
+          label: z.string().min(1),
+          audioUrl: z.string().url(),
+          makeDefault: z.boolean().default(false),
+        })
+      )
+      .mutation(async ({ input }) => {
+        if (!isCloudflareConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Cloudflare Stream não configurado.",
+          });
+        }
+
+        const track = await addAudioTrackByUrl(input.videoUid, {
+          label: input.label,
+          url: input.audioUrl,
+          default: input.makeDefault,
+        });
+
+        return {
+          uid: track.uid,
+          label: track.label,
+          isDefault: track.default,
+          status: track.status,
+        };
+      }),
+
+    /**
+     * Define uma faixa de áudio como padrão
+     */
+    setDefaultAudioTrack: adminProcedure
+      .input(
+        z.object({
+          videoUid: z.string().min(1),
+          audioUid: z.string().min(1),
+        })
+      )
+      .mutation(async ({ input }) => {
+        if (!isCloudflareConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Cloudflare Stream não configurado.",
+          });
+        }
+
+        const track = await updateAudioTrack(input.videoUid, input.audioUid, {
+          default: true,
+        });
+
+        return {
+          uid: track.uid,
+          label: track.label,
+          isDefault: track.default,
+          status: track.status,
+        };
+      }),
+
+    /**
+     * Remove uma faixa de áudio adicional
+     */
+    deleteAudioTrack: adminProcedure
+      .input(
+        z.object({
+          videoUid: z.string().min(1),
+          audioUid: z.string().min(1),
+        })
+      )
+      .mutation(async ({ input }) => {
+        if (!isCloudflareConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Cloudflare Stream não configurado.",
+          });
+        }
+
+        await deleteAudioTrack(input.videoUid, input.audioUid);
         return { success: true };
       }),
 

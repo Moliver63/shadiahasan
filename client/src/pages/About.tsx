@@ -1,6 +1,8 @@
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Award, BookOpen, Heart, Sparkles, Target, Users } from "lucide-react";
 import PublicHeader from "@/components/PublicHeader";
+import { Link } from "wouter";
 
 export default function About() {
   return (
@@ -10,7 +12,7 @@ export default function About() {
           { label: "Programas", href: "/courses" },
           { label: "Sobre", href: "/about" },
           { label: "Contato", href: "/contact" },
-          { label: "Comunidade", href: "/community/explore", match: "prefix" },
+          { label: "Comunidade", href: "/community/explore", match: "prefix", authOnly: true },
         ]}
       />
 

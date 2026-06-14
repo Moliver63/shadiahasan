@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Instagram, Mail, MessageCircle, Send } from "lucide-react";
+import { Instagram, Mail, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import PublicHeader from "@/components/PublicHeader";
 import { toast } from "sonner";
+import { Link } from "wouter";
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -23,7 +24,7 @@ export default function Contact() {
     e.preventDefault();
     
     // Criar mensagem para WhatsApp
-    const whatsappMessage = `*Agendamento de Sessão*%0A%0A*Nome:* ${formData.name}%0A*Email:* ${formData.email}%0A*Telefone:* ${formData.phone}%0A*Data Preferida:* ${formData.preferredDate}%0A*Horário Preferido:* ${formData.preferredTime}%0A*Mensagem:*%0A${formData.message}`;
+    const whatsappMessage = encodeURIComponent(`*Agendamento de Sessão*\n\n*Nome:* ${formData.name}\n*Email:* ${formData.email}\n*Telefone:* ${formData.phone}\n*Data Preferida:* ${formData.preferredDate}\n*Horário Preferido:* ${formData.preferredTime}\n*Mensagem:*\n${formData.message}`);
     const whatsappUrl = `https://wa.me/5547991426662?text=${whatsappMessage}`;
     
     window.open(whatsappUrl, "_blank");
@@ -40,7 +41,7 @@ export default function Contact() {
           { label: "Programas", href: "/courses" },
           { label: "Sobre", href: "/about" },
           { label: "Contato", href: "/contact" },
-          { label: "Comunidade", href: "/community/explore", match: "prefix" },
+          { label: "Comunidade", href: "/community/explore", match: "prefix", authOnly: true },
         ]}
       />
 

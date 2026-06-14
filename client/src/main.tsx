@@ -3,8 +3,8 @@ import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
-import superjson from "superjson";
 import { HelmetProvider } from "react-helmet-async";
+import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
@@ -65,6 +65,26 @@ const trpcClient = trpc.createClient({
     }),
   ],
 });
+
+const loadAnalytics = () => {
+  if (typeof document === "undefined") return;
+
+  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT?.replace(/\/$/, "");
+  const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID;
+
+  if (!endpoint || !websiteId) return;
+  if (document.querySelector('script[data-website-id]')) return;
+
+  const script = document.createElement("script");
+  script.defer = true;
+  script.src = `${endpoint}/umami`;
+  script.setAttribute("data-website-id", websiteId);
+  document.head.appendChild(script);
+};
+
+if (typeof window !== "undefined") {
+  loadAnalytics();
+}
 
 // FIX: QueryClientProvider deve estar DENTRO do trpc.Provider,
 // pois o trpc.Provider precisa do queryClient como prop mas o contexto

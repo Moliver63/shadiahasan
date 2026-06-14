@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
+import { VitePWA } from "vite-plugin-pwa";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 // =============================================================================
@@ -150,7 +151,78 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  vitePluginManusRuntime(),
+  vitePluginManusDebugCollector(),
+  VitePWA({
+    registerType: "autoUpdate",
+    injectRegister: "auto",
+    includeAssets: [
+      "favicon.ico",
+      "favicon-16x16.png",
+      "favicon-32x32.png",
+      "apple-touch-icon.png",
+      "favicon-192.png",
+      "favicon-512.png",
+      "logo.png",
+    ],
+    manifest: {
+      id: "/",
+      name: "Shadia Hasan - Jornada de Transformação Interior",
+      short_name: "Shadia Hasan",
+      description:
+        "Jornada de transformação interior com experiências imersivas em realidade virtual e desenvolvimento humano.",
+      theme_color: "#7c3aed",
+      background_color: "#ffffff",
+      display: "standalone",
+      orientation: "portrait-primary",
+      scope: "/",
+      start_url: "/",
+      lang: "pt-BR",
+      categories: ["education", "health", "lifestyle"],
+      icons: [
+        {
+          src: "/favicon-192.png",
+          sizes: "192x192",
+          type: "image/png",
+          purpose: "any",
+        },
+        {
+          src: "/favicon-512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any maskable",
+        },
+      ],
+    },
+    workbox: {
+      cleanupOutdatedCaches: true,
+      clientsClaim: true,
+      skipWaiting: true,
+      navigateFallback: "/index.html",
+      globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
+      runtimeCaching: [
+        {
+          urlPattern: /^https:\/\/fonts\.(?:gstatic|googleapis)\.com\/.*/i,
+          handler: "CacheFirst",
+          options: {
+            cacheName: "google-fonts",
+            expiration: {
+              maxEntries: 10,
+              maxAgeSeconds: 60 * 60 * 24 * 365,
+            },
+          },
+        },
+      ],
+    },
+    devOptions: {
+      enabled: false,
+    },
+  }),
+];
 
 export default defineConfig({
   plugins,

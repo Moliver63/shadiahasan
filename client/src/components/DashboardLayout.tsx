@@ -24,6 +24,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   BookOpen,
   CreditCard,
+  ExternalLink,
   LayoutDashboard,
   LogOut,
   PanelLeft,
@@ -135,6 +136,11 @@ function DashboardLayoutContent({
   const activeMenuItem = menuItems.find((item) => item.path === location);
   const isMobile = useIsMobile();
 
+  const openPublicSite = () => {
+    if (typeof window === "undefined") return;
+    window.open("/", "_blank", "noopener,noreferrer");
+  };
+
   useEffect(() => {
     if (isCollapsed) {
       setIsResizing(false);
@@ -210,6 +216,17 @@ function DashboardLayoutContent({
                   </SidebarMenuItem>
                 );
               })}
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={openPublicSite}
+                  tooltip="Ver site"
+                  className="h-10 transition-all font-normal"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span>Ver site</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
 
@@ -229,6 +246,10 @@ function DashboardLayoutContent({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={openPublicSite} className="cursor-pointer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  <span>Ir para o site</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"
@@ -252,15 +273,19 @@ function DashboardLayoutContent({
 
       <SidebarInset>
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-2">
+          <div className="flex border-b h-14 items-center justify-between gap-2 bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+            <div className="flex items-center gap-2 min-w-0">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">{activeMenuItem?.label ?? "Menu"}</span>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex flex-col gap-1 min-w-0">
+                  <span className="tracking-tight text-foreground truncate">{activeMenuItem?.label ?? "Menu"}</span>
                 </div>
               </div>
             </div>
+            <Button type="button" variant="outline" size="sm" onClick={openPublicSite}>
+              <ExternalLink className="h-4 w-4" />
+              Site
+            </Button>
           </div>
         )}
         <main className="p-4 md:p-6">{children}</main>

@@ -110,10 +110,11 @@ export function OptimizedImage({
             src={jpeg}
             alt={alt}
             className={`motion-poster__img w-full h-full object-cover transition-opacity duration-300 ${
-              isLoaded ? "opacity-100" : "opacity-0"
+              isLoaded || priority ? "opacity-100" : "opacity-0"
             }`}
             loading={priority ? "eager" : "lazy"}
             onLoad={() => setIsLoaded(true)}
+            onError={() => setIsLoaded(true)}
             width={width}
             height={height}
           />
@@ -125,8 +126,8 @@ export function OptimizedImage({
 
       {motion !== "none" && <div className="motion-poster__sheen" aria-hidden="true" />}
 
-      {/* Blur placeholder durante carregamento */}
-      {!isLoaded && isInView && (
+      {/* Blur placeholder durante carregamento (nunca em imagens priority — evita ficar presa) */}
+      {!priority && !isLoaded && isInView && (
         <div className="absolute inset-0 bg-gray-200 animate-pulse" />
       )}
     </div>

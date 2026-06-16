@@ -65,6 +65,7 @@ export default function Courses() {
                         alt={course.title}
                         className="w-full h-full"
                         motion="hover"
+                        priority
                       />
                     </div>
                   )}

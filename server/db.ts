@@ -146,6 +146,15 @@ export async function getCourseById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+// Busca vários cursos de uma vez a partir de uma lista de IDs
+// (usado em "Meus Cursos" para evitar N chamadas individuais)
+export async function getCoursesByIds(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return [];
+
+  return await db.select().from(courses).where(inArray(courses.id, ids));
+}
+
 export async function getCourseBySlug(slug: string) {
   const db = await getDb();
   if (!db) return undefined;

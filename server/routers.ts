@@ -525,6 +525,12 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return await db.getCourseById(input.id);
       }),
+
+    getByIds: publicProcedure
+      .input(z.object({ ids: z.array(z.number()) }))
+      .query(async ({ input }) => {
+        return await db.getCoursesByIds(input.ids);
+      }),
     
     getBySlug: publicProcedure
       .input(z.object({ slug: z.string() }))

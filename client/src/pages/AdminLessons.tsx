@@ -36,6 +36,12 @@ export default function AdminLessons() {
     onError: (err) => toast.error("Erro ao criar aula: " + err.message),
   });
 
+  const detectVideoProvider = (url: string): string => {
+    if (/youtube\.com|youtu\.be/i.test(url)) return "youtube";
+    if (/vimeo\.com/i.test(url)) return "vimeo";
+    return "external";
+  };
+
   const handleQuickAdd = () => {
     if (!lessonTitle.trim()) { toast.error("O título da aula é obrigatório."); return; }
     if (!videoUrl.trim()) { toast.error("A URL do vídeo é obrigatória."); return; }
@@ -44,8 +50,10 @@ export default function AdminLessons() {
       courseId: quickAddDialog.courseId,
       title: lessonTitle.trim(),
       description: lessonDesc.trim(),
-      videoUrl: videoUrl.trim(),
-      isFree: isFree ? 1 : 0,
+      videoProvider: detectVideoProvider(videoUrl.trim()),
+      videoPlaybackUrl: videoUrl.trim(),
+      isAccessRestricted: isFree ? 0 : 1,
+      isPublished: 1,
       order: 999, // será reordenado pelo backend
     });
   };

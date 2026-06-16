@@ -85,8 +85,7 @@ export async function checkUserHasAccess(
   if (!lesson.isAccessRestricted) return true;
 
   const db = await getDb();
-
-  // 1. Compra avulsa do curso — libera sempre, independente do plano
+  if (!db) return false;
   const purchase = await db
     .select()
     .from(coursePurchases)
@@ -134,11 +133,11 @@ export async function checkUserHasAccess(
       )
       .limit(1);
 
-    if (stripeSub.length > 0 && stripeSub[0].stripePriceId) {
+    if (stripeSub.length > 0) {
       const plan = await db
         .select()
         .from(subscriptionPlans)
-        .where(eq(subscriptionPlans.stripePriceId, stripeSub[0].stripePriceId!))
+        .where(eq(subscriptionPlans.id, stripeSub[0].planId))
         .limit(1);
 
       if (plan.length > 0) {
@@ -284,6 +283,7 @@ export const videosRouter = router({
       )
       .mutation(async ({ input }) => {
         const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { lessonId, ...updates } = input;
 
         await db
@@ -490,14 +490,16 @@ export const videosRouter = router({
         // Quando pronto e lessonId informado, salva automaticamente no banco
         if (details.readyToStream && input.lessonId) {
           const db = await getDb();
-          await db
-            .update(lessons)
-            .set({
-              videoPlaybackUrl: details.playback?.hls ?? null,
-              duration: Math.round(details.duration || 0),
-              updatedAt: new Date(),
-            })
-            .where(eq(lessons.id, input.lessonId));
+          if (db) {
+            await db
+              .update(lessons)
+              .set({
+                videoPlaybackUrl: details.playback?.hls ?? null,
+                duration: Math.round(details.duration || 0),
+                updatedAt: new Date(),
+              })
+              .where(eq(lessons.id, input.lessonId));
+          }
         }
 
         return result;
@@ -522,6 +524,7 @@ export const videosRouter = router({
       }
 
       const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
       const pending = await db
         .select({
@@ -589,6 +592,7 @@ export const videosRouter = router({
     .input(z.object({ lessonId: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       const result = await db
         .select()
         .from(lessons)
@@ -641,6 +645,7 @@ export const videosRouter = router({
     .input(z.object({ lessonId: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = await getDb();
+      if (!db) return { hasAccess: false };
       const result = await db
         .select({
           isAccessRestricted: lessons.isAccessRestricted,
@@ -674,6 +679,7 @@ export const videosRouter = router({
     .input(z.object({ courseId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
+      if (!db) return [];
       const result = await db
         .select({
           id: lessons.id,

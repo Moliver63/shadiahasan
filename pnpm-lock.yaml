@@ -314,6 +314,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.1
         version: 19.2.1(@types/react@19.2.1)
+      '@types/sortablejs':
+        specifier: ^1.15.8
+        version: 1.15.9
       '@types/three':
         specifier: ^0.182.0
         version: 0.182.0
@@ -3369,6 +3372,9 @@ packages:
 
   '@types/serve-static@1.15.9':
     resolution: {integrity: sha512-dOTIuqpWLyl3BBXU3maNQsS4A3zuuoYRNIvYSxxhebPfXg2mzWQEPne/nlJ37yOse6uGgR386uTpdsx4D0QZWA==}
+
+  '@types/sortablejs@1.15.9':
+    resolution: {integrity: sha512-7HP+rZGE2p886PKV9c9OJzLBI6BBJu1O7lJGYnPyG3fS4/duUCcngkNCjsLwIMV+WMqANe3tt4irrXHSIe68OQ==}
 
   '@types/stats.js@0.17.4':
     resolution: {integrity: sha512-jIBvWWShCvlBqBNIZt0KAshWpvSjhkwkEu4ZUcASoAvhmrgAUI2t1dXrjSL4xXVLB4FznPrIsX3nKXFl/Dt4vA==}
@@ -10089,6 +10095,8 @@ snapshots:
       '@types/http-errors': 2.0.5
       '@types/node': 24.7.0
       '@types/send': 0.17.5
+
+  '@types/sortablejs@1.15.9': {}
 
   '@types/stats.js@0.17.4': {}
 

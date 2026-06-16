@@ -399,7 +399,7 @@ export default function AdminCourseLessons() {
       animation: 150,
       handle: ".drag-handle",
       ghostClass: "opacity-50",
-      onEnd: (evt) => {
+      onEnd: (evt: Sortable.SortableEvent) => {
         const { oldIndex, newIndex } = evt;
         if (oldIndex == null || newIndex == null || oldIndex === newIndex) return;
         const next = [...localLessonsRef.current];

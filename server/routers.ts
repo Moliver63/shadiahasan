@@ -844,6 +844,31 @@ export const appRouter = router({
     mySubscription: protectedProcedure.query(async ({ ctx }) => {
       return await db.getUserSubscription(ctx.user.id);
     }),
+
+    // Própria assinatura (mesma coisa que mySubscription, com input por compatibilidade)
+    getByUserId: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ ctx }) => {
+        // Sempre usa o usuário autenticado — nunca confia no userId vindo do input
+        return await db.getSubscriptionByUserId(ctx.user.id);
+      }),
+
+    // Próprio histórico de pagamentos
+    getPaymentHistory: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ ctx }) => {
+        return await db.getPaymentsByUserId(ctx.user.id);
+      }),
+
+    // Admin: todas as assinaturas
+    getAll: adminProcedure.query(async () => {
+      return await db.listAllSubscriptionsFlat();
+    }),
+
+    // Admin: todo o histórico de pagamentos
+    getAllPaymentHistory: adminProcedure.query(async () => {
+      return await db.getAllPayments();
+    }),
     
     createCheckout: protectedProcedure
       .input(z.object({ planSlug: z.enum(["basic", "premium", "vip"]) }))
@@ -920,6 +945,13 @@ export const appRouter = router({
     myEnrollments: protectedProcedure.query(async ({ ctx }) => {
       return await db.getEnrollmentsByUserId(ctx.user.id);
     }),
+
+    // Admin: ver matrículas de um aluno específico
+    getByUserId: adminProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getEnrollmentsByUserId(input.userId);
+      }),
     
     checkEnrollment: protectedProcedure
       .input(z.object({ courseId: z.number() }))
@@ -1595,12 +1627,10 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const database = await db.getDb();
         if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-        const { appointments } = await import('../drizzle/schema');
+        const { appointments, users } = await import('../drizzle/schema');
         const { eq, and, gte, lte } = await import('drizzle-orm');
-        
-        let query = database.select().from(appointments);
+
         const conditions = [];
-        
         if (input?.status) {
           conditions.push(eq(appointments.status, input.status));
         }
@@ -1610,12 +1640,32 @@ export const appRouter = router({
         if (input?.endDate) {
           conditions.push(lte(appointments.startTime, new Date(input.endDate)));
         }
-        
-        if (conditions.length > 0) {
-          query = query.where(and(...conditions));
-        }
-        
-        return await query.orderBy(appointments.startTime);
+
+        const baseQuery = database
+          .select({
+            id: appointments.id,
+            userId: appointments.userId,
+            title: appointments.title,
+            description: appointments.description,
+            programType: appointments.programType,
+            startTime: appointments.startTime,
+            endTime: appointments.endTime,
+            duration: appointments.duration,
+            status: appointments.status,
+            location: appointments.location,
+            notes: appointments.notes,
+            createdAt: appointments.createdAt,
+            updatedAt: appointments.updatedAt,
+            user: { name: users.name, email: users.email },
+          })
+          .from(appointments)
+          .leftJoin(users, eq(appointments.userId, users.id));
+
+        const rows = conditions.length > 0
+          ? await baseQuery.where(and(...conditions)).orderBy(appointments.startTime)
+          : await baseQuery.orderBy(appointments.startTime);
+
+        return rows;
       }),
     
     // Get appointment by ID
@@ -1654,9 +1704,9 @@ export const appRouter = router({
           startTime: new Date(input.startTime),
           endTime: new Date(input.endTime),
           status: 'scheduled',
-        });
+        }).returning({ id: appointments.id });
         
-        return { success: true, id: result[0].insertId };
+        return { success: true, id: result[0].id };
       }),
     
     // Update appointment

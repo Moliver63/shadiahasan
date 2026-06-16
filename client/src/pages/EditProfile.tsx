@@ -179,10 +179,14 @@ export default function EditProfile() {
     if (!avatarFile) { fileInputRef.current?.click(); return; }
 
     // Convert to base64 and send to backend
+    // (o tipo já foi validado em handleAvatarFileChange antes de chegar aqui)
     const reader = new FileReader();
     reader.onload = (ev) => {
       const base64 = ev.target?.result as string;
-      uploadAvatarMutation.mutate({ base64, mimeType: avatarFile.type });
+      uploadAvatarMutation.mutate({
+        base64,
+        mimeType: avatarFile.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+      });
     };
     reader.readAsDataURL(avatarFile);
   };

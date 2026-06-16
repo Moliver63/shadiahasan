@@ -181,8 +181,7 @@ export const adminRouter = router({
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       const { adminInvites } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      await database.update(adminInvites)
-        .set({ status: "cancelled" })
+      await database.delete(adminInvites)
         .where(eq(adminInvites.id, input.inviteId));
       return { success: true };
     }),

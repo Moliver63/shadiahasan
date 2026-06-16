@@ -7,6 +7,13 @@ interface OptimizedImageProps {
   width?: number;
   height?: number;
   priority?: boolean; // Se true, não usa lazy loading
+  /**
+   * Capa animada estilo streaming (zoom lento + sheen de luz sutil).
+   * - "none": estático (padrão)
+   * - "always": loop contínuo — usar em capa única/hero
+   * - "hover": anima só no hover/foco — usar em grades com vários cards
+   */
+  motion?: "none" | "always" | "hover";
 }
 
 /**
@@ -15,6 +22,8 @@ interface OptimizedImageProps {
  * - Suporte a WebP e AVIF com fallback para JPEG
  * - Placeholder blur durante carregamento
  * - Intersection Observer para carregamento progressivo
+ * - "Motion Poster" opcional: zoom cinematográfico lento + sheen de luz,
+ *   com fallback estático automático quando prefers-reduced-motion está ativo
  */
 export function OptimizedImage({
   src,
@@ -23,6 +32,7 @@ export function OptimizedImage({
   width,
   height,
   priority = false,
+  motion = "none",
 }: OptimizedImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInView, setIsInView] = useState(priority);
@@ -73,11 +83,19 @@ export function OptimizedImage({
 
   const { avif, webp, jpeg } = getImageUrls(src);
 
+  const motionContainerClass =
+    motion === "always"
+      ? "motion-poster motion-poster--always"
+      : motion === "hover"
+      ? "motion-poster motion-poster--hover"
+      : "";
+
   return (
     <div
       ref={imgRef}
-      className={`relative overflow-hidden ${className}`}
+      className={`relative overflow-hidden ${motionContainerClass} ${className}`}
       style={{ width, height }}
+      tabIndex={motion === "hover" ? 0 : undefined}
     >
       {isInView ? (
         <picture>
@@ -91,7 +109,7 @@ export function OptimizedImage({
           <img
             src={jpeg}
             alt={alt}
-            className={`w-full h-full object-cover transition-opacity duration-300 ${
+            className={`motion-poster__img transition-opacity duration-300 ${
               isLoaded ? "opacity-100" : "opacity-0"
             }`}
             loading={priority ? "eager" : "lazy"}
@@ -104,7 +122,9 @@ export function OptimizedImage({
         // Placeholder enquanto não está na viewport
         <div className="w-full h-full bg-gray-200 animate-pulse" />
       )}
-      
+
+      {motion !== "none" && <div className="motion-poster__sheen" aria-hidden="true" />}
+
       {/* Blur placeholder durante carregamento */}
       {!isLoaded && isInView && (
         <div className="absolute inset-0 bg-gray-200 animate-pulse" />

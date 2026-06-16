@@ -50,7 +50,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
 
 export default function EditProfile() {
-  const { user, loading, refetch } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const [, navigate] = useLocation();
 
   // ── Profile fields ──────────────────────────────────────────
@@ -78,7 +78,7 @@ export default function EditProfile() {
   const updateProfileMutation = trpc.auth.updateProfile.useMutation({
     onSuccess: () => {
       toast.success("Perfil atualizado com sucesso!");
-      refetch?.();
+      refresh();
     },
     onError: (err) => toast.error("Erro ao atualizar perfil: " + err.message),
   });
@@ -86,7 +86,7 @@ export default function EditProfile() {
   const uploadAvatarMutation = trpc.profile.uploadAvatar.useMutation({
     onSuccess: () => {
       toast.success("Foto de perfil atualizada!");
-      refetch?.();
+      refresh();
       setAvatarFile(null);
     },
     onError: (err) => toast.error("Erro ao salvar foto: " + err.message),
@@ -140,6 +140,7 @@ export default function EditProfile() {
 
   const currentAvatarUrl =
     avatarPreview ||
+    (user as any)?.avatar ||
     (user as any)?.avatarUrl ||
     (user as any)?.imageUrl ||
     (user as any)?.picture ||

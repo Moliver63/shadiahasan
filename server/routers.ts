@@ -5,6 +5,7 @@ import { adminRouter } from "./routers/admin";
 import { subscriptionsRouter } from "./routers/subscriptions";
 import { referralsRouter } from "./routers/referrals";
 import { videosRouter } from "./routers/videos";
+import { profileRouter } from "./routers/profile";
 import { publicProcedure, router, protectedProcedure, superAdminProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -327,6 +328,7 @@ const buildFallbackPsychologyReply = (userMessage: string, courses: ChatCourse[]
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+  profile: profileRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -463,6 +465,24 @@ export const appRouter = router({
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message: error instanceof Error ? error.message : 'Password update failed',
+          });
+        }
+      }),
+
+    // Atualiza nome/e-mail do próprio perfil (sem confirmação de senha).
+    // Para troca de e-mail com verificação de senha, usar updateOwnEmail.
+    updateProfile: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).optional(),
+        email: z.string().email().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          return await db.updateUserData(ctx.user.id, input);
+        } catch (error) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: error instanceof Error ? error.message : 'Profile update failed',
           });
         }
       }),
@@ -1226,6 +1246,12 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         return await db.blockUser(ctx.user.id, input.userId);
       }),
+
+    unblockUser: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return await db.unblockUser(ctx.user.id, input.userId);
+      }),
     
     // Report user
     reportUser: protectedProcedure
@@ -1567,7 +1593,8 @@ export const appRouter = router({
         endDate: z.string().optional(),
       }).optional())
       .query(async ({ input }) => {
-        const { db: database } = await import('./db');
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { appointments } = await import('../drizzle/schema');
         const { eq, and, gte, lte } = await import('drizzle-orm');
         
@@ -1595,7 +1622,8 @@ export const appRouter = router({
     getById: adminProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
-        const { db: database } = await import('./db');
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { appointments } = await import('../drizzle/schema');
         const { eq } = await import('drizzle-orm');
         
@@ -1617,7 +1645,8 @@ export const appRouter = router({
         notes: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const { db: database } = await import('./db');
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { appointments } = await import('../drizzle/schema');
         
         const result = await database.insert(appointments).values({
@@ -1645,7 +1674,8 @@ export const appRouter = router({
         notes: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const { db: database } = await import('./db');
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { appointments } = await import('../drizzle/schema');
         const { eq } = await import('drizzle-orm');
         
@@ -1667,7 +1697,8 @@ export const appRouter = router({
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
-        const { db: database } = await import('./db');
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { appointments } = await import('../drizzle/schema');
         const { eq } = await import('drizzle-orm');
         
@@ -1677,7 +1708,8 @@ export const appRouter = router({
     
     // Get statistics
     getStats: adminProcedure.query(async () => {
-      const { db: database } = await import('./db');
+      const database = await db.getDb();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       const { appointments } = await import('../drizzle/schema');
       const { eq, count, and, gte } = await import('drizzle-orm');
       

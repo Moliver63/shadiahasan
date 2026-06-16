@@ -1057,6 +1057,28 @@ export async function blockUser(userId: number, targetUserId: number) {
   return { success: true };
 }
 
+export async function unblockUser(userId: number, targetUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const userId1 = Math.min(userId, targetUserId);
+  const userId2 = Math.max(userId, targetUserId);
+
+  const existing = await db.select().from(connections)
+    .where(and(eq(connections.userId1, userId1), eq(connections.userId2, userId2)))
+    .limit(1);
+
+  if (existing.length === 0) {
+    throw new Error("Conexão não encontrada");
+  }
+
+  await db.update(connections)
+    .set({ status: 'active' } as any)
+    .where(and(eq(connections.userId1, userId1), eq(connections.userId2, userId2)));
+
+  return { success: true };
+}
+
 // ============ REPORTS & MODERATION ============
 
 import { reports, Report, InsertReport, moderationLogs, ModerationLog, InsertModerationLog } from "../drizzle/schema";
@@ -1589,6 +1611,50 @@ export async function verifyEmail(token: string) {
   await sendWelcomeEmail(user.email, user.name || "");
 
   return { email: user.email, name: user.name };
+}
+
+/**
+ * Reenvia o e-mail de verificação para um usuário ainda não verificado.
+ * Reaproveita o mesmo mecanismo de token usado no cadastro (registerUser).
+ */
+export async function resendVerificationEmail(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) throw new Error("User not found");
+
+  if (user.emailVerified) {
+    throw new Error("E-mail já verificado");
+  }
+
+  // Invalida tokens antigos desse usuário antes de gerar um novo
+  await db.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, userId));
+
+  const token = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+
+  await db.insert(emailVerificationTokens).values({
+    userId: user.id,
+    token,
+    expiresAt,
+  });
+
+  await sendVerificationEmail(user.email, user.name || "", token);
+
+  return { success: true };
+}
+
+/**
+ * Atualiza o avatar do usuário (base64 ou URL, dependendo da estratégia de upload).
+ */
+export async function updateUserAvatar(userId: number, avatar: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(users).set({ avatar }).where(eq(users.id, userId));
+
+  return { success: true };
 }
 
 /**

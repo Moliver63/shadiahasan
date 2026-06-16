@@ -525,6 +525,12 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return await db.getCourseById(input.id);
       }),
+
+    getByIds: publicProcedure
+      .input(z.object({ ids: z.array(z.number()) }))
+      .query(async ({ input }) => {
+        return await db.getCoursesByIds(input.ids);
+      }),
     
     getBySlug: publicProcedure
       .input(z.object({ slug: z.string() }))
@@ -578,7 +584,59 @@ export const appRouter = router({
         await db.deleteCourse(input.id);
         return { success: true };
       }),
-    
+
+    reorder: protectedProcedure
+      .input(z.object({
+        items: z.array(z.object({ id: z.number(), order: z.number() })).min(1),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await db.reorderCourses(input.items);
+        return { success: true };
+      }),
+
+    duplicate: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        try {
+          return await db.duplicateCourse(input.id, ctx.user.id);
+        } catch (err: any) {
+          if (err?.message === 'Curso não encontrado') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: err.message });
+          }
+          throw err;
+        }
+      }),
+
+    bulkUpdate: protectedProcedure
+      .input(z.object({
+        ids: z.array(z.number()).min(1),
+        isPublished: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { ids, ...updates } = input;
+        await db.bulkUpdateCourses(ids, updates);
+        return { success: true, count: ids.length };
+      }),
+
+    bulkDelete: protectedProcedure
+      .input(z.object({ ids: z.array(z.number()).min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await db.bulkDeleteCourses(input.ids);
+        return { success: true, count: input.ids.length };
+      }),
+
     stats: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
         throw new TRPCError({ code: 'FORBIDDEN' });
@@ -702,6 +760,59 @@ export const appRouter = router({
         }
         await db.deleteLesson(input.id);
         return { success: true };
+      }),
+
+    reorder: protectedProcedure
+      .input(z.object({
+        items: z.array(z.object({ id: z.number(), order: z.number() })).min(1),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await db.reorderLessons(input.items);
+        return { success: true };
+      }),
+
+    duplicate: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        try {
+          return await db.duplicateLesson(input.id);
+        } catch (err: any) {
+          if (err?.message === 'Aula não encontrada') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: err.message });
+          }
+          throw err;
+        }
+      }),
+
+    bulkUpdate: protectedProcedure
+      .input(z.object({
+        ids: z.array(z.number()).min(1),
+        isPublished: z.number().optional(),
+        isAccessRestricted: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { ids, ...updates } = input;
+        await db.bulkUpdateLessons(ids, updates);
+        return { success: true, count: ids.length };
+      }),
+
+    bulkDelete: protectedProcedure
+      .input(z.object({ ids: z.array(z.number()).min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== 'admin' && ctx.user.role !== 'superadmin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await db.bulkDeleteLessons(input.ids);
+        return { success: true, count: input.ids.length };
       }),
   }),
 

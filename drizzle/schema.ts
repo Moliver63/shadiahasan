@@ -85,6 +85,8 @@ export const courses = pgTable("courses", {
   instructorId: integer("instructorId").notNull(),
   price: integer("price"),
   isPublished: integer("isPublished").default(0).notNull(),
+  allowIndividualPurchase: integer("allowIndividualPurchase").default(0).notNull(),
+  order: integer("order").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

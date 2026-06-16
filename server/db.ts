@@ -2390,6 +2390,34 @@ export async function createPaymentRecord(data: {
   return { id: result[0].id };
 }
 
+// Lista todo o histórico de pagamentos (admin)
+export async function getAllPayments() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(paymentHistory).orderBy(desc(paymentHistory.createdAt));
+}
+
+// Histórico de pagamentos de um usuário específico
+export async function getPaymentsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(paymentHistory)
+    .where(eq(paymentHistory.userId, userId))
+    .orderBy(desc(paymentHistory.createdAt));
+}
+
+// Lista todas as assinaturas, formato simples/plano (usado no relatório financeiro)
+export async function listAllSubscriptionsFlat() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(subscriptions).orderBy(desc(subscriptions.createdAt));
+}
+
 // ============================================================================
 // REFERRAL SYSTEM FUNCTIONS
 // ============================================================================

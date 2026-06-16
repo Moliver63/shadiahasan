@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import { OptimizedImage } from "@/components/OptimizedImage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
@@ -133,10 +134,12 @@ export default function CourseDetail() {
 
             {course.thumbnail && (
               <div className="h-56 w-full overflow-hidden rounded-lg bg-muted sm:h-72 md:h-96">
-                <img
+                <OptimizedImage
                   src={course.thumbnail}
                   alt={course.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full"
+                  motion="always"
+                  priority
                 />
               </div>
             )}

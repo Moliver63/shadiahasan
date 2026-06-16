@@ -285,4 +285,81 @@
     writing-mode: vertical-rl;
     text-orientation: mixed;
   }
+
+  /* ── Motion Poster (capa animada estilo streaming) ───────────────────── */
+  @keyframes motion-poster-breathe {
+    0%, 100% {
+      transform: scale(1) translate3d(0, 0, 0);
+    }
+    50% {
+      transform: scale(1.045) translate3d(-0.6%, 0.4%, 0);
+    }
+  }
+
+  @keyframes motion-poster-sheen {
+    0%, 100% {
+      transform: translateX(-120%) skewX(-12deg);
+    }
+    50% {
+      transform: translateX(120%) skewX(-12deg);
+    }
+  }
+
+  .motion-poster {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .motion-poster__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform-origin: center center;
+    will-change: transform;
+  }
+
+  .motion-poster__sheen {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      120deg,
+      transparent 35%,
+      rgba(255, 255, 255, 0.10) 50%,
+      transparent 65%
+    );
+    opacity: 0;
+    will-change: transform, opacity;
+  }
+
+  /* Loop contínuo (uso em hero/capa única) */
+  .motion-poster--always .motion-poster__img {
+    animation: motion-poster-breathe 12s ease-in-out infinite;
+  }
+
+  .motion-poster--always .motion-poster__sheen {
+    opacity: 1;
+    animation: motion-poster-sheen 7s ease-in-out infinite;
+  }
+
+  /* Ativa só no hover/foco (uso em grades com vários cards) */
+  .motion-poster--hover:hover .motion-poster__img,
+  .motion-poster--hover:focus-within .motion-poster__img {
+    animation: motion-poster-breathe 9s ease-in-out infinite;
+  }
+
+  .motion-poster--hover:hover .motion-poster__sheen,
+  .motion-poster--hover:focus-within .motion-poster__sheen {
+    opacity: 1;
+    animation: motion-poster-sheen 5s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .motion-poster__img,
+    .motion-poster__sheen {
+      animation: none !important;
+      transform: none !important;
+      opacity: 0 !important;
+    }
+  }
 }

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { OptimizedImage } from "@/components/OptimizedImage";
 import { trpc } from "@/lib/trpc";
 import { BookOpen, Clock, PlayCircle } from "lucide-react";
 import { Link } from "wouter";
@@ -59,10 +60,11 @@ export default function Courses() {
                 <CardHeader>
                   {course.thumbnail && (
                     <div className="w-full h-48 mb-4 rounded-lg overflow-hidden bg-muted">
-                      <img
+                      <OptimizedImage
                         src={course.thumbnail}
                         alt={course.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full"
+                        motion="hover"
                       />
                     </div>
                   )}

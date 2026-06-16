@@ -5,19 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Eye, Users, Clock } from "lucide-react";
+import { Link } from "wouter";
 
 export default function AdminPrograms() {
   const { data: courses, isLoading } = trpc.courses.list.useQuery();
-
-  const getDifficultyBadge = (difficulty: string) => {
-    const variants: Record<string, { variant: "default" | "secondary" | "destructive"; label: string }> = {
-      beginner: { variant: "secondary", label: "Iniciante" },
-      intermediate: { variant: "default", label: "Intermediário" },
-      advanced: { variant: "destructive", label: "Avançado" },
-    };
-    const config = variants[difficulty] || variants.beginner;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
 
   const formatPrice = (price: number) => {
     return (price / 100).toLocaleString("pt-BR", {
@@ -37,14 +28,16 @@ export default function AdminPrograms() {
               Crie, edite e gerencie os programas VR da plataforma
             </p>
           </div>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Programa
-          </Button>
+          <Link href="/admin/courses">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Programa
+            </Button>
+          </Link>
         </div>
 
         {/* Estatísticas */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Programas</CardTitle>
@@ -58,25 +51,14 @@ export default function AdminPrograms() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Matrículas Totais</CardTitle>
+              <CardTitle className="text-sm font-medium">Publicados</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1,234</div>
-              <p className="text-xs text-muted-foreground">Usuários matriculados</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Duração Total</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
               <div className="text-2xl font-bold">
-                {courses?.reduce((acc, course) => acc + (course.duration || 0), 0) || 0} min
+                {courses?.filter((c) => c.isPublished === 1).length || 0}
               </div>
-              <p className="text-xs text-muted-foreground">Conteúdo disponível</p>
+              <p className="text-xs text-muted-foreground">Visíveis para alunos</p>
             </CardContent>
           </Card>
         </div>
@@ -114,10 +96,10 @@ export default function AdminPrograms() {
                           {course.description}
                         </CardDescription>
                         <div className="flex items-center gap-2 pt-2">
-                          {getDifficultyBadge(course.difficulty)}
-                          <Badge variant="outline">{course.category}</Badge>
-                          {course.featured && (
-                            <Badge className="bg-yellow-500">Destaque</Badge>
+                          {course.isPublished === 1 ? (
+                            <Badge variant="outline" className="text-green-600 border-green-200">Publicado</Badge>
+                          ) : (
+                            <Badge variant="secondary">Rascunho</Badge>
                           )}
                         </div>
                       </div>
@@ -126,46 +108,27 @@ export default function AdminPrograms() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between">
-                    <div className="grid gap-4 md:grid-cols-3">
-                      {/* Duração */}
-                      <div>
-                        <p className="text-sm font-medium">Duração</p>
-                        <p className="text-sm text-muted-foreground">
-                          {course.duration} minutos
-                        </p>
-                      </div>
-
-                      {/* Preço */}
-                      <div>
-                        <p className="text-sm font-medium">Preço</p>
-                        <p className="text-sm text-muted-foreground">
-                          {course.price ? formatPrice(course.price) : "Gratuito"}
-                        </p>
-                      </div>
-
-                      {/* Lições */}
-                      <div>
-                        <p className="text-sm font-medium">Lições</p>
-                        <p className="text-sm text-muted-foreground">
-                          {course.lessons?.length || 0} lições
-                        </p>
-                      </div>
+                    <div>
+                      <p className="text-sm font-medium">Preço</p>
+                      <p className="text-sm text-muted-foreground">
+                        {course.price ? formatPrice(course.price) : "Gratuito"}
+                      </p>
                     </div>
 
                     {/* Ações */}
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Eye className="mr-2 h-4 w-4" />
-                        Visualizar
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Edit className="mr-2 h-4 w-4" />
-                        Editar
-                      </Button>
-                      <Button variant="destructive" size="sm">
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Excluir
-                      </Button>
+                      <Link href={`/admin/courses/${course.id}/lessons`}>
+                        <Button variant="outline" size="sm">
+                          <Eye className="mr-2 h-4 w-4" />
+                          Ver Aulas
+                        </Button>
+                      </Link>
+                      <Link href="/admin/courses">
+                        <Button variant="outline" size="sm">
+                          <Edit className="mr-2 h-4 w-4" />
+                          Editar
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </CardContent>

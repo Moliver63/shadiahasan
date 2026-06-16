@@ -222,9 +222,10 @@ router.post(
           console.log(`[Stripe Webhook] Fatura paga: ${invoice.id}`);
 
           const email = invoice.customer_email;
-          const subscriptionId = typeof invoice.subscription === "string"
-            ? invoice.subscription
-            : invoice.subscription?.id;
+          const subscriptionRef = invoice.parent?.subscription_details?.subscription;
+          const subscriptionId = typeof subscriptionRef === "string"
+            ? subscriptionRef
+            : subscriptionRef?.id;
 
           if (email && subscriptionId) {
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);

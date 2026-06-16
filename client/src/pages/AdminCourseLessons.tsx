@@ -23,11 +23,13 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { trpc } from "@/lib/trpc";
+import Sortable from "sortablejs";
 import { formatDuration } from "@/lib/formatDuration";
 import {
   Plus, Edit, Trash2, ArrowLeft, Eye, EyeOff,
   PlayCircle, Upload, Youtube, Cloud, Lock, Unlock,
   CheckCircle2, AlertCircle, Loader2, RotateCw, Languages, Star,
+  GripVertical, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
@@ -158,6 +160,11 @@ export default function AdminCourseLessons() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const backgroundPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Reordenação (drag & drop via Sortable.js + ↑↓) ────────────────────────
+  const [localLessons, setLocalLessons] = useState<any[]>([]);
+  const lessonsListRef = useRef<HTMLDivElement>(null);
+  const lessonsSortableRef = useRef<Sortable | null>(null);
 
   const emptyForm = (): FormData => ({
     title: "",
@@ -344,6 +351,70 @@ export default function AdminCourseLessons() {
     },
     onError: (e) => toast.error(`Erro ao excluir aula: ${e.message}`),
   });
+
+  // Mantém a lista local sincronizada com o servidor (já vem ordenada por `order`)
+  useEffect(() => {
+    if (lessons) setLocalLessons(lessons);
+  }, [lessons]);
+
+  const reorderMutation = trpc.lessons.reorder.useMutation({
+    onError: (e) => {
+      toast.error(`Erro ao reordenar: ${e.message}`);
+      utils.lessons.listByCourse.invalidate(); // reverte para o estado do servidor
+    },
+  });
+
+  const persistLessonOrder = useCallback(
+    (list: any[]) => {
+      const items = list.map((l, idx) => ({ id: l.id, order: idx + 1 }));
+      reorderMutation.mutate({ items });
+    },
+    [reorderMutation]
+  );
+
+  const moveLessonBy = (id: number, dir: -1 | 1) => {
+    const idx = localLessons.findIndex((l) => l.id === id);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= localLessons.length) return;
+    const next = [...localLessons];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setLocalLessons(next);
+    persistLessonOrder(next);
+  };
+
+  // Refs para evitar closures desatualizadas dentro do callback do Sortable
+  // (a instância é criada uma única vez no mount).
+  const localLessonsRef = useRef(localLessons);
+  const persistLessonOrderRef = useRef(persistLessonOrder);
+  useEffect(() => {
+    localLessonsRef.current = localLessons;
+  }, [localLessons]);
+  useEffect(() => {
+    persistLessonOrderRef.current = persistLessonOrder;
+  }, [persistLessonOrder]);
+
+  useEffect(() => {
+    if (!lessonsListRef.current) return;
+    const sortable = Sortable.create(lessonsListRef.current, {
+      animation: 150,
+      handle: ".drag-handle",
+      ghostClass: "opacity-50",
+      onEnd: (evt) => {
+        const { oldIndex, newIndex } = evt;
+        if (oldIndex == null || newIndex == null || oldIndex === newIndex) return;
+        const next = [...localLessonsRef.current];
+        const [moved] = next.splice(oldIndex, 1);
+        next.splice(newIndex, 0, moved);
+        setLocalLessons(next);
+        persistLessonOrderRef.current(next);
+      },
+    });
+    lessonsSortableRef.current = sortable;
+    return () => {
+      sortable.destroy();
+      lessonsSortableRef.current = null;
+    };
+  }, []);
 
   // ── Upload de arquivo para Cloudflare Stream ──────────────────────────────
 
@@ -670,13 +741,42 @@ export default function AdminCourseLessons() {
               </Card>
             ))}
           </div>
-        ) : lessons && lessons.length > 0 ? (
-          <div className="space-y-3">
-            {lessons.map((lesson) => (
-              <Card key={lesson.id}>
+        ) : localLessons && localLessons.length > 0 ? (
+          <div className="space-y-3" ref={lessonsListRef}>
+            {localLessons.map((lesson, index) => {
+              return (
+              <Card key={lesson.id} data-id={lesson.id} className="transition-all">
                 <CardHeader className="py-4">
                   <CardTitle className="flex items-center justify-between text-base">
                     <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className="drag-handle cursor-grab active:cursor-grabbing text-muted-foreground shrink-0"
+                        title="Arraste para reordenar"
+                      >
+                        <GripVertical className="h-4 w-4" />
+                      </span>
+                      <div className="flex flex-col shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          disabled={index === 0}
+                          onClick={() => moveLessonBy(lesson.id, -1)}
+                          title="Mover para cima"
+                        >
+                          <ArrowUp className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          disabled={index === localLessons.length - 1}
+                          onClick={() => moveLessonBy(lesson.id, 1)}
+                          title="Mover para baixo"
+                        >
+                          <ArrowDown className="h-3 w-3" />
+                        </Button>
+                      </div>
                       <span className="text-muted-foreground text-sm font-normal shrink-0">
                         #{lesson.order}
                       </span>
@@ -756,7 +856,7 @@ export default function AdminCourseLessons() {
                   </CardContent>
                 )}
               </Card>
-            ))}
+            );})}
           </div>
         ) : (
           <Card>

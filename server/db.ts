@@ -1,4 +1,4 @@
-import { eq, ne, or, and, gte, desc, isNull, gt } from "drizzle-orm";
+import { eq, ne, or, and, gte, desc, asc, isNull, gt, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { InsertUser, users, subscriptions, paymentHistory, referrals, pointsTransactions, cashbackRequests, adminAuditLogs, adminInvites } from "../drizzle/schema";
@@ -133,9 +133,9 @@ export async function getAllCourses(includeUnpublished = false) {
   
   const query = db.select().from(courses);
   if (!includeUnpublished) {
-    return await query.where(eq(courses.isPublished, 1)).orderBy(desc(courses.createdAt));
+    return await query.where(eq(courses.isPublished, 1)).orderBy(asc(courses.order), desc(courses.createdAt));
   }
-  return await query.orderBy(desc(courses.createdAt));
+  return await query.orderBy(asc(courses.order), desc(courses.createdAt));
 }
 
 export async function getCourseById(id: number) {
@@ -157,10 +157,111 @@ export async function getCourseBySlug(slug: string) {
 export async function createCourse(course: InsertCourse) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.insert(courses).values(course);
+
+  // Define a posição (order) automaticamente como último, se não informada
+  let order = course.order;
+  if (order === undefined || order === null) {
+    const [row] = await db
+      .select({ maxOrder: sql<number>`COALESCE(MAX(${courses.order}), 0)` })
+      .from(courses);
+    order = Number(row?.maxOrder ?? 0) + 1;
+  }
+
+  await db.insert(courses).values({ ...course, order });
   const [newCourse] = await db.select().from(courses).where(eq(courses.slug, course.slug)).limit(1);
   return newCourse?.id;
+}
+
+// Reordena cursos em lote (transacional)
+export async function reorderCourses(items: { id: number; order: number }[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (items.length === 0) return;
+  await db.transaction(async (tx) => {
+    for (const it of items) {
+      await tx.update(courses).set({ order: it.order }).where(eq(courses.id, it.id));
+    }
+  });
+}
+
+// Duplica um curso e TODAS as suas aulas (slug único, inicia como rascunho)
+export async function duplicateCourse(id: number, instructorId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [orig] = await db.select().from(courses).where(eq(courses.id, id)).limit(1);
+  if (!orig) throw new Error("Curso não encontrado");
+
+  // Gera um slug único (-copia, -copia-2, ...)
+  const baseSlug = `${orig.slug}-copia`;
+  let slug = baseSlug;
+  let n = 2;
+  while ((await db.select().from(courses).where(eq(courses.slug, slug)).limit(1)).length > 0) {
+    slug = `${baseSlug}-${n++}`;
+  }
+
+  const [orderRow] = await db
+    .select({ maxOrder: sql<number>`COALESCE(MAX(${courses.order}), 0)` })
+    .from(courses);
+  const nextOrder = Number(orderRow?.maxOrder ?? 0) + 1;
+
+  await db.insert(courses).values({
+    title: `${orig.title} (cópia)`,
+    slug,
+    description: orig.description ?? undefined,
+    thumbnail: orig.thumbnail ?? undefined,
+    instructorId,
+    price: orig.price ?? undefined,
+    isPublished: 0, // cópia sempre começa como rascunho
+    order: nextOrder,
+  });
+
+  const [created] = await db.select().from(courses).where(eq(courses.slug, slug)).limit(1);
+  const newId = created!.id;
+
+  // Copia as aulas mantendo a ordem. NOTA: vídeos (videoAssetId/PlaybackUrl)
+  // são reaproveitados — ambas as aulas apontam para o MESMO vídeo no
+  // Cloudflare (não há reupload). Trocar o vídeo da cópia depois é seguro.
+  const origLessons = await db
+    .select()
+    .from(lessons)
+    .where(eq(lessons.courseId, id))
+    .orderBy(asc(lessons.order));
+
+  for (const l of origLessons) {
+    await db.insert(lessons).values({
+      courseId: newId,
+      moduleId: l.moduleId ?? undefined,
+      title: l.title,
+      order: l.order,
+      description: l.description ?? undefined,
+      videoProvider: l.videoProvider ?? undefined,
+      videoAssetId: l.videoAssetId ?? undefined,
+      videoPlaybackUrl: l.videoPlaybackUrl ?? undefined,
+      duration: l.duration ?? undefined,
+      isPublished: l.isPublished,
+      isAccessRestricted: l.isAccessRestricted,
+    });
+  }
+
+  return { id: newId, lessonsCopied: origLessons.length };
+}
+
+// Ações em lote — cursos
+export async function bulkUpdateCourses(ids: number[], updates: Partial<InsertCourse>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (ids.length === 0) return;
+  await db.update(courses).set(updates).where(inArray(courses.id, ids));
+}
+
+export async function bulkDeleteCourses(ids: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (ids.length === 0) return;
+  await db.delete(lessons).where(inArray(lessons.courseId, ids));
+  await db.delete(enrollments).where(inArray(enrollments.courseId, ids));
+  await db.delete(courses).where(inArray(courses.id, ids));
 }
 
 export async function updateCourse(id: number, updates: Partial<InsertCourse>) {
@@ -228,6 +329,71 @@ export async function deleteLesson(id: number) {
   if (!db) throw new Error("Database not available");
   
   await db.delete(lessons).where(eq(lessons.id, id));
+}
+
+// Reordena aulas em lote (transacional)
+export async function reorderLessons(items: { id: number; order: number }[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (items.length === 0) return;
+  await db.transaction(async (tx) => {
+    for (const it of items) {
+      await tx.update(lessons).set({ order: it.order }).where(eq(lessons.id, it.id));
+    }
+  });
+}
+
+// Duplica uma aula dentro do mesmo curso (vai para o fim, inicia como rascunho)
+export async function duplicateLesson(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [orig] = await db.select().from(lessons).where(eq(lessons.id, id)).limit(1);
+  if (!orig) throw new Error("Aula não encontrada");
+
+  const [orderRow] = await db
+    .select({ maxOrder: sql<number>`COALESCE(MAX(${lessons.order}), 0)` })
+    .from(lessons)
+    .where(eq(lessons.courseId, orig.courseId));
+  const nextOrder = Number(orderRow?.maxOrder ?? 0) + 1;
+
+  const newTitle = `${orig.title} (cópia)`;
+  await db.insert(lessons).values({
+    courseId: orig.courseId,
+    moduleId: orig.moduleId ?? undefined,
+    title: newTitle,
+    order: nextOrder,
+    description: orig.description ?? undefined,
+    videoProvider: orig.videoProvider ?? undefined,
+    videoAssetId: orig.videoAssetId ?? undefined,
+    videoPlaybackUrl: orig.videoPlaybackUrl ?? undefined,
+    duration: orig.duration ?? undefined,
+    isPublished: 0, // cópia começa como rascunho
+    isAccessRestricted: orig.isAccessRestricted,
+  });
+
+  const [created] = await db
+    .select()
+    .from(lessons)
+    .where(and(eq(lessons.courseId, orig.courseId), eq(lessons.title, newTitle)))
+    .orderBy(desc(lessons.id))
+    .limit(1);
+  return { id: created?.id };
+}
+
+// Ações em lote — aulas
+export async function bulkUpdateLessons(ids: number[], updates: Partial<InsertLesson>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (ids.length === 0) return;
+  await db.update(lessons).set(updates).where(inArray(lessons.id, ids));
+}
+
+export async function bulkDeleteLessons(ids: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (ids.length === 0) return;
+  await db.delete(lessons).where(inArray(lessons.id, ids));
 }
 
 // ============ ENROLLMENTS ============

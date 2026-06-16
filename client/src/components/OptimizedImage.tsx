@@ -109,7 +109,7 @@ export function OptimizedImage({
           <img
             src={jpeg}
             alt={alt}
-            className={`motion-poster__img transition-opacity duration-300 ${
+            className={`motion-poster__img w-full h-full object-cover transition-opacity duration-300 ${
               isLoaded ? "opacity-100" : "opacity-0"
             }`}
             loading={priority ? "eager" : "lazy"}

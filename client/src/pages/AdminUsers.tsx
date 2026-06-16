@@ -47,9 +47,9 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 type ConfirmAction =
-  | { type: "promote"; userId: number; userName: string }
-  | { type: "demote"; userId: number; userName: string }
-  | { type: "unban"; userId: number; userName: string }
+  | { type: "promote"; userId: number; userName: string | null }
+  | { type: "demote"; userId: number; userName: string | null }
+  | { type: "unban"; userId: number; userName: string | null }
   | null;
 
 type Plan = "free" | "basic" | "premium" | "vip";
@@ -80,7 +80,7 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
-  const [pendingSuspendUserId, setPendingSuspendUserId] = useState<{ id: number; name: string } | null>(null);
+  const [pendingSuspendUserId, setPendingSuspendUserId] = useState<{ id: number; name: string | null } | null>(null);
   const [reasonText, setReasonText] = useState("");
   const [, setLocation] = useLocation();
 

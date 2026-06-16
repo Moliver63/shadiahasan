@@ -5,6 +5,7 @@ import { adminRouter } from "./routers/admin";
 import { subscriptionsRouter } from "./routers/subscriptions";
 import { referralsRouter } from "./routers/referrals";
 import { videosRouter } from "./routers/videos";
+import { profileRouter } from "./routers/profile";
 import { publicProcedure, router, protectedProcedure, superAdminProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -327,6 +328,7 @@ const buildFallbackPsychologyReply = (userMessage: string, courses: ChatCourse[]
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+  profile: profileRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -463,6 +465,24 @@ export const appRouter = router({
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message: error instanceof Error ? error.message : 'Password update failed',
+          });
+        }
+      }),
+
+    // Atualiza nome/e-mail do próprio perfil (sem confirmação de senha).
+    // Para troca de e-mail com verificação de senha, usar updateOwnEmail.
+    updateProfile: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).optional(),
+        email: z.string().email().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          return await db.updateUserData(ctx.user.id, input);
+        } catch (error) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: error instanceof Error ? error.message : 'Profile update failed',
           });
         }
       }),
@@ -824,6 +844,31 @@ export const appRouter = router({
     mySubscription: protectedProcedure.query(async ({ ctx }) => {
       return await db.getUserSubscription(ctx.user.id);
     }),
+
+    // Própria assinatura (mesma coisa que mySubscription, com input por compatibilidade)
+    getByUserId: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ ctx }) => {
+        // Sempre usa o usuário autenticado — nunca confia no userId vindo do input
+        return await db.getSubscriptionByUserId(ctx.user.id);
+      }),
+
+    // Próprio histórico de pagamentos
+    getPaymentHistory: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ ctx }) => {
+        return await db.getPaymentsByUserId(ctx.user.id);
+      }),
+
+    // Admin: todas as assinaturas
+    getAll: adminProcedure.query(async () => {
+      return await db.listAllSubscriptionsFlat();
+    }),
+
+    // Admin: todo o histórico de pagamentos
+    getAllPaymentHistory: adminProcedure.query(async () => {
+      return await db.getAllPayments();
+    }),
     
     createCheckout: protectedProcedure
       .input(z.object({ planSlug: z.enum(["basic", "premium", "vip"]) }))
@@ -900,6 +945,13 @@ export const appRouter = router({
     myEnrollments: protectedProcedure.query(async ({ ctx }) => {
       return await db.getEnrollmentsByUserId(ctx.user.id);
     }),
+
+    // Admin: ver matrículas de um aluno específico
+    getByUserId: adminProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getEnrollmentsByUserId(input.userId);
+      }),
     
     checkEnrollment: protectedProcedure
       .input(z.object({ courseId: z.number() }))
@@ -1225,6 +1277,12 @@ export const appRouter = router({
       .input(z.object({ userId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         return await db.blockUser(ctx.user.id, input.userId);
+      }),
+
+    unblockUser: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return await db.unblockUser(ctx.user.id, input.userId);
       }),
     
     // Report user
@@ -1567,13 +1625,12 @@ export const appRouter = router({
         endDate: z.string().optional(),
       }).optional())
       .query(async ({ input }) => {
-        const { db: database } = await import('./db');
-        const { appointments } = await import('../drizzle/schema');
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+        const { appointments, users } = await import('../drizzle/schema');
         const { eq, and, gte, lte } = await import('drizzle-orm');
-        
-        let query = database.select().from(appointments);
+
         const conditions = [];
-        
         if (input?.status) {
           conditions.push(eq(appointments.status, input.status));
         }
@@ -1583,19 +1640,40 @@ export const appRouter = router({
         if (input?.endDate) {
           conditions.push(lte(appointments.startTime, new Date(input.endDate)));
         }
-        
-        if (conditions.length > 0) {
-          query = query.where(and(...conditions));
-        }
-        
-        return await query.orderBy(appointments.startTime);
+
+        const baseQuery = database
+          .select({
+            id: appointments.id,
+            userId: appointments.userId,
+            title: appointments.title,
+            description: appointments.description,
+            programType: appointments.programType,
+            startTime: appointments.startTime,
+            endTime: appointments.endTime,
+            duration: appointments.duration,
+            status: appointments.status,
+            location: appointments.location,
+            notes: appointments.notes,
+            createdAt: appointments.createdAt,
+            updatedAt: appointments.updatedAt,
+            user: { name: users.name, email: users.email },
+          })
+          .from(appointments)
+          .leftJoin(users, eq(appointments.userId, users.id));
+
+        const rows = conditions.length > 0
+          ? await baseQuery.where(and(...conditions)).orderBy(appointments.startTime)
+          : await baseQuery.orderBy(appointments.startTime);
+
+        return rows;
       }),
     
     // Get appointment by ID
     getById: adminProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
-        const { db: database } = await import('./db');
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { appointments } = await import('../drizzle/schema');
         const { eq } = await import('drizzle-orm');
         
@@ -1617,7 +1695,8 @@ export const appRouter = router({
         notes: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const { db: database } = await import('./db');
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { appointments } = await import('../drizzle/schema');
         
         const result = await database.insert(appointments).values({
@@ -1625,9 +1704,9 @@ export const appRouter = router({
           startTime: new Date(input.startTime),
           endTime: new Date(input.endTime),
           status: 'scheduled',
-        });
+        }).returning({ id: appointments.id });
         
-        return { success: true, id: result[0].insertId };
+        return { success: true, id: result[0].id };
       }),
     
     // Update appointment
@@ -1645,7 +1724,8 @@ export const appRouter = router({
         notes: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const { db: database } = await import('./db');
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { appointments } = await import('../drizzle/schema');
         const { eq } = await import('drizzle-orm');
         
@@ -1667,7 +1747,8 @@ export const appRouter = router({
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
-        const { db: database } = await import('./db');
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { appointments } = await import('../drizzle/schema');
         const { eq } = await import('drizzle-orm');
         
@@ -1677,7 +1758,8 @@ export const appRouter = router({
     
     // Get statistics
     getStats: adminProcedure.query(async () => {
-      const { db: database } = await import('./db');
+      const database = await db.getDb();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       const { appointments } = await import('../drizzle/schema');
       const { eq, count, and, gte } = await import('drizzle-orm');
       

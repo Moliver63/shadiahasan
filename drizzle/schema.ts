@@ -36,6 +36,7 @@ export const users = pgTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }).notNull().unique(),
   passwordHash: varchar("passwordHash", { length: 255 }),
+  avatar: text("avatar"),
   emailVerified: integer("emailVerified").default(0).notNull(),
   loginMethod: varchar("loginMethod", { length: 64 }).default("email").notNull(),
   role: roleEnum("role").default("user").notNull(),

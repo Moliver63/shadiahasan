@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookOpen, Glasses, PlayCircle, Users, Zap, Shield } from "lucide-react";
 import { Link } from "wouter";
-import { OptimizedImage } from "@/components/OptimizedImage";
 import { SEOHead } from "@/components/SEOHead";
 import { getSEOMetaTags } from "@/lib/seo-meta-tags";
 

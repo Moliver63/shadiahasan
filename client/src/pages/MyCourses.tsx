@@ -20,6 +20,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { OptimizedImage } from "@/components/OptimizedImage";
 
 export default function MyCourses() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -145,13 +146,12 @@ export default function MyCourses() {
                 >
                   <CardHeader>
                     {course.thumbnail && (
-                      <div className="w-full h-48 mb-4 rounded-lg overflow-hidden bg-muted">
-                        <img
-                          src={course.thumbnail}
-                          alt={course.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
+                      <OptimizedImage
+                        src={course.thumbnail}
+                        alt={course.title}
+                        className="mb-4 h-48 w-full rounded-lg bg-muted"
+                        priority
+                      />
                     )}
                     <CardTitle className="line-clamp-2">{course.title}</CardTitle>
                     {course.description && (

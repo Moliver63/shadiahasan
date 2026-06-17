@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Eye, Users, Clock } from "lucide-react";
+import { OptimizedImage } from "@/components/OptimizedImage";
 import { Link } from "wouter";
 
 export default function AdminPrograms() {
@@ -84,10 +85,11 @@ export default function AdminPrograms() {
                   <div className="flex items-start justify-between">
                     <div className="flex gap-4">
                       {course.thumbnail && (
-                        <img
+                        <OptimizedImage
                           src={course.thumbnail}
                           alt={course.title}
-                          className="h-24 w-24 rounded-lg object-cover"
+                          className="h-24 w-24 rounded-lg bg-muted"
+                          priority
                         />
                       )}
                       <div className="space-y-1">

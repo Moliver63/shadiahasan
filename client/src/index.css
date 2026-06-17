@@ -356,6 +356,13 @@
     .motion-poster__sheen {
       animation: none !important;
       transform: none !important;
+    }
+
+    .motion-poster__img {
+      opacity: 1 !important;
+    }
+
+    .motion-poster__sheen {
       opacity: 0 !important;
     }
   }

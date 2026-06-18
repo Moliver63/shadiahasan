@@ -1,22 +1,37 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { getLoginUrl } from "@/const";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import PublicHeader from "@/components/PublicHeader";
 import VideoPlayer from "@/components/VideoPlayer";
 import VRViewer from "@/components/VRViewer";
-import { trpc } from "@/lib/trpc";
-import { formatDuration } from "@/lib/formatDuration";
-import { ArrowLeft, Maximize2, Lock } from "lucide-react";
-import { useState } from "react";
-import { Link, useParams, useLocation } from "wouter";
-import { getLoginUrl } from "@/const";
-import PublicHeader from "@/components/PublicHeader";
-import { toast } from "sonner";
-import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
+import { formatDuration } from "@/lib/formatDuration";
+import { trpc } from "@/lib/trpc";
+import { ArrowLeft, Lock, Maximize2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Link, useLocation, useParams } from "wouter";
 
 // Detecta se a URL é do YouTube
 function isYouTubeUrl(url: string): boolean {
   return /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/.test(url);
+}
+
+function parseCompletedLessons(value?: string | null): number[] {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((item) => Number(item))
+      .filter((item) => Number.isFinite(item));
+  } catch {
+    return [];
+  }
 }
 
 export default function LessonView() {
@@ -25,6 +40,8 @@ export default function LessonView() {
   const [, setLocation] = useLocation();
   const { isAuthenticated } = useAuth();
   const [showVR, setShowVR] = useState(false);
+  const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
+  const utils = trpc.useUtils();
 
   const { data: lesson, isLoading: lessonLoading } =
     trpc.lessons.getById.useQuery({ id: lessonId });
@@ -37,19 +54,76 @@ export default function LessonView() {
   // Verifica acesso real (assinatura ativa no nível certo OU compra avulsa),
   // não apenas "matrícula" — substitui a antiga checagem enrollments.checkEnrollment
   // que bloqueava assinantes pagantes sem registro de matrícula.
-  const { data: accessData, isLoading: accessLoading } = trpc.videos.hasAccess.useQuery(
-    { lessonId },
-    { enabled: !!lesson && isAuthenticated }
-  );
+  const { data: accessData, isLoading: accessLoading } =
+    trpc.videos.hasAccess.useQuery(
+      { lessonId },
+      { enabled: !!lesson && isAuthenticated }
+    );
 
   const { data: allLessons } = trpc.lessons.listByCourse.useQuery(
     { courseId: lesson?.courseId || 0 },
     { enabled: !!lesson }
   );
 
-  const updateProgressMutation = trpc.enrollments.updateProgress.useMutation();
+  const { data: enrollmentData } = trpc.enrollments.checkEnrollment.useQuery(
+    { courseId: lesson?.courseId || 0 },
+    { enabled: !!lesson && isAuthenticated }
+  );
+
+  const updateProgressMutation = trpc.enrollments.updateProgress.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.enrollments.checkEnrollment.invalidate({
+          courseId: lesson?.courseId || 0,
+        }),
+        utils.enrollments.myEnrollments.invalidate(),
+      ]);
+    },
+  });
 
   const hasAccess = accessData?.hasAccess ?? false;
+  const completedLessons = useMemo(() => {
+    return parseCompletedLessons(enrollmentData?.enrollment?.completedLessons);
+  }, [enrollmentData?.enrollment?.completedLessons]);
+
+  const currentLessonAlreadyCompleted = completedLessons.includes(lessonId);
+  const isCurrentLessonCompleted =
+    currentLessonAlreadyCompleted || hasMarkedComplete;
+
+  const mergedCompletedLessons = useMemo(() => {
+    const set = new Set<number>(completedLessons);
+
+    if (isCurrentLessonCompleted && lessonId > 0) {
+      set.add(lessonId);
+    }
+
+    return Array.from(set);
+  }, [completedLessons, isCurrentLessonCompleted, lessonId]);
+
+  const totalLessons = allLessons?.length ?? 0;
+  const calculatedProgress = totalLessons > 0
+    ? Math.min(
+        100,
+        Math.round((mergedCompletedLessons.length / totalLessons) * 100)
+      )
+    : 0;
+
+  const currentIndex = allLessons?.findIndex((l) => l.id === lessonId) ?? -1;
+  const nextLesson =
+    allLessons && currentIndex >= 0 && currentIndex < allLessons.length - 1
+      ? allLessons[currentIndex + 1]
+      : null;
+  const prevLesson =
+    allLessons && currentIndex > 0 ? allLessons[currentIndex - 1] : null;
+
+  const nextStepLabel = nextLesson
+    ? isCurrentLessonCompleted
+      ? `Seu próximo passo é continuar com "${nextLesson.title}".`
+      : `Ao concluir esta aula, seu próximo passo será "${nextLesson.title}".`
+    : isCurrentLessonCompleted
+      ? "Parabéns! Você concluiu a última aula disponível deste curso."
+      : "Conclua esta aula para finalizar o curso e registrar seu avanço.";
+
   const shouldFetchPlaybackUrl =
     !!lesson &&
     hasAccess &&
@@ -65,29 +139,40 @@ export default function LessonView() {
       }
     );
 
+  const markLessonAsCompleted = () => {
+    if (!lesson || !hasAccess || totalLessons === 0) return;
+    if (
+      hasMarkedComplete ||
+      currentLessonAlreadyCompleted ||
+      updateProgressMutation.isPending
+    ) {
+      return;
+    }
+
+    updateProgressMutation.mutate(
+      {
+        courseId: lesson.courseId,
+        progress: calculatedProgress,
+        completedLessons: JSON.stringify([...new Set([...completedLessons, lessonId])]),
+      },
+      {
+        onSuccess: () => {
+          setHasMarkedComplete(true);
+        },
+      }
+    );
+  };
+
   const handleProgress = (progress: number) => {
     if (lesson && hasAccess && progress > 90) {
-      updateProgressMutation.mutate({
-        courseId: lesson.courseId,
-        progress: 100,
-        completedLessons: JSON.stringify([lessonId]),
-      });
+      markLessonAsCompleted();
     }
   };
 
   const handleComplete = () => {
     if (lesson && hasAccess) {
+      markLessonAsCompleted();
       toast.success("Aula concluída!");
-      const currentIndex = allLessons?.findIndex((l) => l.id === lessonId);
-      if (
-        currentIndex !== undefined &&
-        currentIndex >= 0 &&
-        allLessons &&
-        currentIndex < allLessons.length - 1
-      ) {
-        const nextLesson = allLessons[currentIndex + 1];
-        setLocation(`/lesson/${nextLesson?.id}`);
-      }
     }
   };
 
@@ -153,14 +238,6 @@ export default function LessonView() {
     );
   }
 
-  const currentIndex = allLessons?.findIndex((l) => l.id === lessonId) || 0;
-  const nextLesson =
-    allLessons && currentIndex < allLessons.length - 1
-      ? allLessons[currentIndex + 1]
-      : null;
-  const prevLesson =
-    allLessons && currentIndex > 0 ? allLessons[currentIndex - 1] : null;
-
   const playbackUrl = playbackData?.url || lesson.videoPlaybackUrl || null;
 
   // YouTube não suporta VR — oculta o botão nesses casos
@@ -199,7 +276,9 @@ export default function LessonView() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold mb-2">{lesson.title}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+                {lesson.title}
+              </h1>
               {course && (
                 <p className="text-muted-foreground">Curso: {course.title}</p>
               )}
@@ -263,6 +342,65 @@ export default function LessonView() {
               </Card>
             )}
 
+            <Card>
+              <CardContent className="py-6 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Progresso no curso
+                    </p>
+                    <h3 className="text-xl font-semibold">{calculatedProgress}%</h3>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Aulas concluídas
+                    </p>
+                    <p className="text-base font-semibold">
+                      {Math.min(mergedCompletedLessons.length, totalLessons)} de {totalLessons}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${calculatedProgress}%` }}
+                  />
+                </div>
+
+                <div className="rounded-lg border bg-card p-4">
+                  <p className="text-sm font-medium text-primary mb-1">
+                    Seu próximo passo é...
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {nextStepLabel}
+                  </p>
+
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    {isCurrentLessonCompleted && nextLesson ? (
+                      <Button onClick={() => setLocation(`/lesson/${nextLesson.id}`)}>
+                        Ir para a próxima aula
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                      >
+                        Continuar nesta aula
+                      </Button>
+                    )}
+
+                    <Button variant="outline" asChild>
+                      <Link href={`/courses/${course?.slug}`}>
+                        Voltar ao curso
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Lesson Description */}
             {lesson.description && (
               <Card>
@@ -302,36 +440,37 @@ export default function LessonView() {
               <CardContent className="pt-6">
                 <h3 className="font-semibold mb-4">Conteúdo do Curso</h3>
                 <div className="space-y-2">
-                  {allLessons?.map((l, index) => (
-                    <Link key={l.id} href={`/lesson/${l.id}`}>
-                      <div
-                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                          l.id === lessonId
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "hover:bg-accent"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="text-sm font-medium">
-                            {index + 1}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium line-clamp-2 flex items-center gap-1">
-                              {l.title}
-                              {l.isAccessRestricted === 1 && !l.videoPlaybackUrl && (
-                                <Lock className="h-3 w-3 shrink-0" />
-                              )}
-                            </p>
-                            {l.duration && (
-                              <p className="text-xs opacity-70 mt-1">
-                                {formatDuration(l.duration)}
+                  {allLessons?.map((l, index) => {
+                    const isCompleted = mergedCompletedLessons.includes(l.id);
+
+                    return (
+                      <Link key={l.id} href={`/lesson/${l.id}`}>
+                        <div
+                          className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                            l.id === lessonId
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "hover:bg-accent"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span className="text-sm font-medium">{index + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium line-clamp-2 flex items-center gap-1">
+                                {l.title}
+                                {l.isAccessRestricted === 1 && !l.videoPlaybackUrl && (
+                                  <Lock className="h-3 w-3 shrink-0" />
+                                )}
                               </p>
-                            )}
+                              <div className="mt-1 flex items-center gap-2 text-xs opacity-70">
+                                {l.duration && <span>{formatDuration(l.duration)}</span>}
+                                {isCompleted && <span>• concluída</span>}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

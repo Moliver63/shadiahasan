@@ -982,13 +982,36 @@ export const appRouter = router({
         completedLessons: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const enrollment = await db.getEnrollmentByCourseAndUser(input.courseId, ctx.user.id);
+        let enrollment = await db.getEnrollmentByCourseAndUser(input.courseId, ctx.user.id);
+
+        // Usuários com acesso por assinatura/compra podem chegar aqui sem matrícula persistida.
+        // Nesse caso, criamos a matrícula automaticamente para não quebrar o fluxo da trilha.
+        if (!enrollment) {
+          const enrollmentId = await db.createEnrollment({
+            userId: ctx.user.id,
+            courseId: input.courseId,
+            progress: 0,
+            completedLessons: '[]',
+          });
+
+          if (!enrollmentId) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'Could not create enrollment',
+            });
+          }
+
+          enrollment = await db.getEnrollmentByCourseAndUser(input.courseId, ctx.user.id);
+        }
+
         if (!enrollment) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Enrollment not found' });
         }
+
         await db.updateEnrollment(enrollment.id, {
           progress: input.progress,
           completedLessons: input.completedLessons,
+          lastAccessedAt: new Date(),
         });
         return { success: true };
       }),

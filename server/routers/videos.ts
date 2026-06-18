@@ -39,6 +39,7 @@ import {
   resolveVideoUrl,
   updateAudioTrack,
 } from "../cloudflare-stream";
+import { getLearningPathLessonAccess } from "../learning-path";
 
 // ─── Admin procedure ──────────────────────────────────────────────────────────
 
@@ -608,19 +609,36 @@ export const videosRouter = router({
       const isAdmin =
         ctx.user.role === "admin" || ctx.user.role === "superadmin";
 
-      const hasAccess =
+      const hasCommercialAccess =
         isAdmin ||
         (await checkUserHasAccess(ctx.user.id, {
           isAccessRestricted: lesson.isAccessRestricted ?? 0,
           courseId: lesson.courseId,
         }));
 
-      if (!hasAccess) {
+      if (!hasCommercialAccess) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message:
             "Acesso restrito. Assine um plano ou adquira este curso para assistir.",
         });
+      }
+
+      if (!isAdmin) {
+        const pathAccess = await getLearningPathLessonAccess(
+          ctx.user.id,
+          lesson.courseId,
+          lesson.id
+        );
+
+        if (!pathAccess.allowed) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              pathAccess.nextUnlockLabel ||
+              "Esta aula ainda não foi desbloqueada na sua trilha de aprendizado.",
+          });
+        }
       }
 
       const url = await resolveVideoUrl({
@@ -661,14 +679,35 @@ export const videosRouter = router({
       const isAdmin =
         ctx.user.role === "admin" || ctx.user.role === "superadmin";
 
-      const access =
+      const hasCommercialAccess =
         isAdmin ||
         (await checkUserHasAccess(ctx.user.id, {
           isAccessRestricted: lesson.isAccessRestricted ?? 0,
           courseId: lesson.courseId,
         }));
 
-      return { hasAccess: access };
+      if (!hasCommercialAccess) {
+        return { hasAccess: false, reason: "commercial_locked" as const };
+      }
+
+      if (isAdmin) {
+        return { hasAccess: true, reason: "admin" as const };
+      }
+
+      const pathAccess = await getLearningPathLessonAccess(
+        ctx.user.id,
+        lesson.courseId,
+        input.lessonId
+      );
+
+      return {
+        hasAccess: pathAccess.allowed,
+        reason: pathAccess.reason,
+        currentDay: pathAccess.currentDay,
+        currentPhase: pathAccess.currentPhase,
+        nextUnlockDay: pathAccess.nextUnlockDay,
+        nextUnlockLabel: pathAccess.nextUnlockLabel,
+      };
     }),
 
   /**

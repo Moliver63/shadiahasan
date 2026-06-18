@@ -700,7 +700,29 @@ export const appRouter = router({
           }
           result.push(lesson);
         }
-        return result;
+
+        if (!ctx.user) {
+          return result;
+        }
+
+        const { getLearningPathSnapshot } = await import('./learning-path');
+        const snapshot = await getLearningPathSnapshot(ctx.user.id, input.courseId);
+
+        return result.map((lesson) => {
+          const state = snapshot.lessonStates[lesson.id];
+          return {
+            ...lesson,
+            isPathLocked: state?.isPathLocked ?? false,
+            unlockDay: state?.unlockDay ?? null,
+            unlockPhase: state?.phase ?? null,
+            unlockReason: state?.unlockReason ?? null,
+            unlockLabel: state?.unlockLabel ?? null,
+            learningPathEnabled: snapshot.enabled,
+            currentLearningDay: snapshot.currentDay,
+            nextUnlockDay: snapshot.nextUnlockDay,
+            nextUnlockLabel: snapshot.nextUnlockLabel,
+          };
+        });
       }),
     
     getById: publicProcedure
@@ -726,7 +748,26 @@ export const appRouter = router({
           }
         }
 
-        return lesson;
+        if (!ctx.user) {
+          return lesson;
+        }
+
+        const { getLearningPathSnapshot } = await import('./learning-path');
+        const snapshot = await getLearningPathSnapshot(ctx.user.id, lesson.courseId);
+        const state = snapshot.lessonStates[lesson.id];
+
+        return {
+          ...lesson,
+          isPathLocked: state?.isPathLocked ?? false,
+          unlockDay: state?.unlockDay ?? null,
+          unlockPhase: state?.phase ?? null,
+          unlockReason: state?.unlockReason ?? null,
+          unlockLabel: state?.unlockLabel ?? null,
+          learningPathEnabled: snapshot.enabled,
+          currentLearningDay: snapshot.currentDay,
+          nextUnlockDay: snapshot.nextUnlockDay,
+          nextUnlockLabel: snapshot.nextUnlockLabel,
+        };
       }),
     
     create: protectedProcedure

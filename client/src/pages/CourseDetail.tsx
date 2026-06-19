@@ -44,6 +44,9 @@ export default function CourseDetail() {
   });
 
   const isEnrolled = enrollmentData?.enrolled || false;
+  const learningPathEnabled = Boolean(lessons?.some((lesson: any) => lesson.learningPathEnabled));
+  const currentLearningDay = lessons?.find((lesson: any) => lesson.currentLearningDay !== undefined)?.currentLearningDay ?? null;
+  const nextUnlockLabel = lessons?.find((lesson: any) => lesson.nextUnlockLabel)?.nextUnlockLabel ?? null;
 
   const handleEnroll = () => {
     if (!isAuthenticated) {
@@ -56,12 +59,18 @@ export default function CourseDetail() {
     }
   };
 
-  const handleStartLesson = (lessonId: number) => {
+  const handleStartLesson = (lesson: any) => {
     if (!isEnrolled) {
       toast.error("Você precisa se matricular no curso primeiro");
       return;
     }
-    setLocation(`/lesson/${lessonId}`);
+
+    if (lesson.isPathLocked) {
+      toast.info(lesson.unlockLabel || "Esta aula ainda não foi liberada na sua trilha.");
+      return;
+    }
+
+    setLocation(`/lesson/${lesson.id}`);
   };
 
   if (courseLoading) {
@@ -144,6 +153,26 @@ export default function CourseDetail() {
               </div>
             )}
 
+            {learningPathEnabled && (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-primary">Trilha de retenção ativa</p>
+                      <p className="text-sm text-muted-foreground">
+                        {currentLearningDay !== null
+                          ? `Você está no Dia ${currentLearningDay} da sua jornada.`
+                          : "Sua jornada está sendo liberada em etapas para manter foco e evolução consistente."}
+                      </p>
+                    </div>
+                    {nextUnlockLabel && (
+                      <p className="text-sm text-muted-foreground">{nextUnlockLabel}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Lessons List */}
             <Card>
               <CardHeader>
@@ -164,17 +193,15 @@ export default function CourseDetail() {
                   </div>
                 ) : lessons && lessons.length > 0 ? (
                   <div className="space-y-2">
-                    {lessons.map((lesson, index) => (
+                    {lessons.map((lesson: any, index) => (
                       <div
                         key={lesson.id}
                         className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${
-                          isEnrolled
+                          isEnrolled && !lesson.isPathLocked
                             ? "hover:bg-accent cursor-pointer"
                             : "opacity-60"
                         }`}
-                        onClick={() =>
-                          isEnrolled && handleStartLesson(lesson.id)
-                        }
+                        onClick={() => isEnrolled && handleStartLesson(lesson)}
                       >
                         <div className="flex items-center gap-4 flex-1">
                           <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/10 text-primary font-semibold">
@@ -196,11 +223,20 @@ export default function CourseDetail() {
                             </span>
                           )}
                           {isEnrolled ? (
-                            <PlayCircle className="h-5 w-5 text-primary" />
+                            lesson.isPathLocked ? (
+                              <Lock className="h-5 w-5 text-muted-foreground" />
+                            ) : (
+                              <PlayCircle className="h-5 w-5 text-primary" />
+                            )
                           ) : (
                             <Lock className="h-5 w-5 text-muted-foreground" />
                           )}
                         </div>
+                        {lesson.isPathLocked && lesson.unlockLabel && (
+                          <p className="text-xs text-muted-foreground sm:text-right">
+                            {lesson.unlockLabel}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>

@@ -113,16 +113,22 @@ export default function LessonView() {
     allLessons && currentIndex >= 0 && currentIndex < allLessons.length - 1
       ? allLessons[currentIndex + 1]
       : null;
+  const nextUnlockedLesson =
+    allLessons && currentIndex >= 0
+      ? allLessons.slice(currentIndex + 1).find((lesson: any) => !lesson.isPathLocked) ?? null
+      : null;
   const prevLesson =
     allLessons && currentIndex > 0 ? allLessons[currentIndex - 1] : null;
 
-  const nextStepLabel = nextLesson
+  const nextStepLabel = nextUnlockedLesson
     ? isCurrentLessonCompleted
-      ? `Seu próximo passo é continuar com "${nextLesson.title}".`
-      : `Ao concluir esta aula, seu próximo passo será "${nextLesson.title}".`
-    : isCurrentLessonCompleted
-      ? "Parabéns! Você concluiu a última aula disponível deste curso."
-      : "Conclua esta aula para finalizar o curso e registrar seu avanço.";
+      ? `Seu próximo passo é continuar com "${nextUnlockedLesson.title}".`
+      : `Ao concluir esta aula, seu próximo passo será "${nextUnlockedLesson.title}".`
+    : nextLesson?.isPathLocked && nextLesson.unlockLabel
+      ? nextLesson.unlockLabel
+      : isCurrentLessonCompleted
+        ? "Parabéns! Você concluiu a última aula disponível desta etapa do curso."
+        : "Conclua esta aula para finalizar o curso e registrar seu avanço.";
 
   const shouldFetchPlaybackUrl =
     !!lesson &&
@@ -207,30 +213,39 @@ export default function LessonView() {
     );
   }
 
-  // Aula restrita e usuário sem assinatura adequada / compra avulsa
+  // Aula restrita por assinatura/compra ou bloqueada pela trilha pedagógica
   if (!hasAccess) {
+    const isLearningPathLocked = accessData?.reason === "learning_path_locked";
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card>
           <CardContent className="py-12 text-center max-w-md">
             <Lock className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-lg mb-2 font-semibold">Conteúdo exclusivo</p>
+            <p className="text-lg mb-2 font-semibold">
+              {isLearningPathLocked ? "Aula ainda não liberada" : "Conteúdo exclusivo"}
+            </p>
             <p className="text-muted-foreground mb-6">
-              Esta aula é exclusiva para assinantes ou para quem adquiriu este
-              curso individualmente. Assine um plano ou compre o curso para
-              continuar.
+              {isLearningPathLocked
+                ? accessData?.nextUnlockLabel ||
+                  "Esta aula faz parte de uma etapa futura da sua trilha de aprendizado."
+                : "Esta aula é exclusiva para assinantes ou para quem adquiriu este curso individualmente. Assine um plano ou compre o curso para continuar."}
             </p>
             <div className="flex flex-col gap-2">
               {course && (
                 <Link href={`/courses/${course.slug}`}>
-                  <Button className="w-full">Ver opções do curso</Button>
+                  <Button className="w-full">
+                    {isLearningPathLocked ? "Voltar para a trilha" : "Ver opções do curso"}
+                  </Button>
                 </Link>
               )}
-              <Link href="/pricing">
-                <Button variant="outline" className="w-full">
-                  Ver planos de assinatura
-                </Button>
-              </Link>
+              {!isLearningPathLocked && (
+                <Link href="/pricing">
+                  <Button variant="outline" className="w-full">
+                    Ver planos de assinatura
+                  </Button>
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -378,8 +393,8 @@ export default function LessonView() {
                   </p>
 
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                    {isCurrentLessonCompleted && nextLesson ? (
-                      <Button onClick={() => setLocation(`/lesson/${nextLesson.id}`)}>
+                    {isCurrentLessonCompleted && nextUnlockedLesson ? (
+                      <Button onClick={() => setLocation(`/lesson/${nextUnlockedLesson.id}`)}>
                         Ir para a próxima aula
                       </Button>
                     ) : (
@@ -423,14 +438,18 @@ export default function LessonView() {
               ) : (
                 <div></div>
               )}
-              {nextLesson && (
-                <Link href={`/lesson/${nextLesson.id}`}>
+              {nextUnlockedLesson ? (
+                <Link href={`/lesson/${nextUnlockedLesson.id}`}>
                   <Button>
                     Próxima Aula
                     <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
                   </Button>
                 </Link>
-              )}
+              ) : nextLesson?.isPathLocked ? (
+                <Button variant="outline" disabled>
+                  Próxima etapa bloqueada
+                </Button>
+              ) : null}
             </div>
           </div>
 
@@ -440,34 +459,46 @@ export default function LessonView() {
               <CardContent className="pt-6">
                 <h3 className="font-semibold mb-4">Conteúdo do Curso</h3>
                 <div className="space-y-2">
-                  {allLessons?.map((l, index) => {
+                  {allLessons?.map((l: any, index) => {
                     const isCompleted = mergedCompletedLessons.includes(l.id);
-
-                    return (
-                      <Link key={l.id} href={`/lesson/${l.id}`}>
-                        <div
-                          className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                            l.id === lessonId
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "hover:bg-accent"
-                          }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <span className="text-sm font-medium">{index + 1}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium line-clamp-2 flex items-center gap-1">
-                                {l.title}
-                                {l.isAccessRestricted === 1 && !l.videoPlaybackUrl && (
-                                  <Lock className="h-3 w-3 shrink-0" />
-                                )}
-                              </p>
-                              <div className="mt-1 flex items-center gap-2 text-xs opacity-70">
-                                {l.duration && <span>{formatDuration(l.duration)}</span>}
-                                {isCompleted && <span>• concluída</span>}
-                              </div>
+                    const isLockedByPath = Boolean(l.isPathLocked);
+                    const lessonCard = (
+                      <div
+                        className={`p-3 rounded-lg border transition-colors ${
+                          l.id === lessonId
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : isLockedByPath
+                              ? "opacity-70 cursor-not-allowed"
+                              : "cursor-pointer hover:bg-accent"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="text-sm font-medium">{index + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium line-clamp-2 flex items-center gap-1">
+                              {l.title}
+                              {l.isAccessRestricted === 1 && !l.videoPlaybackUrl && (
+                                <Lock className="h-3 w-3 shrink-0" />
+                              )}
+                            </p>
+                            <div className="mt-1 flex items-center gap-2 text-xs opacity-70">
+                              {l.duration && <span>{formatDuration(l.duration)}</span>}
+                              {isCompleted && <span>• concluída</span>}
+                              {isLockedByPath && <span>• bloqueada pela trilha</span>}
                             </div>
+                            {isLockedByPath && l.unlockLabel && (
+                              <p className="mt-1 text-xs opacity-70">{l.unlockLabel}</p>
+                            )}
                           </div>
                         </div>
+                      </div>
+                    );
+
+                    return isLockedByPath ? (
+                      <div key={l.id}>{lessonCard}</div>
+                    ) : (
+                      <Link key={l.id} href={`/lesson/${l.id}`}>
+                        {lessonCard}
                       </Link>
                     );
                   })}

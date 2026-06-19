@@ -136,6 +136,54 @@ export type Lesson = typeof lessons.$inferSelect;
 export type InsertLesson = typeof lessons.$inferInsert;
 
 /**
+ * Learning Path Retention
+ */
+export const learningPathStrategyEnum = pgEnum("learning_path_strategy", [
+  "seven_day_retention",
+]);
+
+export const learningPathPhaseEnum = pgEnum("learning_path_phase", [
+  "day0",
+  "day3",
+  "day6",
+  "day7",
+  "post7",
+]);
+
+export const learningPaths = pgTable("learning_paths", {
+  id: serial("id").primaryKey(),
+  courseId: integer("courseId").notNull().unique(),
+  isEnabled: integer("isEnabled").default(0).notNull(),
+  strategy: learningPathStrategyEnum("strategy")
+    .default("seven_day_retention")
+    .notNull(),
+  onboardingLessonIds: text("onboardingLessonIds"),
+  quickWinLessonId: integer("quickWinLessonId"),
+  minPhaseCompletionPercent: integer("minPhaseCompletionPercent").default(70).notNull(),
+  postDay7UnlockEveryDays: integer("postDay7UnlockEveryDays").default(3).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type LearningPath = typeof learningPaths.$inferSelect;
+export type InsertLearningPath = typeof learningPaths.$inferInsert;
+
+export const learningPathSteps = pgTable("learning_path_steps", {
+  id: serial("id").primaryKey(),
+  learningPathId: integer("learningPathId").notNull(),
+  lessonId: integer("lessonId").notNull(),
+  phase: learningPathPhaseEnum("phase").notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  isRequired: integer("isRequired").default(1).notNull(),
+  requiresPreviousCompletion: integer("requiresPreviousCompletion").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type LearningPathStep = typeof learningPathSteps.$inferSelect;
+export type InsertLearningPathStep = typeof learningPathSteps.$inferInsert;
+
+/**
  * Enrollments
  */
 export const enrollments = pgTable("enrollments", {

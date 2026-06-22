@@ -194,7 +194,9 @@ export default function LessonView() {
 
   const cancelCountdown = useCallback(() => {
     if (countdownRef.current) clearInterval(countdownRef.current);
+    if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
     setCountdown(null);
+    setIsExiting(false); // reverte animação de saída se cancelado após 9.4s
   }, []);
 
   const goToNextLesson = useCallback(() => {
@@ -207,6 +209,8 @@ export default function LessonView() {
   }, [cancelCountdown, nextUnlockedLesson, setLocation]);
 
   // Inicia countdown quando aula é concluída e há próxima aula disponível
+  const navTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (hasMarkedComplete && nextUnlockedLesson) {
       setCountdown(10);
@@ -221,16 +225,17 @@ export default function LessonView() {
       }, 1000);
 
       // Navega automaticamente ao atingir 0 (com animação de saída nos últimos 600ms)
-      const timeout = setTimeout(() => {
+      const exitTimeout = setTimeout(() => {
         setIsExiting(true);
-        setTimeout(() => {
+        navTimeoutRef.current = setTimeout(() => {
           setLocation(`/lesson/${nextUnlockedLesson.id}`);
         }, 600);
       }, 9400);
 
       return () => {
         clearInterval(countdownRef.current!);
-        clearTimeout(timeout);
+        clearTimeout(exitTimeout);
+        if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
       };
     }
   }, [hasMarkedComplete, nextUnlockedLesson, setLocation]);

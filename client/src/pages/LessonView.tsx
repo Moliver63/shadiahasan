@@ -10,7 +10,7 @@ import { getBreadcrumbs } from "@/lib/breadcrumbs";
 import { formatDuration } from "@/lib/formatDuration";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Lock, Maximize2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Link, useLocation, useParams } from "wouter";
 
@@ -41,6 +41,8 @@ export default function LessonView() {
   const { isAuthenticated } = useAuth();
   const [showVR, setShowVR] = useState(false);
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
+  const [completionUiStarted, setCompletionUiStarted] = useState(false);
+  const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
   const utils = trpc.useUtils();
 
   const { data: lesson, isLoading: lessonLoading } =
@@ -88,7 +90,7 @@ export default function LessonView() {
 
   const currentLessonAlreadyCompleted = completedLessons.includes(lessonId);
   const isCurrentLessonCompleted =
-    currentLessonAlreadyCompleted || hasMarkedComplete;
+    currentLessonAlreadyCompleted || hasMarkedComplete || completionUiStarted;
 
   const mergedCompletedLessons = useMemo(() => {
     const set = new Set<number>(completedLessons);
@@ -106,7 +108,7 @@ export default function LessonView() {
         100,
         Math.round((mergedCompletedLessons.length / totalLessons) * 100)
       )
-    : 0;
+    : enrollmentData?.enrollment?.progress ?? 0;
 
   const currentIndex = allLessons?.findIndex((l) => l.id === lessonId) ?? -1;
   const nextLesson =
@@ -145,8 +147,40 @@ export default function LessonView() {
       }
     );
 
+  useEffect(() => {
+    setHasMarkedComplete(false);
+    setCompletionUiStarted(false);
+    setAutoAdvanceCountdown(null);
+  }, [lessonId]);
+
+  useEffect(() => {
+    if (!completionUiStarted || !nextUnlockedLesson?.id) {
+      setAutoAdvanceCountdown(null);
+      return;
+    }
+
+    const nextLessonId = nextUnlockedLesson.id;
+    setAutoAdvanceCountdown(5);
+
+    const interval = window.setInterval(() => {
+      setAutoAdvanceCountdown((previousValue) => {
+        if (previousValue == null) return null;
+
+        if (previousValue <= 1) {
+          window.clearInterval(interval);
+          setLocation(`/lesson/${nextLessonId}`);
+          return 0;
+        }
+
+        return previousValue - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [completionUiStarted, nextUnlockedLesson?.id, setLocation]);
+
   const markLessonAsCompleted = () => {
-    if (!lesson || !hasAccess || totalLessons === 0) return;
+    if (!lesson || !hasAccess) return;
     if (
       hasMarkedComplete ||
       currentLessonAlreadyCompleted ||
@@ -155,30 +189,49 @@ export default function LessonView() {
       return;
     }
 
+    const completedLessonsToPersist = JSON.stringify([
+      ...new Set([...completedLessons, lessonId]),
+    ]);
+
     updateProgressMutation.mutate(
       {
         courseId: lesson.courseId,
         progress: calculatedProgress,
-        completedLessons: JSON.stringify([...new Set([...completedLessons, lessonId])]),
+        completedLessons: completedLessonsToPersist,
       },
       {
         onSuccess: () => {
           setHasMarkedComplete(true);
         },
+        onError: () => {
+          setCompletionUiStarted(false);
+          setAutoAdvanceCountdown(null);
+          toast.error("Não foi possível salvar sua conclusão. Tente novamente.");
+        },
       }
     );
   };
 
+  const startCompletionFlow = () => {
+    if (!lesson || !hasAccess) return;
+    if (completionUiStarted || hasMarkedComplete || currentLessonAlreadyCompleted) {
+      return;
+    }
+
+    setCompletionUiStarted(true);
+    toast.success("Aula concluída!");
+    markLessonAsCompleted();
+  };
+
   const handleProgress = (progress: number) => {
     if (lesson && hasAccess && progress > 90) {
-      markLessonAsCompleted();
+      startCompletionFlow();
     }
   };
 
   const handleComplete = () => {
     if (lesson && hasAccess) {
-      markLessonAsCompleted();
-      toast.success("Aula concluída!");
+      startCompletionFlow();
     }
   };
 
@@ -372,7 +425,7 @@ export default function LessonView() {
                       Aulas concluídas
                     </p>
                     <p className="text-base font-semibold">
-                      {Math.min(mergedCompletedLessons.length, totalLessons)} de {totalLessons}
+                      {Math.min(mergedCompletedLessons.length, Math.max(totalLessons, mergedCompletedLessons.length))} de {Math.max(totalLessons, mergedCompletedLessons.length)}
                     </p>
                   </div>
                 </div>
@@ -391,6 +444,12 @@ export default function LessonView() {
                   <p className="text-sm text-muted-foreground">
                     {nextStepLabel}
                   </p>
+
+                  {completionUiStarted && nextUnlockedLesson && autoAdvanceCountdown !== null && autoAdvanceCountdown > 0 && (
+                    <p className="mt-2 text-sm text-primary">
+                      Redirecionando para a próxima aula em {autoAdvanceCountdown}s...
+                    </p>
+                  )}
 
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                     {isCurrentLessonCompleted && nextUnlockedLesson ? (

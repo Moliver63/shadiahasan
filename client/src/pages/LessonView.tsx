@@ -169,7 +169,7 @@ export default function LessonView() {
     );
 
   const markLessonAsCompleted = () => {
-    if (!lesson || !hasAccess || totalLessons === 0) return;
+    if (!lesson || !hasAccess) return;
     if (
       hasMarkedComplete ||
       currentLessonAlreadyCompleted ||
@@ -178,18 +178,11 @@ export default function LessonView() {
       return;
     }
 
-    updateProgressMutation.mutate(
-      {
-        courseId: lesson.courseId,
-        progress: calculatedProgress,
-        completedLessons: JSON.stringify([...new Set([...completedLessons, lessonId])]),
-      },
-      {
-        onSuccess: () => {
-          setHasMarkedComplete(true);
-        },
-      }
-    );
+    updateProgressMutation.mutate({
+      courseId: lesson.courseId,
+      progress: calculatedProgress,
+      completedLessons: JSON.stringify([...new Set([...completedLessons, lessonId])]),
+    });
   };
 
   const cancelCountdown = useCallback(() => {
@@ -242,14 +235,22 @@ export default function LessonView() {
 
   const handleProgress = (progress: number) => {
     if (lesson && hasAccess && progress > 90) {
+      // Seta imediatamente para disparar o countdown sem esperar onSuccess
+      if (!hasMarkedComplete && !currentLessonAlreadyCompleted) {
+        setHasMarkedComplete(true);
+      }
       markLessonAsCompleted();
     }
   };
 
   const handleComplete = () => {
     if (lesson && hasAccess) {
+      // Seta imediatamente para disparar o countdown — não espera onSuccess
+      if (!hasMarkedComplete && !currentLessonAlreadyCompleted) {
+        setHasMarkedComplete(true);
+        toast.success("Aula concluída!");
+      }
       markLessonAsCompleted();
-      toast.success("Aula concluída!");
     }
   };
 

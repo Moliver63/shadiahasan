@@ -52,11 +52,6 @@ export default function LessonView() {
   // Idioma selecionado manualmente pelo aluno (null = usar preferredLanguage)
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
 
-  // Idiomas de dublagem disponíveis para esta aula
-  const { data: languagesData } = trpc.videos.getAvailableLanguages.useQuery(
-    { lessonId },
-    { enabled: !!lesson && hasAccess, staleTime: 300_000 }
-  );
 
 
 
@@ -99,6 +94,12 @@ export default function LessonView() {
   });
 
   const hasAccess = accessData?.hasAccess ?? false;
+
+  // Idiomas de dublagem — após lesson e hasAccess estarem disponíveis
+  const { data: languagesData } = trpc.videos.getAvailableLanguages.useQuery(
+    { lessonId },
+    { enabled: !!lesson && hasAccess, staleTime: 300_000 }
+  );
   const completedLessons = useMemo(() => {
     return parseCompletedLessons(enrollmentData?.enrollment?.completedLessons);
   }, [enrollmentData?.enrollment?.completedLessons]);

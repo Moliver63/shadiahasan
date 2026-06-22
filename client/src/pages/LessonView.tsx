@@ -10,7 +10,7 @@ import { getBreadcrumbs } from "@/lib/breadcrumbs";
 import { formatDuration } from "@/lib/formatDuration";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Globe, Lock, Maximize2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useLocation, useParams } from "wouter";
 
@@ -41,6 +41,9 @@ export default function LessonView() {
   const { isAuthenticated, user } = useAuth();
   const [showVR, setShowVR] = useState(false);
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
+  // Countdown Netflix — autoplay próxima aula
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const utils = trpc.useUtils();
 
   // Idioma preferido do usuário para auto-seleção de faixa de áudio
@@ -186,6 +189,42 @@ export default function LessonView() {
       }
     );
   };
+
+  const cancelCountdown = useCallback(() => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setCountdown(null);
+  }, []);
+
+  const goToNextLesson = useCallback(() => {
+    cancelCountdown();
+    if (nextUnlockedLesson) setLocation(`/lesson/${nextUnlockedLesson.id}`);
+  }, [cancelCountdown, nextUnlockedLesson, setLocation]);
+
+  // Inicia countdown quando aula é concluída e há próxima aula disponível
+  useEffect(() => {
+    if (hasMarkedComplete && nextUnlockedLesson) {
+      setCountdown(10);
+      countdownRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev === null || prev <= 1) {
+            clearInterval(countdownRef.current!);
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Navega automaticamente ao atingir 0
+      const timeout = setTimeout(() => {
+        setLocation(`/lesson/${nextUnlockedLesson.id}`);
+      }, 10000);
+
+      return () => {
+        clearInterval(countdownRef.current!);
+        clearTimeout(timeout);
+      };
+    }
+  }, [hasMarkedComplete, nextUnlockedLesson, setLocation]);
 
   const handleProgress = (progress: number) => {
     if (lesson && hasAccess && progress > 90) {
@@ -352,13 +391,79 @@ export default function LessonView() {
                     )}
 
                     {/* VideoPlayer detecta YouTube internamente e renderiza iframe ou HLS */}
-                    <VideoPlayer
-                      src={playbackUrl}
-                      title={lesson.title}
-                      preferredLanguage={effectiveLanguage}
-                      onProgress={handleProgress}
-                      onComplete={handleComplete}
-                    />
+                    <div className="relative">
+                      <VideoPlayer
+                        src={playbackUrl}
+                        title={lesson.title}
+                        preferredLanguage={effectiveLanguage}
+                        onProgress={handleProgress}
+                        onComplete={handleComplete}
+                      />
+
+                      {/* ── Overlay Netflix: autoplay próxima aula ── */}
+                      {countdown !== null && nextUnlockedLesson && (
+                        <div className="absolute inset-0 flex items-end justify-end pointer-events-none">
+                          <div
+                            className="pointer-events-auto m-4 flex flex-col items-end gap-3 rounded-xl bg-black/80 backdrop-blur-sm border border-white/10 px-5 py-4 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500"
+                            style={{ maxWidth: 320 }}
+                          >
+                            {/* Cabeçalho */}
+                            <div className="w-full">
+                              <p className="text-xs text-white/50 uppercase tracking-widest mb-1">
+                                A seguir
+                              </p>
+                              <p className="text-sm font-semibold text-white line-clamp-2 leading-snug">
+                                {nextUnlockedLesson.title}
+                              </p>
+                            </div>
+
+                            {/* Anel de countdown */}
+                            <div className="relative flex items-center justify-center" style={{ width: 56, height: 56 }}>
+                              <svg
+                                className="absolute inset-0 -rotate-90"
+                                width="56" height="56" viewBox="0 0 56 56"
+                              >
+                                <circle
+                                  cx="28" cy="28" r="24"
+                                  fill="none"
+                                  stroke="rgba(255,255,255,0.15)"
+                                  strokeWidth="3"
+                                />
+                                <circle
+                                  cx="28" cy="28" r="24"
+                                  fill="none"
+                                  stroke="white"
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                                  strokeDasharray={`${2 * Math.PI * 24}`}
+                                  strokeDashoffset={`${2 * Math.PI * 24 * (1 - countdown / 10)}`}
+                                  style={{ transition: "stroke-dashoffset 1s linear" }}
+                                />
+                              </svg>
+                              <span className="text-white font-bold text-lg leading-none">
+                                {countdown}
+                              </span>
+                            </div>
+
+                            {/* Botões */}
+                            <div className="flex gap-2 w-full">
+                              <button
+                                onClick={cancelCountdown}
+                                className="flex-1 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white text-xs font-medium py-1.5 transition-colors"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={goToNextLesson}
+                                className="flex-1 rounded-lg bg-white text-black text-xs font-bold py-1.5 hover:bg-white/90 transition-colors"
+                              >
+                                Ir agora
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     {/* Botão VR só aparece para vídeos de streaming (não YouTube) */}
                     {!isYouTube && (
                       <Button

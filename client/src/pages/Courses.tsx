@@ -1,4 +1,4 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import CourseCard from "@/components/CourseCard";
 import { trpc } from "@/lib/trpc";
 import { BookOpen } from "lucide-react";

@@ -359,6 +359,7 @@ export default function LessonView() {
   }
 
   return (
+    <>
     <AnimatePresence mode="wait">
       <motion.div
         key={lessonId}
@@ -736,5 +737,6 @@ export default function LessonView() {
         </div>
       </div>
     )}
+    </>
   );
 }

@@ -102,7 +102,7 @@ export default function CommunityExplore() {
                       Para aparecer nas sugestões de outras pessoas e receber convites de conexão,
                       torne seu perfil público nas configurações.
                     </p>
-                    <Link href="/profile/edit">
+                    <Link href="/edit-profile">
                       <Button variant="outline" size="sm" className="mt-3">
                         Tornar Perfil Público
                       </Button>

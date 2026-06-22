@@ -11,6 +11,7 @@ import { formatDuration } from "@/lib/formatDuration";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Globe, Lock, Maximize2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { Link, useLocation, useParams } from "wouter";
 
@@ -43,6 +44,7 @@ export default function LessonView() {
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
   // Countdown Netflix — autoplay próxima aula
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [isExiting, setIsExiting] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const utils = trpc.useUtils();
 
@@ -197,7 +199,11 @@ export default function LessonView() {
 
   const goToNextLesson = useCallback(() => {
     cancelCountdown();
-    if (nextUnlockedLesson) setLocation(`/lesson/${nextUnlockedLesson.id}`);
+    if (!nextUnlockedLesson) return;
+    setIsExiting(true);
+    setTimeout(() => {
+      setLocation(`/lesson/${nextUnlockedLesson.id}`);
+    }, 600);
   }, [cancelCountdown, nextUnlockedLesson, setLocation]);
 
   // Inicia countdown quando aula é concluída e há próxima aula disponível
@@ -214,10 +220,13 @@ export default function LessonView() {
         });
       }, 1000);
 
-      // Navega automaticamente ao atingir 0
+      // Navega automaticamente ao atingir 0 (com animação de saída nos últimos 600ms)
       const timeout = setTimeout(() => {
-        setLocation(`/lesson/${nextUnlockedLesson.id}`);
-      }, 10000);
+        setIsExiting(true);
+        setTimeout(() => {
+          setLocation(`/lesson/${nextUnlockedLesson.id}`);
+        }, 600);
+      }, 9400);
 
       return () => {
         clearInterval(countdownRef.current!);
@@ -318,6 +327,16 @@ export default function LessonView() {
   }
 
   return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={lessonId}
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={isExiting
+          ? { opacity: 0, scale: 1.03, transition: { duration: 0.55, ease: [0.4, 0, 0.2, 1] } }
+          : { opacity: 1, scale: 1, transition: { duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] } }
+        }
+        exit={{ opacity: 0, scale: 1.03, transition: { duration: 0.55, ease: [0.4, 0, 0.2, 1] } }}
+      >
     <div className="min-h-screen bg-background">
       <PublicHeader
         items={[
@@ -407,14 +426,23 @@ export default function LessonView() {
                             className="pointer-events-auto m-4 flex flex-col items-end gap-3 rounded-xl bg-black/80 backdrop-blur-sm border border-white/10 px-5 py-4 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500"
                             style={{ maxWidth: 320 }}
                           >
-                            {/* Cabeçalho */}
-                            <div className="w-full">
-                              <p className="text-xs text-white/50 uppercase tracking-widest mb-1">
-                                A seguir
-                              </p>
-                              <p className="text-sm font-semibold text-white line-clamp-2 leading-snug">
-                                {nextUnlockedLesson.title}
-                              </p>
+                            {/* Thumbnail + título da próxima aula */}
+                            <div className="w-full flex gap-3 items-start">
+                              {(nextUnlockedLesson as any).thumbnail && (
+                                <img
+                                  src={(nextUnlockedLesson as any).thumbnail}
+                                  alt={nextUnlockedLesson.title}
+                                  className="w-20 h-12 rounded object-cover shrink-0 border border-white/10"
+                                />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-white/50 uppercase tracking-widest mb-0.5">
+                                  A seguir
+                                </p>
+                                <p className="text-sm font-semibold text-white line-clamp-2 leading-snug">
+                                  {nextUnlockedLesson.title}
+                                </p>
+                              </div>
                             </div>
 
                             {/* Anel de countdown */}
@@ -672,5 +700,7 @@ export default function LessonView() {
         </div>
       </footer>
     </div>
+      </motion.div>
+    </AnimatePresence>
   );
 }

@@ -52,11 +52,18 @@ export default function LessonView() {
   // Idioma selecionado manualmente pelo aluno (null = usar preferredLanguage)
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
 
-  // Idiomas de dublagem disponíveis para esta aula (query — derivadas abaixo após isYouTube)
+  // Idiomas de dublagem disponíveis para esta aula
   const { data: languagesData } = trpc.videos.getAvailableLanguages.useQuery(
     { lessonId },
     { enabled: !!lesson && hasAccess, staleTime: 300_000 }
   );
+
+  // Derivadas de playback e dublagem — declaradas aqui (antes dos early returns) para evitar TDZ no bundle
+  const playbackUrl = playbackData?.url || (lesson as any)?.videoPlaybackUrl || null;
+  const isYouTube = playbackUrl ? isYouTubeUrl(playbackUrl) : false;
+  const availableTracks = languagesData?.tracks ?? [];
+  const hasMultipleLanguages = (languagesData?.hasMultipleLanguages ?? false) && !isYouTube;
+  const effectiveLanguage = selectedLanguage ?? userSettings?.language ?? "pt-BR";
 
   const { data: lesson, isLoading: lessonLoading } =
     trpc.lessons.getById.useQuery({ id: lessonId });
@@ -267,17 +274,6 @@ export default function LessonView() {
       </div>
     );
   }
-
-  const playbackUrl = playbackData?.url || lesson.videoPlaybackUrl || null;
-
-  // YouTube não suporta VR — oculta o botão nesses casos
-  const isYouTube = playbackUrl ? isYouTubeUrl(playbackUrl) : false;
-
-  // Faixas de dublagem — depende de isYouTube para filtrar seletor
-  const availableTracks = languagesData?.tracks ?? [];
-  const hasMultipleLanguages = (languagesData?.hasMultipleLanguages ?? false) && !isYouTube;
-  // Idioma efetivo: escolha manual > preferência do perfil > padrão pt-BR
-  const effectiveLanguage = selectedLanguage ?? userSettings?.language ?? "pt-BR";
 
   return (
     <div className="min-h-screen bg-background">

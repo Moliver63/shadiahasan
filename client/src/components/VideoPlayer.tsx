@@ -173,6 +173,8 @@ export default function VideoPlayer({
             }
           });
 
+          // Sincroniza o seletor visual quando o HLS confirma a troca de faixa
+          // (manual ou por auto-seleção). Usa data.id — índice real confirmado pelo HLS.
           hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event: unknown, data: any) => {
             setSelectedAudioTrack(String(data.id ?? 0));
           });

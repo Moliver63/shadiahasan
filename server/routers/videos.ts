@@ -27,7 +27,7 @@ import {
   enrollments,
   lessonAudioTracks,
 } from "../../drizzle/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, desc } from "drizzle-orm";
 import {
   addAudioTrackByUrl,
   createTusDirectUploadUrl,
@@ -652,7 +652,7 @@ export const videosRouter = router({
         .select()
         .from(lessonAudioTracks)
         .where(eq(lessonAudioTracks.lessonId, input.lessonId))
-        .orderBy(lessonAudioTracks.isDefault);
+        .orderBy(desc(lessonAudioTracks.isDefault)); // padrão (1) primeiro
 
       return {
         tracks: tracks.map((t) => ({

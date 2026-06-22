@@ -170,7 +170,7 @@ export default function LessonView() {
       }
     );
 
-  const markLessonAsCompleted = () => {
+  const markLessonAsCompleted = useCallback(() => {
     if (!lesson || !hasAccess) return;
     if (
       hasMarkedComplete ||
@@ -200,15 +200,15 @@ export default function LessonView() {
         },
       }
     );
-  };
+  }, [lesson, hasAccess, hasMarkedComplete, currentLessonAlreadyCompleted, completionUiStarted, updateProgressMutation, calculatedProgress, completedLessons, lessonId]);
 
   // Função central de conclusão: UX imediata + persistência em paralelo
-  const startCompletionFlow = () => {
+  const startCompletionFlow = useCallback(() => {
     if (completionUiStarted || currentLessonAlreadyCompleted || hasMarkedComplete) return;
     setCompletionUiStarted(true);
     toast.success("Aula concluída!");
     markLessonAsCompleted();
-  };
+  }, [completionUiStarted, currentLessonAlreadyCompleted, hasMarkedComplete, markLessonAsCompleted]);
 
   const cancelCountdown = useCallback(() => {
     if (countdownRef.current) clearInterval(countdownRef.current);
@@ -268,17 +268,17 @@ export default function LessonView() {
     }
   }, [completionUiStarted, nextUnlockedLesson, setLocation, countdown]);
 
-  const handleProgress = (progress: number) => {
+  const handleProgress = useCallback((progress: number) => {
     if (lesson && hasAccess && progress > 90) {
       startCompletionFlow();
     }
-  };
+  }, [lesson, hasAccess, startCompletionFlow]);
 
-  const handleComplete = () => {
+  const handleComplete = useCallback(() => {
     if (lesson && hasAccess) {
       startCompletionFlow();
     }
-  };
+  }, [lesson, hasAccess, startCompletionFlow]);
 
   // Derivadas de playback — depois de playbackData, antes dos early returns
   const playbackUrl = playbackData?.url || lesson?.videoPlaybackUrl || null;
@@ -408,71 +408,6 @@ export default function LessonView() {
                 <p className="text-muted-foreground">Curso: {course.title}</p>
               )}
             </div>
-
-            {/* ── Overlay Netflix: aparece sobre qualquer estado do player, inclusive VR ── */}
-            {countdown !== null && nextUnlockedLesson && (
-              <div className="fixed bottom-6 right-6 z-50 pointer-events-none">
-                <div
-                  className="pointer-events-auto flex flex-col gap-3 rounded-xl bg-black/85 backdrop-blur-md border border-white/10 px-5 py-4 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500"
-                  style={{ maxWidth: 320, minWidth: 260 }}
-                >
-                  {/* Thumbnail + título da próxima aula */}
-                  <div className="flex gap-3 items-start">
-                    {(nextUnlockedLesson as any).thumbnail && (
-                      <img
-                        src={(nextUnlockedLesson as any).thumbnail}
-                        alt={nextUnlockedLesson.title}
-                        className="w-20 h-12 rounded object-cover shrink-0 border border-white/10"
-                      />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-white/50 uppercase tracking-widest mb-0.5">
-                        A seguir
-                      </p>
-                      <p className="text-sm font-semibold text-white line-clamp-2 leading-snug">
-                        {nextUnlockedLesson.title}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Anel de countdown */}
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="relative flex items-center justify-center shrink-0" style={{ width: 56, height: 56 }}>
-                      <svg
-                        className="absolute inset-0 -rotate-90"
-                        width="56" height="56" viewBox="0 0 56 56"
-                      >
-                        <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
-                        <circle
-                          cx="28" cy="28" r="24"
-                          fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"
-                          strokeDasharray={`${2 * Math.PI * 24}`}
-                          strokeDashoffset={`${2 * Math.PI * 24 * (1 - countdown / 10)}`}
-                          style={{ transition: "stroke-dashoffset 1s linear" }}
-                        />
-                      </svg>
-                      <span className="text-white font-bold text-lg leading-none">{countdown}</span>
-                    </div>
-
-                    {/* Botões */}
-                    <div className="flex flex-col gap-2 flex-1">
-                      <button
-                        onClick={goToNextLesson}
-                        className="w-full rounded-lg bg-white text-black text-xs font-bold py-2 hover:bg-white/90 transition-colors"
-                      >
-                        Ir agora
-                      </button>
-                      <button
-                        onClick={cancelCountdown}
-                        className="w-full rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white text-xs font-medium py-1.5 transition-colors"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Video Player */}
             {playbackUrl ? (
@@ -737,5 +672,62 @@ export default function LessonView() {
     </div>
       </motion.div>
     </AnimatePresence>
+
+    {/* ── Overlay Netflix: FORA do AnimatePresence — não some com animação de saída ── */}
+    {countdown !== null && nextUnlockedLesson && (
+      <div className="fixed bottom-6 right-6 z-[9999] pointer-events-none">
+        <div
+          className="pointer-events-auto flex flex-col gap-3 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 px-5 py-4 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500"
+          style={{ maxWidth: 320, minWidth: 260 }}
+        >
+          {/* Thumbnail + título da próxima aula */}
+          <div className="flex gap-3 items-start">
+            {(nextUnlockedLesson as any).thumbnail && (
+              <img
+                src={(nextUnlockedLesson as any).thumbnail}
+                alt={nextUnlockedLesson.title}
+                className="w-20 h-12 rounded object-cover shrink-0 border border-white/10"
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-white/50 uppercase tracking-widest mb-0.5">A seguir</p>
+              <p className="text-sm font-semibold text-white line-clamp-2 leading-snug">
+                {nextUnlockedLesson.title}
+              </p>
+            </div>
+          </div>
+
+          {/* Anel SVG + botões */}
+          <div className="flex items-center gap-4">
+            <div className="relative flex items-center justify-center shrink-0" style={{ width: 56, height: 56 }}>
+              <svg className="absolute inset-0 -rotate-90" width="56" height="56" viewBox="0 0 56 56">
+                <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
+                <circle
+                  cx="28" cy="28" r="24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 24}`}
+                  strokeDashoffset={`${2 * Math.PI * 24 * (1 - countdown / 10)}`}
+                  style={{ transition: "stroke-dashoffset 1s linear" }}
+                />
+              </svg>
+              <span className="text-white font-bold text-lg leading-none">{countdown}</span>
+            </div>
+            <div className="flex flex-col gap-2 flex-1">
+              <button
+                onClick={goToNextLesson}
+                className="w-full rounded-lg bg-white text-black text-xs font-bold py-2 hover:bg-white/90 transition-colors"
+              >
+                Ir agora
+              </button>
+              <button
+                onClick={cancelCountdown}
+                className="w-full rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white text-xs font-medium py-1.5 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }

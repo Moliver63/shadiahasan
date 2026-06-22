@@ -352,7 +352,36 @@ export default function VideoPlayer({
     }, 3000);
   };
 
-  // ✅ Renderiza iframe do YouTube
+  // ── YouTube: detectar fim do vídeo via postMessage da iframe API ──────────
+  useEffect(() => {
+    if (!youtubeId) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.origin.includes("youtube.com")) return;
+      try {
+        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        // YT.PlayerState.ENDED = 0
+        if (data?.event === "onStateChange" && data?.info === 0) {
+          if (onComplete) onComplete();
+        }
+        // Progresso: YT não expõe currentTime via postMessage nativamente
+        // Usamos o evento onVideoProgress customizado quando disponível
+        if (data?.event === "infoDelivery" && data?.info?.currentTime != null) {
+          const yt = data.info;
+          if (yt.duration > 0 && onProgress) {
+            onProgress((yt.currentTime / yt.duration) * 100);
+          }
+        }
+      } catch {
+        // mensagem não-JSON de outra origem, ignorar
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [youtubeId, onComplete, onProgress]);
+
+  // ✅ Renderiza iframe do YouTube com enablejsapi=1 para postMessage
   if (youtubeId) {
     return (
       <div
@@ -362,7 +391,7 @@ export default function VideoPlayer({
       >
         <iframe
           className="absolute top-0 left-0 w-full h-full"
-          src={`https://www.youtube.com/embed/${youtubeId}?rel=0`}
+          src={`https://www.youtube.com/embed/${youtubeId}?rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
           title={title || "YouTube Video"}
           frameBorder="0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

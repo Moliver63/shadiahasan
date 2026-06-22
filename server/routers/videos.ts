@@ -25,6 +25,7 @@ import {
   userSubscriptions,
   subscriptionPlans,
   enrollments,
+  lessonAudioTracks,
 } from "../../drizzle/schema";
 import { eq, and, or } from "drizzle-orm";
 import {
@@ -321,18 +322,20 @@ export const videosRouter = router({
       }),
 
     /**
-     * Adiciona uma nova faixa de áudio por URL pública
+     * Adiciona uma nova faixa de áudio por URL pública e persiste metadados no banco
      */
     addAudioTrack: adminProcedure
       .input(
         z.object({
           videoUid: z.string().min(1),
+          lessonId: z.number().optional(),
           label: z.string().min(1),
           audioUrl: z.string().url(),
           makeDefault: z.boolean().default(false),
+          languageCode: z.string().min(2).max(10).default("pt-BR"),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         if (!isCloudflareConfigured()) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -346,22 +349,49 @@ export const videosRouter = router({
           default: input.makeDefault,
         });
 
+        // Persistir metadados no banco local se lessonId fornecido
+        if (input.lessonId && track?.uid) {
+          const db = await getDb();
+          if (db) {
+            // Se esta faixa é padrão, desmarcar as demais da mesma aula
+            if (input.makeDefault) {
+              await db
+                .update(lessonAudioTracks)
+                .set({ isDefault: 0, updatedAt: new Date() })
+                .where(eq(lessonAudioTracks.lessonId, input.lessonId));
+            }
+
+            await db.insert(lessonAudioTracks).values({
+              lessonId: input.lessonId,
+              videoAssetId: input.videoUid,
+              audioTrackUid: track.uid,
+              languageCode: input.languageCode,
+              label: input.label,
+              isDefault: input.makeDefault ? 1 : 0,
+              status: (track.status as "queued" | "ready" | "error") ?? "queued",
+              createdBy: ctx.user.id,
+            });
+          }
+        }
+
         return {
           uid: track.uid,
           label: track.label,
           isDefault: track.default,
           status: track.status,
+          languageCode: input.languageCode,
         };
       }),
 
     /**
-     * Define uma faixa de áudio como padrão
+     * Define uma faixa de áudio como padrão (CF Stream + banco local)
      */
     setDefaultAudioTrack: adminProcedure
       .input(
         z.object({
           videoUid: z.string().min(1),
           audioUid: z.string().min(1),
+          lessonId: z.number().optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -376,6 +406,21 @@ export const videosRouter = router({
           default: true,
         });
 
+        // Sincronizar padrão no banco local
+        if (input.lessonId) {
+          const db = await getDb();
+          if (db) {
+            await db
+              .update(lessonAudioTracks)
+              .set({ isDefault: 0, updatedAt: new Date() })
+              .where(eq(lessonAudioTracks.lessonId, input.lessonId));
+            await db
+              .update(lessonAudioTracks)
+              .set({ isDefault: 1, updatedAt: new Date() })
+              .where(eq(lessonAudioTracks.audioTrackUid, input.audioUid));
+          }
+        }
+
         return {
           uid: track.uid,
           label: track.label,
@@ -385,7 +430,7 @@ export const videosRouter = router({
       }),
 
     /**
-     * Remove uma faixa de áudio adicional
+     * Remove uma faixa de áudio adicional (CF Stream + banco local)
      */
     deleteAudioTrack: adminProcedure
       .input(
@@ -403,6 +448,15 @@ export const videosRouter = router({
         }
 
         await deleteAudioTrack(input.videoUid, input.audioUid);
+
+        // Remover do banco local
+        const db = await getDb();
+        if (db) {
+          await db
+            .delete(lessonAudioTracks)
+            .where(eq(lessonAudioTracks.audioTrackUid, input.audioUid));
+        }
+
         return { success: true };
       }),
 
@@ -582,6 +636,35 @@ export const videosRouter = router({
   }),
 
   // ── Usuário ────────────────────────────────────────────────────────────────
+
+  /**
+   * Retorna os idiomas disponíveis para uma aula.
+   * Combina dados do banco local (com languageCode) com o status real do CF Stream.
+   * Usado pelo player para auto-seleção e pelo frontend para exibir badge de idiomas.
+   */
+  getAvailableLanguages: protectedProcedure
+    .input(z.object({ lessonId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { tracks: [], hasMultipleLanguages: false };
+
+      const tracks = await db
+        .select()
+        .from(lessonAudioTracks)
+        .where(eq(lessonAudioTracks.lessonId, input.lessonId))
+        .orderBy(lessonAudioTracks.isDefault);
+
+      return {
+        tracks: tracks.map((t) => ({
+          audioTrackUid: t.audioTrackUid,
+          languageCode: t.languageCode,
+          label: t.label,
+          isDefault: t.isDefault === 1,
+          status: t.status,
+        })),
+        hasMultipleLanguages: tracks.length > 1,
+      };
+    }),
 
   /**
    * Retorna a URL de playback de uma aula

@@ -136,6 +136,30 @@ export type Lesson = typeof lessons.$inferSelect;
 export type InsertLesson = typeof lessons.$inferInsert;
 
 /**
+ * Lesson Audio Tracks (Dublagem por idioma)
+ * Persiste metadados de cada faixa de áudio adicional cadastrada no Cloudflare Stream.
+ * Garante rastreabilidade e independência do Cloudflare como única fonte de verdade.
+ */
+export const audioTrackStatusEnum = pgEnum("audio_track_status", ["queued", "ready", "error"]);
+
+export const lessonAudioTracks = pgTable("lessonAudioTracks", {
+  id: serial("id").primaryKey(),
+  lessonId: integer("lessonId").notNull(),           // FK → lessons.id
+  videoAssetId: varchar("videoAssetId", { length: 255 }).notNull(), // UID do vídeo no CF Stream
+  audioTrackUid: varchar("audioTrackUid", { length: 255 }).notNull(), // UID da faixa no CF Stream
+  languageCode: varchar("languageCode", { length: 10 }).notNull(),   // ex: pt-BR, en, es
+  label: varchar("label", { length: 100 }).notNull(),                // ex: "Português", "English"
+  isDefault: integer("isDefault").default(0).notNull(),              // 1 = faixa padrão
+  status: audioTrackStatusEnum("status").default("queued").notNull(),
+  createdBy: integer("createdBy"),                   // FK → users.id (admin que criou)
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type LessonAudioTrack = typeof lessonAudioTracks.$inferSelect;
+export type InsertLessonAudioTrack = typeof lessonAudioTracks.$inferInsert;
+
+/**
  * Learning Path Retention
  */
 export const learningPathStrategyEnum = pgEnum("learning_path_strategy", [

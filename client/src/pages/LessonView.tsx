@@ -38,10 +38,16 @@ export default function LessonView() {
   const params = useParams();
   const lessonId = parseInt(params.id || "0");
   const [, setLocation] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [showVR, setShowVR] = useState(false);
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
   const utils = trpc.useUtils();
+
+  // Idioma preferido do usuário para auto-seleção de faixa de áudio
+  const { data: userSettings } = trpc.profile.getSettings.useQuery(undefined, {
+    enabled: Boolean(user),
+    staleTime: 60_000,
+  });
 
   const { data: lesson, isLoading: lessonLoading } =
     trpc.lessons.getById.useQuery({ id: lessonId });
@@ -308,6 +314,7 @@ export default function LessonView() {
                     <VideoPlayer
                       src={playbackUrl}
                       title={lesson.title}
+                      preferredLanguage={userSettings?.language ?? "pt-BR"}
                       onProgress={handleProgress}
                       onComplete={handleComplete}
                     />

@@ -21,6 +21,7 @@ import { Slider } from "./ui/slider";
 interface VideoPlayerProps {
   src: string;
   title?: string;
+  preferredLanguage?: string; // ex: "pt-BR", "en" — vem de userSettings.language
   onProgress?: (progress: number) => void;
   onComplete?: () => void;
 }
@@ -42,6 +43,7 @@ function getYouTubeId(url: string): string | null {
 export default function VideoPlayer({
   src,
   title,
+  preferredLanguage,
   onProgress,
   onComplete,
 }: VideoPlayerProps) {
@@ -140,17 +142,35 @@ export default function VideoPlayer({
               language: track.lang || track.language || "",
             }));
 
+          // Tenta selecionar automaticamente a faixa que combina com o idioma preferido
+          const autoSelectByLanguage = (tracks: AudioTrackOption[]): number => {
+            if (!preferredLanguage || tracks.length <= 1) return 0;
+            const lang = preferredLanguage.toLowerCase();
+            // Tenta match exato (ex: "pt-BR"), depois prefixo (ex: "pt"), depois padrão 0
+            const exact = tracks.findIndex((t) => t.language.toLowerCase() === lang);
+            if (exact >= 0) return exact;
+            const prefix = tracks.findIndex((t) => t.language.toLowerCase().startsWith(lang.split("-")[0]));
+            return prefix >= 0 ? prefix : 0;
+          };
+
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             const tracks = extractTracks(hls.audioTracks || []);
             setAudioTracks(tracks.length > 1 ? tracks : []);
             if (tracks.length > 1) {
-              setSelectedAudioTrack(String(hls.audioTrack >= 0 ? hls.audioTrack : 0));
+              const preferred = autoSelectByLanguage(tracks);
+              hls.audioTrack = preferred;
+              setSelectedAudioTrack(String(preferred));
             }
           });
 
           hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_event: unknown, data: any) => {
             const tracks = extractTracks(data.audioTracks || []);
             setAudioTracks(tracks.length > 1 ? tracks : []);
+            if (tracks.length > 1) {
+              const preferred = autoSelectByLanguage(tracks);
+              hls.audioTrack = preferred;
+              setSelectedAudioTrack(String(preferred));
+            }
           });
 
           hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event: unknown, data: any) => {

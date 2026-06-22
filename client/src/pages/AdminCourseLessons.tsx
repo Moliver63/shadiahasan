@@ -634,6 +634,8 @@ export default function AdminCourseLessons() {
       label: dubbingForm.label.trim(),
       audioUrl: dubbingForm.audioUrl.trim(),
       makeDefault: dubbingForm.makeDefault,
+      languageCode: dubbingForm.languageCode,
+      lessonId: editingLesson?.id,
     });
   };
 
@@ -1211,6 +1213,7 @@ export default function AdminCourseLessons() {
                                           setDefaultAudioTrackMutation.mutate({
                                             videoUid: formData.videoAssetId,
                                             audioUid: track.uid,
+                                            lessonId: editingLesson?.id,
                                           })
                                         }
                                         disabled={setDefaultAudioTrackMutation.isPending}

@@ -21,6 +21,9 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "../db";
+import { getDb } from "../db";
+import { userSettings } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 export const profileRouter = router({
 
@@ -80,6 +83,30 @@ export const profileRouter = router({
     .mutation(async ({ ctx }) => {
       await db.resendVerificationEmail(ctx.user.id);
       return { success: true };
+    }),
+
+  // ── Configurações do usuário (idioma, notificações, etc.) ──
+  getSettings: protectedProcedure
+    .query(async ({ ctx }) => {
+      const database = await getDb();
+      if (!database) return { language: "pt-BR" };
+
+      const result = await database
+        .select()
+        .from(userSettings)
+        .where(eq(userSettings.userId, ctx.user.id))
+        .limit(1);
+
+      if (result.length === 0) return { language: "pt-BR" };
+
+      return {
+        language: result[0].language ?? "pt-BR",
+        emailNotifications: result[0].emailNotifications,
+        pushNotifications: result[0].pushNotifications,
+        highContrast: result[0].highContrast,
+        reduceMotion: result[0].reduceMotion,
+        timezone: result[0].timezone,
+      };
     }),
 
 });

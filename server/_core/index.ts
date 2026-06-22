@@ -50,7 +50,7 @@ async function startServer() {
   app.use(cookieParser());
   app.use(passport.initialize());
 
-  // Rotas OAuth legadas (Manus SDK — /api/oauth/callback)
+  // Rotas OAuth legadas (/api/oauth/callback)
   registerOAuthRoutes(app);
 
   // Rotas Google/Apple OAuth (/api/auth/google, /api/auth/apple)

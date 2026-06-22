@@ -933,7 +933,7 @@ export const appRouter = router({
           });
         }
 
-        const origin = ctx.req.headers.origin || 'https://shadia-vr-platform.manus.space';
+        const origin = ctx.req.headers.origin || 'https://shadiahasan.club';
         
         const session = await createCheckoutSession({
           priceId,
@@ -972,7 +972,7 @@ export const appRouter = router({
         });
       }
 
-      const origin = ctx.req.headers.origin || 'https://shadia-vr-platform.manus.space';
+      const origin = ctx.req.headers.origin || 'https://shadiahasan.club';
       const portalUrl = await createCustomerPortalSession(
         subscription.stripeCustomerId,
         `${origin}/dashboard`

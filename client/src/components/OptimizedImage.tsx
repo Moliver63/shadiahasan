@@ -87,15 +87,6 @@ export function OptimizedImage({
 
   // Gerar URLs para diferentes formatos
   const getImageUrls = (originalSrc: string) => {
-    if (originalSrc.includes("manuscdn.com")) {
-      const baseUrl = originalSrc.replace(/\.(jpg|jpeg|png)$/i, "");
-      return {
-        avif: `${baseUrl}.avif`,
-        webp: `${baseUrl}.webp`,
-        jpeg: originalSrc,
-      };
-    }
-
     return {
       avif: null,
       webp: null,

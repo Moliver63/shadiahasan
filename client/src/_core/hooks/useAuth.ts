@@ -59,7 +59,7 @@ export function useAuth(options?: UseAuthOptions) {
 
   useEffect(() => {
     safeLocalStorageSet(
-      "manus-runtime-user-info",
+      "shadia-runtime-user-info",
       JSON.stringify(meQuery.data ?? null)
     );
   }, [meQuery.data]);

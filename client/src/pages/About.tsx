@@ -30,8 +30,8 @@ export default function About() {
             </div>
             <div className="flex justify-center">
               <picture>
-                <source srcSet="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/YAsEYvxqebPXZBIO.avif" type="image/avif" />
-                <source srcSet="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/bOfXnFYBniKdijZM.webp" type="image/webp" />
+                
+                
                 <img
                   src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/xzKfSOAtqexRDupD.jpeg"
                   alt="Shadia Hasan - Mentora de Transformação e Desenvolvimento Humano"

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import SiteLogo from "@/components/SiteLogo";
 
 export default function VerifyEmail() {
   const [, setLocation] = useLocation();
@@ -42,7 +43,7 @@ export default function VerifyEmail() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-100 via-pink-50 to-white">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/"><img src="/logo.png" alt="Shadia Hasan" className="h-32 mx-auto mb-4 cursor-pointer hover:opacity-90 transition" /></Link>
+          <Link href="/"><SiteLogo className="h-32 mx-auto mb-4 cursor-pointer hover:opacity-90 transition" /></Link>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-purple-100 text-center">

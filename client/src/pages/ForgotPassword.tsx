@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import SiteLogo from "@/components/SiteLogo";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -39,7 +40,7 @@ export default function ForgotPassword() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-100 via-pink-50 to-white">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <Link href="/"><img src="/logo.png" alt="Shadia Hasan" className="h-32 mx-auto mb-4 cursor-pointer hover:opacity-90 transition" /></Link>
+            <Link href="/"><SiteLogo className="h-32 mx-auto mb-4 cursor-pointer hover:opacity-90 transition" /></Link>
           </div>
           <div className="bg-white rounded-2xl shadow-xl p-8 border border-purple-100 text-center">
             <div className="w-20 h-20 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -67,7 +68,7 @@ export default function ForgotPassword() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-100 via-pink-50 to-white">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/"><img src="/logo.png" alt="Shadia Hasan" className="h-32 mx-auto mb-4 cursor-pointer hover:opacity-90 transition" /></Link>
+          <Link href="/"><SiteLogo className="h-32 mx-auto mb-4 cursor-pointer hover:opacity-90 transition" /></Link>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Recuperar Senha</h1>
           <p className="text-muted-foreground mt-2">Digite seu email para receber instruções</p>
         </div>

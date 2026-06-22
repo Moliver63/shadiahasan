@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
+import SiteLogo from "@/components/SiteLogo";
 
 export default function CommunityConnections() {
   const { user, loading } = useAuth();
@@ -124,7 +125,7 @@ export default function CommunityConnections() {
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src="/logo.png" alt="Shadia Hasan" className="h-36" />
+            <SiteLogo className="h-36" />
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/community/explore">

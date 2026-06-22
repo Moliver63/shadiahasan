@@ -25,6 +25,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
+import SiteLogo from "@/components/SiteLogo";
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Gratuito",
@@ -113,7 +114,7 @@ export default function MySubscription() {
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src="/logo.png" alt="Shadia Hasan" className="h-36" />
+            <SiteLogo className="h-36" />
           </Link>
           <Link href="/profile">
             <Button variant="ghost">

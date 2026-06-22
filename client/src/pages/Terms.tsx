@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import SiteLogo from "@/components/SiteLogo";
 
 export default function Terms() {
   return (
@@ -7,11 +8,7 @@ export default function Terms() {
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">
-            <img 
-              src="/logo.png" 
-              alt="Shadia Hasan" 
-              className="h-36 w-auto cursor-pointer"
-            />
+            <SiteLogo className="h-36 w-auto cursor-pointer" />
           </Link>
           <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
             Voltar para Home

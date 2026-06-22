@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import SiteLogo from "@/components/SiteLogo";
 
 export default function Signup() {
   const [, setLocation] = useLocation();
@@ -84,11 +85,7 @@ export default function Signup() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/">
-            <img 
-              src="/logo.png" 
-              alt="Shadia Hasan" 
-              className="h-32 mx-auto mb-4 cursor-pointer hover:opacity-90 transition"
-            />
+            <SiteLogo className="h-32 mx-auto mb-4 cursor-pointer hover:opacity-90 transition" />
           </Link>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
             Comece Sua Jornada

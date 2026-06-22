@@ -13,6 +13,7 @@ import { Link } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
+import SiteLogo from "@/components/SiteLogo";
 
 export default function UserReferrals() {
   const [cashbackDialogOpen, setCashbackDialogOpen] = useState(false);
@@ -87,7 +88,7 @@ export default function UserReferrals() {
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/">
-            <img src="/logo.png" alt="Logo" className="h-10" />
+            <SiteLogo className="h-10" />
           </Link>
           <Link href="/dashboard">
             <Button variant="outline">Voltar ao Dashboard</Button>

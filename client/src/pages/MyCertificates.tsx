@@ -12,6 +12,7 @@ import { Award, Download, Share2, CheckCircle } from "lucide-react";
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
+import SiteLogo from "@/components/SiteLogo";
 
 export default function MyCertificates() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -59,11 +60,7 @@ export default function MyCertificates() {
       <header className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">
-            <img
-              src="/logo.png"
-              alt="Shadia Hasan"
-              className="h-36 cursor-pointer"
-            />
+            <SiteLogo className="h-36 cursor-pointer" />
           </Link>
           <nav className="flex items-center gap-6">
             <Link

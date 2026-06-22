@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getLoginUrl } from "@/const";
 import UserMenu from "@/components/UserMenu";
 import InstallAppButton from "@/components/InstallAppButton";
@@ -52,6 +53,7 @@ export default function PublicHeader({
   logoAlt = "Shadia Hasan - Psicologia & Desenvolvimento Humano",
 }: PublicHeaderProps) {
   const { isAuthenticated, user } = useAuth();
+  const { theme } = useTheme();
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
 
@@ -90,9 +92,9 @@ export default function PublicHeader({
       <div className="container flex items-center justify-between gap-3 py-3 sm:py-4">
         <Link href="/" onClick={() => setOpen(false)}>
           <img
-            src="/logo.png"
+            src={theme === "dark" ? "/logo-white.png" : "/logo.png"}
             alt={logoAlt}
-            className="h-14 w-auto sm:h-16 md:h-20 lg:h-24 xl:h-28"
+            className="h-14 w-auto sm:h-16 md:h-20 lg:h-24 xl:h-28 transition-opacity duration-200"
           />
         </Link>
 

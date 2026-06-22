@@ -42,6 +42,8 @@ export default function LessonView() {
   const { isAuthenticated, user } = useAuth();
   const [showVR, setShowVR] = useState(false);
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
+  // UX imediata — separada da persistência real no backend
+  const [completionUiStarted, setCompletionUiStarted] = useState(false);
   // Countdown Netflix — autoplay próxima aula
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isExiting, setIsExiting] = useState(false);
@@ -111,7 +113,7 @@ export default function LessonView() {
 
   const currentLessonAlreadyCompleted = completedLessons.includes(lessonId);
   const isCurrentLessonCompleted =
-    currentLessonAlreadyCompleted || hasMarkedComplete;
+    currentLessonAlreadyCompleted || hasMarkedComplete || completionUiStarted;
 
   const mergedCompletedLessons = useMemo(() => {
     const set = new Set<number>(completedLessons);
@@ -129,7 +131,7 @@ export default function LessonView() {
         100,
         Math.round((mergedCompletedLessons.length / totalLessons) * 100)
       )
-    : 0;
+    : (enrollmentData?.enrollment?.progress ?? 0);
 
   const currentIndex = allLessons?.findIndex((l) => l.id === lessonId) ?? -1;
   const nextLesson =
@@ -173,16 +175,39 @@ export default function LessonView() {
     if (
       hasMarkedComplete ||
       currentLessonAlreadyCompleted ||
+      completionUiStarted ||
       updateProgressMutation.isPending
     ) {
       return;
     }
 
-    updateProgressMutation.mutate({
-      courseId: lesson.courseId,
-      progress: calculatedProgress,
-      completedLessons: JSON.stringify([...new Set([...completedLessons, lessonId])]),
-    });
+    updateProgressMutation.mutate(
+      {
+        courseId: lesson.courseId,
+        progress: calculatedProgress,
+        completedLessons: JSON.stringify([...new Set([...completedLessons, lessonId])]),
+      },
+      {
+        onSuccess: () => {
+          setHasMarkedComplete(true);
+        },
+        onError: () => {
+          // Rollback visual se o backend falhar
+          setCompletionUiStarted(false);
+          setCountdown(null);
+          setIsExiting(false);
+          toast.error("Não foi possível salvar sua conclusão. Tente novamente.");
+        },
+      }
+    );
+  };
+
+  // Função central de conclusão: UX imediata + persistência em paralelo
+  const startCompletionFlow = () => {
+    if (completionUiStarted || currentLessonAlreadyCompleted || hasMarkedComplete) return;
+    setCompletionUiStarted(true);
+    toast.success("Aula concluída!");
+    markLessonAsCompleted();
   };
 
   const cancelCountdown = useCallback(() => {
@@ -204,8 +229,18 @@ export default function LessonView() {
   // Inicia countdown quando aula é concluída e há próxima aula disponível
   const navTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Reset de todos os estados ao trocar de aula — evita vazamento entre aulas
   useEffect(() => {
-    if (hasMarkedComplete && nextUnlockedLesson) {
+    setHasMarkedComplete(false);
+    setCompletionUiStarted(false);
+    setCountdown(null);
+    setIsExiting(false);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
+  }, [lessonId]);
+
+  useEffect(() => {
+    if (completionUiStarted && nextUnlockedLesson) {
       setCountdown(10);
       countdownRef.current = setInterval(() => {
         setCountdown((prev) => {
@@ -231,26 +266,17 @@ export default function LessonView() {
         if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
       };
     }
-  }, [hasMarkedComplete, nextUnlockedLesson, setLocation]);
+  }, [completionUiStarted, nextUnlockedLesson, setLocation]);
 
   const handleProgress = (progress: number) => {
     if (lesson && hasAccess && progress > 90) {
-      // Seta imediatamente para disparar o countdown sem esperar onSuccess
-      if (!hasMarkedComplete && !currentLessonAlreadyCompleted) {
-        setHasMarkedComplete(true);
-      }
-      markLessonAsCompleted();
+      startCompletionFlow();
     }
   };
 
   const handleComplete = () => {
     if (lesson && hasAccess) {
-      // Seta imediatamente para disparar o countdown — não espera onSuccess
-      if (!hasMarkedComplete && !currentLessonAlreadyCompleted) {
-        setHasMarkedComplete(true);
-        toast.success("Aula concluída!");
-      }
-      markLessonAsCompleted();
+      startCompletionFlow();
     }
   };
 
@@ -579,9 +605,19 @@ export default function LessonView() {
                     {nextStepLabel}
                   </p>
 
+                  {/* Mensagem de redirecionamento automático */}
+                  {completionUiStarted && countdown !== null && nextUnlockedLesson && (
+                    <div className="flex items-center gap-2 text-sm text-primary font-medium mt-2 mb-1">
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
+                        {countdown}
+                      </span>
+                      Redirecionando para a próxima aula em {countdown}s...
+                    </div>
+                  )}
+
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                     {isCurrentLessonCompleted && nextUnlockedLesson ? (
-                      <Button onClick={() => setLocation(`/lesson/${nextUnlockedLesson.id}`)}>
+                      <Button onClick={goToNextLesson}>
                         Ir para a próxima aula
                       </Button>
                     ) : (

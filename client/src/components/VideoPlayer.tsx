@@ -18,12 +18,23 @@ import {
 } from "./ui/select";
 import { Slider } from "./ui/slider";
 
+interface NextLessonInfo {
+  title: string;
+  thumbnail?: string | null;
+}
+
 interface VideoPlayerProps {
   src: string;
   title?: string;
   preferredLanguage?: string; // ex: "pt-BR", "en" — vem de userSettings.language
   onProgress?: (progress: number) => void;
   onComplete?: () => void;
+  // Countdown Netflix — passado pelo LessonView, renderizado dentro do player
+  // para funcionar em fullscreen (elementos fixed fora do fullscreen são invisíveis)
+  countdown?: number | null;
+  nextLesson?: NextLessonInfo | null;
+  onGoToNext?: () => void;
+  onCancelCountdown?: () => void;
 }
 
 type AudioTrackOption = {
@@ -46,6 +57,10 @@ export default function VideoPlayer({
   preferredLanguage,
   onProgress,
   onComplete,
+  countdown,
+  nextLesson,
+  onGoToNext,
+  onCancelCountdown,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -529,6 +544,62 @@ export default function VideoPlayer({
           </div>
         </div>
       </div>
+      {/* ── Overlay Netflix DENTRO do player — funciona em fullscreen ── */}
+      {countdown != null && countdown > 0 && nextLesson && onGoToNext && onCancelCountdown && (
+        <div className="absolute bottom-20 right-4 z-50 pointer-events-none">
+          <div
+            className="pointer-events-auto flex flex-col gap-3 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 px-4 py-3 shadow-2xl"
+            style={{ maxWidth: 300, minWidth: 240 }}
+          >
+            {/* Thumbnail + título */}
+            <div className="flex gap-3 items-start">
+              {nextLesson.thumbnail && (
+                <img
+                  src={nextLesson.thumbnail}
+                  alt={nextLesson.title}
+                  className="w-16 h-10 rounded object-cover shrink-0 border border-white/10"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-white/50 uppercase tracking-widest mb-0.5">A seguir</p>
+                <p className="text-xs font-semibold text-white line-clamp-2 leading-snug">
+                  {nextLesson.title}
+                </p>
+              </div>
+            </div>
+
+            {/* Anel SVG + botões */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex items-center justify-center shrink-0" style={{ width: 44, height: 44 }}>
+                <svg className="absolute inset-0 -rotate-90" width="44" height="44" viewBox="0 0 44 44">
+                  <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
+                  <circle
+                    cx="22" cy="22" r="18" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 18}`}
+                    strokeDashoffset={`${2 * Math.PI * 18 * (1 - countdown / 10)}`}
+                    style={{ transition: "stroke-dashoffset 1s linear" }}
+                  />
+                </svg>
+                <span className="text-white font-bold text-sm leading-none">{countdown}</span>
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1">
+                <button
+                  onClick={onGoToNext}
+                  className="w-full rounded-lg bg-white text-black text-xs font-bold py-1.5 hover:bg-white/90 transition-colors"
+                >
+                  Ir agora
+                </button>
+                <button
+                  onClick={onCancelCountdown}
+                  className="w-full rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white text-xs py-1 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

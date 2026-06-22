@@ -449,6 +449,13 @@ export default function LessonView() {
                         preferredLanguage={effectiveLanguage}
                         onProgress={handleProgress}
                         onComplete={handleComplete}
+                        countdown={countdown}
+                        nextLesson={nextUnlockedLesson ? {
+                          title: nextUnlockedLesson.title,
+                          thumbnail: (nextUnlockedLesson as any).thumbnail ?? null,
+                        } : null}
+                        onGoToNext={goToNextLesson}
+                        onCancelCountdown={cancelCountdown}
                       />
 
                     </div>

@@ -114,6 +114,22 @@
 }
 
 @layer base {
+  /* Transição suave ao trocar de tema */
+  *, *::before, *::after {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-duration: 200ms;
+    transition-timing-function: ease;
+  }
+
+  /* Excluir animações que não devem herdar a transição */
+  .motion-poster__img,
+  .motion-poster__sheen,
+  .course-card,
+  .course-card__img,
+  [data-radix-popper-content-wrapper] * {
+    transition-property: transform, opacity;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }

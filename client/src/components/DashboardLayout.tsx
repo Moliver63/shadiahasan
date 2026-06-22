@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -40,6 +41,7 @@ import { safeLocalStorageGet, safeLocalStorageSet } from "@/lib/safeStorage";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
@@ -252,6 +254,12 @@ function DashboardLayoutContent({
                   <ExternalLink className="mr-2 h-4 w-4" />
                   <span>Ir para o site</span>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <div className="flex items-center justify-between px-2 py-1.5 text-sm">
+                  <span className="text-muted-foreground">Aparência</span>
+                  <ThemeToggle size="sm" />
+                </div>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"

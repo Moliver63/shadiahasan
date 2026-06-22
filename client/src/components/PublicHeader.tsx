@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { Menu, Shield } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 import { Link, useLocation } from "wouter";
 
 export type PublicHeaderNavItem = {
@@ -97,6 +98,7 @@ export default function PublicHeader({
 
         <nav className="hidden items-center gap-2 lg:flex xl:gap-3">
           {visibleItems.map((item) => renderNavButton(item))}
+          <ThemeToggle />
           <InstallAppButton />
 
           {isAuthenticated ? (
@@ -117,6 +119,7 @@ export default function PublicHeader({
         </nav>
 
         <div className="flex items-center gap-2 lg:hidden">
+          <ThemeToggle />
           {isAuthenticated && user?.role === "admin" && (
             <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
               <Link href="/admin">

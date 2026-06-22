@@ -184,7 +184,7 @@ export default function VideoPlayer({
           const applyPreferredLanguage = () => {
             const tracks = (hls.audioTracks || []).map((t: any, i: number) => ({
               id: i,
-              label: t.name || t.label || t.lang || \`Áudio \${i + 1}\`,
+              label: t.name || t.label || t.lang || `Áudio ${i + 1}`,
               language: t.lang || t.language || "",
             }));
             if (tracks.length <= 1) return;

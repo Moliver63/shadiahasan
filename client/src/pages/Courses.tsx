@@ -1,9 +1,7 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { OptimizedImage } from "@/components/OptimizedImage";
+import { Card, CardContent } from "@/components/ui/card";
+import CourseCard from "@/components/CourseCard";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, Clock, PlayCircle } from "lucide-react";
-import { Link } from "wouter";
+import { BookOpen } from "lucide-react";
 import PublicHeader from "@/components/PublicHeader";
 
 export default function Courses() {
@@ -51,47 +49,16 @@ export default function Courses() {
             ))}
           </div>
         ) : courses && courses.length > 0 ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-6 grid-cols-2 md:grid-cols-3 lg:grid-cols-4" style={{paddingBottom:"2rem"}}>
             {courses.map((course) => (
-              <Card
+              <CourseCard
                 key={course.id}
-                className="hover:shadow-lg transition-shadow"
-              >
-                <CardHeader>
-                  {course.thumbnail && (
-                    <div className="w-full h-48 mb-4 rounded-lg overflow-hidden bg-muted">
-                      <OptimizedImage
-                        src={course.thumbnail}
-                        alt={course.title}
-                        className="w-full h-full"
-                        motion="hover"
-                        priority
-                      />
-                    </div>
-                  )}
-                  <CardTitle className="line-clamp-2">{course.title}</CardTitle>
-                  {course.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-3 mt-2">
-                      {course.description}
-                    </p>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <BookOpen className="h-4 w-4" />
-                      <span>Curso completo</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <PlayCircle className="h-4 w-4" />
-                      <span>Vídeo aulas</span>
-                    </div>
-                  </div>
-                  <Link href={`/courses/${course.slug}`}>
-                    <Button className="w-full">Ver Detalhes</Button>
-                  </Link>
-                </CardContent>
-              </Card>
+                id={course.id}
+                title={course.title}
+                description={course.description}
+                thumbnail={course.thumbnail}
+                slug={course.slug}
+              />
             ))}
           </div>
         ) : (

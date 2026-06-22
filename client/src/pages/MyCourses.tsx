@@ -21,6 +21,7 @@ import { getBreadcrumbs } from "@/lib/breadcrumbs";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OptimizedImage } from "@/components/OptimizedImage";
+import CourseCard from "@/components/CourseCard";
 
 export default function MyCourses() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -140,54 +141,23 @@ export default function MyCourses() {
               if (!course) return null;
 
               return (
-                <Card
-                  key={enrollment.id}
-                  className="hover:shadow-lg transition-shadow"
-                >
-                  <CardHeader>
-                    {course.thumbnail && (
-                      <OptimizedImage
-                        src={course.thumbnail}
-                        alt={course.title}
-                        className="mb-4 h-48 w-full rounded-lg bg-muted"
-                        priority
-                      />
-                    )}
-                    <CardTitle className="line-clamp-2">{course.title}</CardTitle>
-                    {course.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
-                        {course.description}
-                      </p>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Progress Bar */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Progresso</span>
-                        <span className="font-medium">{enrollment.progress}%</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary transition-all"
-                          style={{ width: `${enrollment.progress}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <TrendingUp className="h-4 w-4" />
-                        <span>Em progresso</span>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-2">
+                <div key={enrollment.id}>
+                  <CourseCard
+                    id={course.id}
+                    title={course.title}
+                    description={course.description}
+                    thumbnail={course.thumbnail}
+                    slug={course.slug}
+                    progress={enrollment.progress}
+                  />
+                  <div className="mt-3 grid gap-2">
+                      <div className="px-1" />
+                      <div className="grid gap-2">
                       <Link href={`/courses/${course.slug}`}>
-                        <Button className="w-full">
-                          <PlayCircle className="h-4 w-4 mr-2" />
+                        <button className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium py-2 hover:bg-primary/90 transition-colors">
+                          <PlayCircle className="h-4 w-4" />
                           Continuar Aprendendo
-                        </Button>
+                        </button>
                       </Link>
                       {(() => {
                         const testimonial = testimonialMap.get(course.id);
@@ -213,8 +183,8 @@ export default function MyCourses() {
                         );
                       })()}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               );
             })}
           </div>

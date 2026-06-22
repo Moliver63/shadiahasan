@@ -367,3 +367,190 @@
     }
   }
 }
+
+/* ── CourseCard — efeito Netflix/YouTube ──────────────────────────────────── */
+@layer components {
+  /* Container do card */
+  .course-card {
+    @apply relative rounded-xl overflow-visible;
+    transition: transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                z-index 0ms 350ms;
+    z-index: 0;
+    will-change: transform;
+  }
+
+  /* Escala + elevação no hover — card sobe sobre os vizinhos */
+  .course-card:hover,
+  .course-card:focus-within {
+    transform: scale(1.08) translateY(-6px);
+    z-index: 20;
+    transition: transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                z-index 0ms 0ms;
+    filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.55));
+  }
+
+  /* Wrapper da imagem */
+  .course-card__media {
+    @apply relative w-full overflow-hidden rounded-xl bg-muted;
+    aspect-ratio: 16 / 9;
+  }
+
+  /* Imagem — zoom suave no hover */
+  .course-card__img {
+    @apply absolute inset-0 w-full h-full object-cover;
+    transition: transform 600ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transform-origin: center center;
+  }
+
+  .course-card:hover .course-card__img,
+  .course-card:focus-within .course-card__img {
+    transform: scale(1.06);
+  }
+
+  /* Placeholder sem thumbnail */
+  .course-card__placeholder {
+    @apply absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/20 to-purple-600/20;
+  }
+
+  /* Gradiente inferior — sempre presente, título sempre legível */
+  .course-card__gradient {
+    @apply absolute inset-x-0 bottom-0;
+    height: 70%;
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.85) 0%,
+      rgba(0, 0, 0, 0.5) 50%,
+      transparent 100%
+    );
+    transition: height 350ms ease;
+  }
+
+  .course-card:hover .course-card__gradient,
+  .course-card:focus-within .course-card__gradient {
+    height: 100%;
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.92) 0%,
+      rgba(0, 0, 0, 0.6) 55%,
+      rgba(0, 0, 0, 0.15) 100%
+    );
+  }
+
+  /* Overlay escuro extra no hover */
+  .course-card__overlay {
+    @apply absolute inset-0 opacity-0;
+    background: rgba(0, 0, 0, 0.2);
+    transition: opacity 350ms ease;
+  }
+
+  .course-card:hover .course-card__overlay,
+  .course-card:focus-within .course-card__overlay {
+    opacity: 1;
+  }
+
+  /* Botão play central */
+  .course-card__play {
+    @apply absolute inset-0 flex items-center justify-center opacity-0;
+    transition: opacity 300ms ease 80ms;
+  }
+
+  .course-card:hover .course-card__play,
+  .course-card:focus-within .course-card__play {
+    opacity: 1;
+  }
+
+  .course-card__play-btn {
+    @apply flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm border border-white/30;
+    width: 52px;
+    height: 52px;
+    transition: transform 200ms ease, background 200ms ease;
+  }
+
+  .course-card__play-btn:hover {
+    @apply bg-white/35;
+    transform: scale(1.12);
+  }
+
+  /* Badge Premium / Lock */
+  .course-card__badge {
+    @apply absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold text-white;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  /* Informações sobre a imagem */
+  .course-card__info {
+    @apply absolute inset-x-0 bottom-0 p-3 translate-y-1 opacity-0;
+    transition: opacity 280ms ease 60ms, transform 280ms ease 60ms;
+  }
+
+  .course-card:hover .course-card__info,
+  .course-card:focus-within .course-card__info {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .course-card__title {
+    @apply text-sm font-bold text-white leading-tight line-clamp-2;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  }
+
+  .course-card__desc {
+    @apply text-xs text-white/75 mt-1 line-clamp-2;
+  }
+
+  .course-card__meta {
+    @apply inline-block text-xs text-white/60 mt-1;
+  }
+
+  /* Barra de progresso (MyCourses) */
+  .course-card__progress-wrap {
+    @apply flex items-center gap-2 mt-2 px-1;
+  }
+
+  .course-card__progress-track {
+    @apply flex-1 h-1 rounded-full bg-muted overflow-hidden;
+  }
+
+  .course-card__progress-fill {
+    @apply h-full rounded-full bg-primary;
+    transition: width 600ms ease;
+  }
+
+  .course-card__progress-label {
+    @apply text-xs text-muted-foreground font-medium w-8 text-right shrink-0;
+  }
+
+  /* Título abaixo do card (visível sempre, some no hover pois aparece sobre a img) */
+  .course-card__caption {
+    @apply mt-2 px-1 text-sm font-semibold line-clamp-1 text-foreground;
+    transition: opacity 200ms ease;
+  }
+
+  .course-card:hover .course-card__caption {
+    opacity: 0;
+  }
+
+  /* Reduzir-motion */
+  @media (prefers-reduced-motion: reduce) {
+    .course-card,
+    .course-card__img,
+    .course-card__gradient,
+    .course-card__overlay,
+    .course-card__play,
+    .course-card__info {
+      transition: none !important;
+      animation: none !important;
+    }
+
+    .course-card:hover {
+      transform: none;
+      filter: none;
+    }
+
+    .course-card:hover .course-card__img {
+      transform: none;
+    }
+  }
+}

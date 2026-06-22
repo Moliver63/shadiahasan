@@ -178,6 +178,26 @@ export default function VideoPlayer({
           hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event: unknown, data: any) => {
             setSelectedAudioTrack(String(data.id ?? 0));
           });
+
+          // Reage à mudança de preferredLanguage após o manifest já ter sido carregado
+          // (ex: aluno troca de idioma manualmente pelo seletor da página)
+          const applyPreferredLanguage = () => {
+            const tracks = (hls.audioTracks || []).map((t: any, i: number) => ({
+              id: i,
+              label: t.name || t.label || t.lang || \`Áudio \${i + 1}\`,
+              language: t.lang || t.language || "",
+            }));
+            if (tracks.length <= 1) return;
+            const lang = (preferredLanguage || "").toLowerCase();
+            const exact = tracks.findIndex((t) => t.language.toLowerCase() === lang);
+            const prefix = tracks.findIndex((t) => t.language.toLowerCase().startsWith(lang.split("-")[0]));
+            const target = exact >= 0 ? exact : prefix >= 0 ? prefix : -1;
+            if (target >= 0 && hls.audioTrack !== target) {
+              hls.audioTrack = target;
+            }
+          };
+          // Expor no elemento de vídeo para ser chamado externamente
+          (video as any).__applyPreferredLanguage = applyPreferredLanguage;
         });
       }
     } else {
@@ -295,6 +315,15 @@ export default function VideoPlayer({
       await documentWithWebkit.webkitExitFullscreen();
     }
   };
+
+  // Quando preferredLanguage muda externamente (aluno trocou no seletor da página),
+  // aciona applyPreferredLanguage no elemento de vídeo se o HLS já estiver carregado
+  useEffect(() => {
+    const video = videoRef.current as any;
+    if (video?.__applyPreferredLanguage) {
+      video.__applyPreferredLanguage();
+    }
+  }, [preferredLanguage]);
 
   const handleAudioTrackChange = (value: string) => {
     const trackIndex = Number(value);

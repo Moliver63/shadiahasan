@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
 import { formatDuration } from "@/lib/formatDuration";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Lock, Maximize2 } from "lucide-react";
+import { ArrowLeft, Globe, Lock, Maximize2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Link, useLocation, useParams } from "wouter";
@@ -48,6 +48,15 @@ export default function LessonView() {
     enabled: Boolean(user),
     staleTime: 60_000,
   });
+
+  // Idioma selecionado manualmente pelo aluno (null = usar preferredLanguage)
+  const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
+
+  // Idiomas de dublagem disponíveis para esta aula (query — derivadas abaixo após isYouTube)
+  const { data: languagesData } = trpc.videos.getAvailableLanguages.useQuery(
+    { lessonId },
+    { enabled: !!lesson && hasAccess, staleTime: 300_000 }
+  );
 
   const { data: lesson, isLoading: lessonLoading } =
     trpc.lessons.getById.useQuery({ id: lessonId });
@@ -264,6 +273,12 @@ export default function LessonView() {
   // YouTube não suporta VR — oculta o botão nesses casos
   const isYouTube = playbackUrl ? isYouTubeUrl(playbackUrl) : false;
 
+  // Faixas de dublagem — depende de isYouTube para filtrar seletor
+  const availableTracks = languagesData?.tracks ?? [];
+  const hasMultipleLanguages = (languagesData?.hasMultipleLanguages ?? false) && !isYouTube;
+  // Idioma efetivo: escolha manual > preferência do perfil > padrão pt-BR
+  const effectiveLanguage = selectedLanguage ?? userSettings?.language ?? "pt-BR";
+
   return (
     <div className="min-h-screen bg-background">
       <PublicHeader
@@ -310,11 +325,38 @@ export default function LessonView() {
               <div className="space-y-4">
                 {!showVR ? (
                   <>
+                    {/* Seletor de idioma de dublagem — só aparece se há múltiplas faixas */}
+                    {hasMultipleLanguages && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm text-muted-foreground">Idioma do áudio:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {availableTracks.map((track) => (
+                            <button
+                              key={track.audioTrackUid}
+                              onClick={() => setSelectedLanguage(track.languageCode)}
+                              className={[
+                                "px-3 py-1 rounded-full text-xs font-medium border transition-colors",
+                                effectiveLanguage === track.languageCode
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-background text-muted-foreground border-border hover:border-primary hover:text-primary",
+                              ].join(" ")}
+                            >
+                              {track.label}
+                              {track.isDefault && (
+                                <span className="ml-1 opacity-60">(padrão)</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* VideoPlayer detecta YouTube internamente e renderiza iframe ou HLS */}
                     <VideoPlayer
                       src={playbackUrl}
                       title={lesson.title}
-                      preferredLanguage={userSettings?.language ?? "pt-BR"}
+                      preferredLanguage={effectiveLanguage}
                       onProgress={handleProgress}
                       onComplete={handleComplete}
                     />

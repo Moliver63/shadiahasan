@@ -10,7 +10,7 @@ import { getBreadcrumbs } from "@/lib/breadcrumbs";
 import { formatDuration } from "@/lib/formatDuration";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Globe, Lock, Maximize2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { Link, useLocation, useParams } from "wouter";

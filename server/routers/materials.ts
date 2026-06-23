@@ -24,35 +24,40 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 // ─── Gemini ─────────────────────────────────────────────────────────────────
 
-const GEMINI_URL_KEY = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
-const GEMINI_URL_OAUTH = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent";
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODEL = "llama-3.3-70b-versatile"; // Melhor modelo gratuito do Groq
 
 async function callGemini(prompt: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "GEMINI_API_KEY não configurada." });
+  const apiKey = process.env.GROQ_API_KEY_SH;
+  if (!apiKey) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "GROQ_API_KEY_SH não configurada." });
 
-  // Detecta tipo de chave: AQ. = OAuth2 Bearer, AIza = API Key
-  const isOAuth = apiKey.startsWith("AQ.");
-
-  const url = isOAuth ? GEMINI_URL_OAUTH : GEMINI_URL_KEY;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  
-  const fetchUrl = isOAuth ? url : `${url}?key=${apiKey}`;
-  if (isOAuth) headers["Authorization"] = `Bearer ${apiKey}`;
-
-  const res = await fetch(fetchUrl, {
+  const res = await fetch(GROQ_URL, {
     method: "POST",
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.75, maxOutputTokens: 2048 },
+      model: GROQ_MODEL,
+      messages: [
+        {
+          role: "system",
+          content: buildSystemPrompt(),
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.75,
+      max_tokens: 2048,
     }),
   });
 
-  if (!res.ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Gemini error: ${await res.text()}` });
+  if (!res.ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Groq error: ${await res.text()}` });
 
   const data = await res.json() as any;
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "Sem resposta da IA.";
+  return data?.choices?.[0]?.message?.content ?? "Sem resposta da IA.";
 }
 
 // ─── Definições dos exercícios ───────────────────────────────────────────────
@@ -281,7 +286,7 @@ export const materialsRouter = router({
 
   getExerciseDefinitions: protectedProcedure.query(() => EXERCISE_DEFINITIONS),
 
-  // ── GEMINI: Gerar exercícios automaticamente por aula (admin) ──────────────
+  // ── GROQ: Gerar exercícios automaticamente por aula (admin) ──────────────
 
   generateExercisesWithAI: adminProcedure
     .input(z.object({
@@ -291,9 +296,7 @@ export const materialsRouter = router({
       courseTitle: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      const prompt = `${buildSystemPrompt()}
-
-## MISSÃO
+      const prompt = `## MISSÃO
 Analise o conteúdo desta aula e gere exercícios práticos de fortalecimento mental altamente específicos para ela.
 
 ## CONTEÚDO DA AULA
@@ -326,7 +329,7 @@ Seja específico ao conteúdo desta aula. Evite respostas genéricas.`;
       return { content: await callGemini(prompt) };
     }),
 
-  // ── GEMINI: IA Mentora — análise de respostas do aluno ───────────────────
+  // ── GROQ: IA Mentora — análise de respostas do aluno ───────────────────
 
   analyzeResponseWithAI: protectedProcedure
     .input(z.object({
@@ -347,9 +350,7 @@ Seja específico ao conteúdo desta aula. Evite respostas genéricas.`;
         .map(([k, v]) => `- ${k.replace(/_/g, " ")}: ${v}`)
         .join("\n");
 
-      const prompt = `${buildSystemPrompt()}
-
-## MISSÃO
+      const prompt = `## MISSÃO
 Atue como IA Mentora pessoal. Analise profundamente as respostas do aluno para este exercício e ofereça feedback personalizado e transformador.
 
 ## CONTEXTO

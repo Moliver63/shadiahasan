@@ -135,13 +135,15 @@ function ExerciseCard({ exercise, lessonId }: { exercise: Exercise; lessonId: nu
 
   const { data: savedResponse, isLoading: loadingResponse } = trpc.materials.getResponse.useQuery(
     { exerciseId: exercise.id },
-    {
-      enabled: isOpen,
-      onSuccess: (data) => {
-        if (data?.responses) setValues(data.responses);
-      },
-    }
+    { enabled: isOpen }
   );
+
+  // Preenche o formulário quando a resposta salva chegar do backend
+  const [initializedRef] = useState(() => ({ done: false }));
+  if (savedResponse?.responses && !initializedRef.done && Object.keys(values).length === 0) {
+    initializedRef.done = true;
+    setValues(savedResponse.responses);
+  }
 
   const saveResponseMutation = trpc.materials.saveResponse.useMutation({
     onSuccess: () => {
@@ -287,7 +289,7 @@ export default function LessonMaterials({ lessonId }: { lessonId: number }) {
 
   const markCompleteMutation = trpc.materials.markMaterialComplete.useMutation({
     onSuccess: () => {
-      refetchCompleted();
+      void refetchCompleted();
       toast.success("Material marcado como concluído!");
     },
   });

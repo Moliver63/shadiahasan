@@ -5,8 +5,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getPool } from "../db";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { getDb } from "../db";
 import {
   lessonMaterials,
   lessonExercises,
@@ -21,10 +20,6 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   }
   return next({ ctx });
 });
-
-function db() {
-  return drizzle(getPool());
-}
 
 // ─── Definições dos exercícios por tipo ─────────────────────────────────────
 export const EXERCISE_DEFINITIONS = {
@@ -108,39 +103,33 @@ export const materialsRouter = router({
 
   // ── MATERIAIS ──────────────────────────────────────────────────────────────
 
-  /** Lista materiais de uma aula (aluno autenticado com acesso) */
   listByLesson: protectedProcedure
     .input(z.object({ lessonId: z.number() }))
     .query(async ({ input }) => {
-      const materials = await db()
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      return db
         .select()
         .from(lessonMaterials)
-        .where(
-          and(
-            eq(lessonMaterials.lessonId, input.lessonId),
-            eq(lessonMaterials.isPublished, 1)
-          )
-        )
+        .where(and(eq(lessonMaterials.lessonId, input.lessonId), eq(lessonMaterials.isPublished, 1)))
         .orderBy(asc(lessonMaterials.order));
-      return materials;
     }),
 
-  /** Admin: adiciona material a uma aula */
   addMaterial: adminProcedure
-    .input(
-      z.object({
-        lessonId: z.number(),
-        title: z.string().min(1),
-        description: z.string().optional(),
-        fileUrl: z.string().url(),
-        fileKey: z.string(),
-        fileType: z.enum(["pdf", "ebook", "audio", "video", "spreadsheet", "other"]).default("pdf"),
-        fileSizeBytes: z.number().optional(),
-        order: z.number().default(0),
-      })
-    )
+    .input(z.object({
+      lessonId: z.number(),
+      title: z.string().min(1),
+      description: z.string().optional(),
+      fileUrl: z.string().url(),
+      fileKey: z.string(),
+      fileType: z.enum(["pdf", "ebook", "audio", "video", "spreadsheet", "other"]).default("pdf"),
+      fileSizeBytes: z.number().optional(),
+      order: z.number().default(0),
+    }))
     .mutation(async ({ input, ctx }) => {
-      const [material] = await db()
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [material] = await db
         .insert(lessonMaterials)
         .values({
           lessonId: input.lessonId,
@@ -157,164 +146,113 @@ export const materialsRouter = router({
       return material;
     }),
 
-  /** Admin: remove material */
   deleteMaterial: adminProcedure
     .input(z.object({ materialId: z.number() }))
     .mutation(async ({ input }) => {
-      await db()
-        .delete(lessonMaterials)
-        .where(eq(lessonMaterials.id, input.materialId));
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await db.delete(lessonMaterials).where(eq(lessonMaterials.id, input.materialId));
       return { success: true };
     }),
 
-  /** Aluno marca material como concluído */
   markMaterialComplete: protectedProcedure
     .input(z.object({ materialId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      // upsert — ignora se já existe
-      const existing = await db()
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const existing = await db
         .select()
         .from(userMaterialProgress)
-        .where(
-          and(
-            eq(userMaterialProgress.userId, ctx.user.id),
-            eq(userMaterialProgress.materialId, input.materialId)
-          )
-        )
+        .where(and(eq(userMaterialProgress.userId, ctx.user.id), eq(userMaterialProgress.materialId, input.materialId)))
         .limit(1);
-
       if (existing.length === 0) {
-        await db().insert(userMaterialProgress).values({
-          userId: ctx.user.id,
-          materialId: input.materialId,
-        });
+        await db.insert(userMaterialProgress).values({ userId: ctx.user.id, materialId: input.materialId });
       }
       return { success: true };
     }),
 
-  /** Retorna quais materiais o aluno já concluiu em uma aula */
   getCompletedMaterials: protectedProcedure
     .input(z.object({ lessonId: z.number() }))
     .query(async ({ input, ctx }) => {
-      const materials = await db()
+      const db = await getDb();
+      if (!db) return [];
+      const materials = await db
         .select({ id: lessonMaterials.id })
         .from(lessonMaterials)
         .where(eq(lessonMaterials.lessonId, input.lessonId));
-
-      const materialIds = materials.map((m) => m.id);
-      if (materialIds.length === 0) return [];
-
-      const completed = await db()
+      if (materials.length === 0) return [];
+      const completed = await db
         .select()
         .from(userMaterialProgress)
-        .where(
-          and(
-            eq(userMaterialProgress.userId, ctx.user.id)
-          )
-        );
-
-      return completed
-        .filter((c) => materialIds.includes(c.materialId))
-        .map((c) => c.materialId);
+        .where(eq(userMaterialProgress.userId, ctx.user.id));
+      const materialIds = materials.map((m) => m.id);
+      return completed.filter((c) => materialIds.includes(c.materialId)).map((c) => c.materialId);
     }),
 
   // ── EXERCÍCIOS ─────────────────────────────────────────────────────────────
 
-  /** Lista exercícios de uma aula com suas definições de campos */
   listExercisesByLesson: protectedProcedure
     .input(z.object({ lessonId: z.number() }))
     .query(async ({ input }) => {
-      const exercises = await db()
+      const db = await getDb();
+      if (!db) return [];
+      const exercises = await db
         .select()
         .from(lessonExercises)
-        .where(
-          and(
-            eq(lessonExercises.lessonId, input.lessonId),
-            eq(lessonExercises.isPublished, 1)
-          )
-        )
+        .where(and(eq(lessonExercises.lessonId, input.lessonId), eq(lessonExercises.isPublished, 1)))
         .orderBy(asc(lessonExercises.order));
-
-      // Enriquece com a definição estática de campos
       return exercises.map((ex) => ({
         ...ex,
         definition: EXERCISE_DEFINITIONS[ex.type as ExerciseType] ?? null,
       }));
     }),
 
-  /** Admin: adiciona exercício a uma aula */
   addExercise: adminProcedure
-    .input(
-      z.object({
-        lessonId: z.number(),
-        type: z.enum([
-          "thought_restructuring",
-          "resilience",
-          "self_confidence",
-          "victory_diary",
-          "emotional_control",
-          "gratitude",
-          "future_visualization",
-        ]),
-        order: z.number().default(0),
-      })
-    )
+    .input(z.object({
+      lessonId: z.number(),
+      type: z.enum(["thought_restructuring", "resilience", "self_confidence", "victory_diary", "emotional_control", "gratitude", "future_visualization"]),
+      order: z.number().default(0),
+    }))
     .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const def = EXERCISE_DEFINITIONS[input.type];
-      const [exercise] = await db()
+      const [exercise] = await db
         .insert(lessonExercises)
-        .values({
-          lessonId: input.lessonId,
-          type: input.type,
-          title: def.title,
-          description: def.description,
-          order: input.order,
-        })
+        .values({ lessonId: input.lessonId, type: input.type, title: def.title, description: def.description, order: input.order })
         .returning();
       return exercise;
     }),
 
-  /** Admin: remove exercício */
   deleteExercise: adminProcedure
     .input(z.object({ exerciseId: z.number() }))
     .mutation(async ({ input }) => {
-      await db()
-        .delete(lessonExercises)
-        .where(eq(lessonExercises.id, input.exerciseId));
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await db.delete(lessonExercises).where(eq(lessonExercises.id, input.exerciseId));
       return { success: true };
     }),
 
-  /** Aluno salva/atualiza respostas de um exercício */
   saveResponse: protectedProcedure
-    .input(
-      z.object({
-        exerciseId: z.number(),
-        lessonId: z.number(),
-        responses: z.record(z.string()), // { field_key: "valor" }
-      })
-    )
+    .input(z.object({
+      exerciseId: z.number(),
+      lessonId: z.number(),
+      responses: z.record(z.string()),
+    }))
     .mutation(async ({ input, ctx }) => {
-      const existing = await db()
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const existing = await db
         .select()
         .from(exerciseResponses)
-        .where(
-          and(
-            eq(exerciseResponses.userId, ctx.user.id),
-            eq(exerciseResponses.exerciseId, input.exerciseId)
-          )
-        )
+        .where(and(eq(exerciseResponses.userId, ctx.user.id), eq(exerciseResponses.exerciseId, input.exerciseId)))
         .limit(1);
-
       if (existing.length > 0) {
-        await db()
-          .update(exerciseResponses)
-          .set({
-            responses: JSON.stringify(input.responses),
-            updatedAt: new Date(),
-          })
+        await db.update(exerciseResponses)
+          .set({ responses: JSON.stringify(input.responses), updatedAt: new Date() })
           .where(eq(exerciseResponses.id, existing[0].id));
       } else {
-        await db().insert(exerciseResponses).values({
+        await db.insert(exerciseResponses).values({
           userId: ctx.user.id,
           exerciseId: input.exerciseId,
           lessonId: input.lessonId,
@@ -324,30 +262,19 @@ export const materialsRouter = router({
       return { success: true };
     }),
 
-  /** Busca resposta salva de um exercício pelo aluno */
   getResponse: protectedProcedure
     .input(z.object({ exerciseId: z.number() }))
     .query(async ({ input, ctx }) => {
-      const [response] = await db()
+      const db = await getDb();
+      if (!db) return null;
+      const [response] = await db
         .select()
         .from(exerciseResponses)
-        .where(
-          and(
-            eq(exerciseResponses.userId, ctx.user.id),
-            eq(exerciseResponses.exerciseId, input.exerciseId)
-          )
-        )
+        .where(and(eq(exerciseResponses.userId, ctx.user.id), eq(exerciseResponses.exerciseId, input.exerciseId)))
         .limit(1);
-
       if (!response) return null;
-      return {
-        ...response,
-        responses: JSON.parse(response.responses) as Record<string, string>,
-      };
+      return { ...response, responses: JSON.parse(response.responses) as Record<string, string> };
     }),
 
-  /** Retorna as definições de todos os tipos de exercício (para UI) */
-  getExerciseDefinitions: protectedProcedure.query(() => {
-    return EXERCISE_DEFINITIONS;
-  }),
+  getExerciseDefinitions: protectedProcedure.query(() => EXERCISE_DEFINITIONS),
 });

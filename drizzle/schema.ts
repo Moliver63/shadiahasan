@@ -759,3 +759,86 @@ export const notifications = pgTable("notifications", {
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
+
+/**
+ * Lesson Materials — Material de Apoio por aula
+ * Admin faz upload de PDFs, e-books, áudios, planos de ação etc.
+ */
+export const materialTypeEnum = pgEnum("material_type", [
+  "pdf", "ebook", "audio", "video", "spreadsheet", "other"
+]);
+
+export const lessonMaterials = pgTable("lessonMaterials", {
+  id: serial("id").primaryKey(),
+  lessonId: integer("lessonId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  fileUrl: text("fileUrl").notNull(),
+  fileKey: varchar("fileKey", { length: 500 }).notNull(),
+  fileType: materialTypeEnum("fileType").default("pdf").notNull(),
+  fileSizeBytes: integer("fileSizeBytes"),
+  order: integer("order").default(0).notNull(),
+  isPublished: integer("isPublished").default(1).notNull(),
+  uploadedBy: integer("uploadedBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type LessonMaterial = typeof lessonMaterials.$inferSelect;
+export type InsertLessonMaterial = typeof lessonMaterials.$inferInsert;
+
+/**
+ * User Material Progress — aluno marca material como concluído
+ */
+export const userMaterialProgress = pgTable("userMaterialProgress", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  materialId: integer("materialId").notNull(),
+  completedAt: timestamp("completedAt").defaultNow().notNull(),
+});
+
+export type UserMaterialProgress = typeof userMaterialProgress.$inferSelect;
+export type InsertUserMaterialProgress = typeof userMaterialProgress.$inferInsert;
+
+/**
+ * Mental Exercises — Exercícios de Fortalecimento Mental por aula
+ */
+export const exerciseTypeEnum = pgEnum("exercise_type", [
+  "thought_restructuring",
+  "resilience",
+  "self_confidence",
+  "victory_diary",
+  "emotional_control",
+  "gratitude",
+  "future_visualization"
+]);
+
+export const lessonExercises = pgTable("lessonExercises", {
+  id: serial("id").primaryKey(),
+  lessonId: integer("lessonId").notNull(),
+  type: exerciseTypeEnum("type").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  order: integer("order").default(0).notNull(),
+  isPublished: integer("isPublished").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LessonExercise = typeof lessonExercises.$inferSelect;
+export type InsertLessonExercise = typeof lessonExercises.$inferInsert;
+
+/**
+ * Exercise Responses — respostas dos alunos aos exercícios
+ */
+export const exerciseResponses = pgTable("exerciseResponses", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  exerciseId: integer("exerciseId").notNull(),
+  lessonId: integer("lessonId").notNull(),
+  responses: text("responses").notNull(), // JSON com as respostas por campo
+  completedAt: timestamp("completedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type ExerciseResponse = typeof exerciseResponses.$inferSelect;
+export type InsertExerciseResponse = typeof exerciseResponses.$inferInsert;

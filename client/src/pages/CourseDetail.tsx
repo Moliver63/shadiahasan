@@ -5,12 +5,85 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { formatDuration } from "@/lib/formatDuration";
-import { BookOpen, PlayCircle, CheckCircle, Lock, ArrowLeft } from "lucide-react";
+import { BookOpen, PlayCircle, CheckCircle, Lock, ArrowLeft, ChevronDown, ChevronUp, Layers } from "lucide-react";
+import { useState } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import PublicHeader from "@/components/PublicHeader";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
+
+
+// ── Componentes auxiliares ────────────────────────────────────────────────────
+
+function LessonRow({ lesson, index, isEnrolled, onStart }: {
+  lesson: any; index: number; isEnrolled: boolean; onStart: (l: any) => void;
+}) {
+  return (
+    <div
+      className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${
+        isEnrolled && !lesson.isPathLocked ? "hover:bg-accent cursor-pointer" : "opacity-60"
+      }`}
+      onClick={() => isEnrolled && onStart(lesson)}
+    >
+      <div className="flex items-center gap-4 flex-1">
+        <div className="flex items-center justify-center h-9 w-9 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+          {index + 1}
+        </div>
+        <div className="flex-1">
+          <h4 className="font-medium">{lesson.title}</h4>
+          {lesson.description && (
+            <p className="text-sm text-muted-foreground line-clamp-1">{lesson.description}</p>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {lesson.duration && <span className="text-sm text-muted-foreground">{formatDuration(lesson.duration)}</span>}
+        {isEnrolled ? (
+          lesson.isPathLocked ? <Lock className="h-5 w-5 text-muted-foreground" /> : <PlayCircle className="h-5 w-5 text-primary" />
+        ) : (
+          <Lock className="h-5 w-5 text-muted-foreground" />
+        )}
+      </div>
+      {lesson.isPathLocked && lesson.unlockLabel && (
+        <p className="text-xs text-muted-foreground sm:text-right">{lesson.unlockLabel}</p>
+      )}
+    </div>
+  );
+}
+
+function GroupSection({ group, groupLessons, isEnrolled, onStartLesson }: {
+  group: any; groupLessons: any[]; isEnrolled: boolean; onStartLesson: (l: any) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="rounded-lg border overflow-hidden">
+      <button
+        className="w-full flex items-center gap-3 p-4 hover:bg-accent/20 transition-colors text-left bg-muted/30"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Layers className="h-4 w-4 text-primary shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">{group.title}</p>
+          {group.description && <p className="text-xs text-muted-foreground">{group.description}</p>}
+        </div>
+        <span className="text-xs text-muted-foreground shrink-0">{groupLessons.length} aula(s)</span>
+        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+      </button>
+      {open && (
+        <div className="p-3 space-y-2 border-t">
+          {groupLessons.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Nenhuma aula neste grupo.</p>
+          ) : (
+            groupLessons.map((lesson: any, idx: number) => (
+              <LessonRow key={lesson.id} lesson={lesson} index={idx} isEnrolled={isEnrolled} onStart={onStartLesson} />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CourseDetail() {
   const params = useParams();
@@ -26,6 +99,11 @@ export default function CourseDetail() {
       { courseId: course?.id || 0 },
       { enabled: !!course }
     );
+
+  const { data: courseGroups = [] } = trpc.courseGroups.listByCourse.useQuery(
+    { courseId: course?.id || 0 },
+    { enabled: !!course }
+  );
 
   const { data: enrollmentData } = trpc.enrollments.checkEnrollment.useQuery(
     { courseId: course?.id || 0 },
@@ -173,7 +251,7 @@ export default function CourseDetail() {
               </Card>
             )}
 
-            {/* Lessons List */}
+            {/* Conteúdo do Curso — com agrupamentos ou lista simples */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -185,65 +263,51 @@ export default function CourseDetail() {
                 {lessonsLoading ? (
                   <div className="space-y-4">
                     {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="h-16 bg-muted animate-pulse rounded"
-                      ></div>
+                      <div key={i} className="h-16 bg-muted animate-pulse rounded"></div>
                     ))}
                   </div>
+                ) : courseGroups.length > 0 ? (
+                  // ── Visão com agrupamentos ──
+                  <div className="space-y-4">
+                    {(courseGroups as any[]).map((group: any) => {
+                      const groupLessons = (lessons || []).filter((l: any) =>
+                        group.lessonIds.includes(l.id)
+                      );
+                      return (
+                        <GroupSection
+                          key={group.id}
+                          group={group}
+                          groupLessons={groupLessons}
+                          isEnrolled={isEnrolled}
+                          onStartLesson={handleStartLesson}
+                        />
+                      );
+                    })}
+                    {/* Aulas sem grupo */}
+                    {(() => {
+                      const groupedIds = new Set((courseGroups as any[]).flatMap((g: any) => g.lessonIds));
+                      const ungrouped = (lessons || []).filter((l: any) => !groupedIds.has(l.id));
+                      return ungrouped.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider px-1">Outras aulas</p>
+                          {ungrouped.map((lesson: any, index: number) => (
+                            <LessonRow key={lesson.id} lesson={lesson} index={index}
+                              isEnrolled={isEnrolled} onStart={handleStartLesson} />
+                          ))}
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
                 ) : lessons && lessons.length > 0 ? (
+                  // ── Visão simples sem agrupamentos ──
                   <div className="space-y-2">
-                    {lessons.map((lesson: any, index) => (
-                      <div
-                        key={lesson.id}
-                        className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${
-                          isEnrolled && !lesson.isPathLocked
-                            ? "hover:bg-accent cursor-pointer"
-                            : "opacity-60"
-                        }`}
-                        onClick={() => isEnrolled && handleStartLesson(lesson)}
-                      >
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/10 text-primary font-semibold">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-medium">{lesson.title}</h4>
-                            {lesson.description && (
-                              <p className="text-sm text-muted-foreground line-clamp-1">
-                                {lesson.description}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
-                          {lesson.duration && (
-                            <span className="text-sm text-muted-foreground">
-                              {formatDuration(lesson.duration)}
-                            </span>
-                          )}
-                          {isEnrolled ? (
-                            lesson.isPathLocked ? (
-                              <Lock className="h-5 w-5 text-muted-foreground" />
-                            ) : (
-                              <PlayCircle className="h-5 w-5 text-primary" />
-                            )
-                          ) : (
-                            <Lock className="h-5 w-5 text-muted-foreground" />
-                          )}
-                        </div>
-                        {lesson.isPathLocked && lesson.unlockLabel && (
-                          <p className="text-xs text-muted-foreground sm:text-right">
-                            {lesson.unlockLabel}
-                          </p>
-                        )}
-                      </div>
+                    {lessons.map((lesson: any, index: number) => (
+                      <LessonRow key={lesson.id} lesson={lesson} index={index}
+                        isEnrolled={isEnrolled} onStart={handleStartLesson} />
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-center py-8">
-                    Nenhuma aula disponível ainda
-                  </p>
+                  <p className="text-muted-foreground text-center py-8">Nenhuma aula disponível ainda</p>
                 )}
               </CardContent>
             </Card>

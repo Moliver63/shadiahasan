@@ -44,6 +44,8 @@ export default function LessonView() {
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
   // UX imediata — separada da persistência real no backend
   const [completionUiStarted, setCompletionUiStarted] = useState(false);
+  // Confirmado pelo backend — countdown só inicia após onSuccess
+  const [completionConfirmed, setCompletionConfirmed] = useState(false);
   // Countdown Netflix — autoplay próxima aula
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isExiting, setIsExiting] = useState(false);
@@ -181,28 +183,44 @@ export default function LessonView() {
       return;
     }
 
+    // Calcular progresso explícito no momento da persistência
+    // (calculatedProgress pode estar defasado antes do re-render com completionUiStarted=true)
+    const completedLessonsToPersist = [...new Set([...completedLessons, lessonId])];
+    const progressToPersist = totalLessons > 0
+      ? Math.min(100, Math.round((completedLessonsToPersist.length / totalLessons) * 100))
+      : (enrollmentData?.enrollment?.progress ?? 0); // não sobrescreve com 0 se totalLessons ainda não carregou
+
     updateProgressMutation.mutate(
       {
         courseId: lesson.courseId,
-        progress: calculatedProgress,
-        completedLessons: JSON.stringify([...new Set([...completedLessons, lessonId])]),
+        progress: progressToPersist,
+        completedLessons: JSON.stringify(completedLessonsToPersist),
       },
       {
         onSuccess: () => {
           setHasMarkedComplete(true);
+          setCompletionConfirmed(true); // libera o countdown agora que o backend confirmou
         },
         onError: () => {
           // Rollback visual se o backend falhar
           setCompletionUiStarted(false);
+          setCompletionConfirmed(false);
           setCountdown(null);
           setIsExiting(false);
           toast.error("Não foi possível salvar sua conclusão. Tente novamente.");
         },
       }
     );
-  }, [lesson, hasAccess, hasMarkedComplete, currentLessonAlreadyCompleted, completionUiStarted, updateProgressMutation, calculatedProgress, completedLessons, lessonId]);
+  }, [lesson, hasAccess, hasMarkedComplete, currentLessonAlreadyCompleted, completionUiStarted, updateProgressMutation, completedLessons, lessonId, totalLessons, enrollmentData]);
 
-  // Função central de conclusão: UX imediata + persistência em paralelo
+  // Marca conclusão silenciosa (sem countdown) — chamada quando progress > 90%
+  // O countdown só inicia no onComplete (fim real do vídeo)
+  const markCompletionSilent = useCallback(() => {
+    if (completionUiStarted || currentLessonAlreadyCompleted || hasMarkedComplete) return;
+    markLessonAsCompleted(); // persiste no backend sem UI de countdown
+  }, [completionUiStarted, currentLessonAlreadyCompleted, hasMarkedComplete, markLessonAsCompleted]);
+
+  // Conclusão completa: toast + countdown + persistência — chamada no onComplete (fim do vídeo)
   const startCompletionFlow = useCallback(() => {
     if (completionUiStarted || currentLessonAlreadyCompleted || hasMarkedComplete) return;
     setCompletionUiStarted(true);
@@ -233,6 +251,7 @@ export default function LessonView() {
   useEffect(() => {
     setHasMarkedComplete(false);
     setCompletionUiStarted(false);
+    setCompletionConfirmed(false);
     setCountdown(null);
     setIsExiting(false);
     if (countdownRef.current) clearInterval(countdownRef.current);
@@ -240,7 +259,7 @@ export default function LessonView() {
   }, [lessonId]);
 
   useEffect(() => {
-    if (completionUiStarted && nextUnlockedLesson && countdown === null) {
+    if (completionConfirmed && nextUnlockedLesson && countdown === null) {
       setCountdown(10);
       countdownRef.current = setInterval(() => {
         setCountdown((prev) => {
@@ -266,13 +285,14 @@ export default function LessonView() {
         if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
       };
     }
-  }, [completionUiStarted, nextUnlockedLesson, setLocation, countdown]);
+  }, [completionConfirmed, nextUnlockedLesson, setLocation, countdown]);
 
   const handleProgress = useCallback((progress: number) => {
     if (lesson && hasAccess && progress > 90) {
-      startCompletionFlow();
+      // Política conservadora: só persiste conclusão em >90%, countdown inicia no onComplete
+      markCompletionSilent();
     }
-  }, [lesson, hasAccess, startCompletionFlow]);
+  }, [lesson, hasAccess, markCompletionSilent]);
 
   const handleComplete = useCallback(() => {
     if (lesson && hasAccess) {
@@ -521,7 +541,7 @@ export default function LessonView() {
                       Aulas concluídas
                     </p>
                     <p className="text-base font-semibold">
-                      {Math.min(mergedCompletedLessons.length, totalLessons)} de {totalLessons}
+                      {totalLessons > 0 ? Math.min(mergedCompletedLessons.length, totalLessons) : "—"} de {totalLessons > 0 ? totalLessons : "—"}
                     </p>
                   </div>
                 </div>
@@ -541,8 +561,14 @@ export default function LessonView() {
                     {nextStepLabel}
                   </p>
 
-                  {/* Mensagem de redirecionamento automático */}
-                  {completionUiStarted && countdown !== null && nextUnlockedLesson && (
+                  {/* Status de salvamento e redirecionamento */}
+                  {completionUiStarted && !completionConfirmed && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2 mb-1">
+                      <span className="inline-block w-3 h-3 rounded-full bg-yellow-400 animate-pulse shrink-0" />
+                      Salvando conclusão...
+                    </div>
+                  )}
+                  {completionConfirmed && countdown !== null && nextUnlockedLesson && (
                     <div className="flex items-center gap-2 text-sm text-primary font-medium mt-2 mb-1">
                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
                         {countdown}

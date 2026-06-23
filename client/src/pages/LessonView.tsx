@@ -636,7 +636,7 @@ export default function LessonView() {
             </Card>
 
             {/* Material de Apoio + Exercícios Mentais */}
-            <LessonMaterials lessonId={lessonId} />
+            <LessonMaterials lessonId={lessonId} lessonTitle={lesson.title} />
 
             {/* Lesson Description */}
             {lesson.description && (

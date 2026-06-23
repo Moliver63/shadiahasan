@@ -24,15 +24,25 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 // ─── Gemini ─────────────────────────────────────────────────────────────────
 
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
+const GEMINI_URL_KEY = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
+const GEMINI_URL_OAUTH = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent";
 
 async function callGemini(prompt: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "GEMINI_API_KEY não configurada." });
 
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+  // Detecta tipo de chave: AQ. = OAuth2 Bearer, AIza = API Key
+  const isOAuth = apiKey.startsWith("AQ.");
+
+  const url = isOAuth ? GEMINI_URL_OAUTH : GEMINI_URL_KEY;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  
+  const fetchUrl = isOAuth ? url : `${url}?key=${apiKey}`;
+  if (isOAuth) headers["Authorization"] = `Bearer ${apiKey}`;
+
+  const res = await fetch(fetchUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.75, maxOutputTokens: 2048 },

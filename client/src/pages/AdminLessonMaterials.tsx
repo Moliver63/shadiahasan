@@ -37,6 +37,7 @@ import {
   Upload,
   Loader2,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
@@ -137,6 +138,15 @@ export default function AdminLessonMaterials() {
     onError: () => toast.error("Erro ao remover exercício."),
   });
 
+  const generateWithAIMutation = trpc.materials.generateExercisesWithAI.useMutation({
+    onSuccess: (data) => {
+      setAiContent(data.content);
+      setShowAIDialog(true);
+      toast.success("Exercícios gerados pela IA!");
+    },
+    onError: (e) => toast.error("Erro na IA: " + e.message),
+  });
+
   // Estado: modal material
   const [showMaterialDialog, setShowMaterialDialog] = useState(false);
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "done">("idle");
@@ -151,6 +161,8 @@ export default function AdminLessonMaterials() {
 
   // Estado: modal exercício
   const [showExerciseDialog, setShowExerciseDialog] = useState(false);
+  const [showAIDialog, setShowAIDialog] = useState(false);
+  const [aiContent, setAiContent] = useState<string | null>(null);
   const [selectedExerciseType, setSelectedExerciseType] = useState<ExerciseType>("thought_restructuring");
 
   // Estado: confirmação de delete
@@ -297,10 +309,25 @@ export default function AdminLessonMaterials() {
               <Brain className="h-5 w-5 text-primary" />
               🧠 Exercícios de Fortalecimento Mental
             </CardTitle>
-            <Button size="sm" onClick={() => setShowExerciseDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar exercício
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline"
+                onClick={() => generateWithAIMutation.mutate({
+                  lessonId,
+                  lessonTitle: lesson?.title ?? "",
+                  lessonDescription: lesson?.description ?? "",
+                  courseTitle: "",
+                })}
+                disabled={generateWithAIMutation.isPending}
+                className="border-yellow-400/60 hover:bg-yellow-50 dark:hover:bg-yellow-950/20">
+                {generateWithAIMutation.isPending
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Gerando...</>
+                  : <><Sparkles className="h-4 w-4 mr-2 text-yellow-500" />Gerar com IA</>}
+              </Button>
+              <Button size="sm" onClick={() => setShowExerciseDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar exercício
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {exercises.length === 0 ? (
@@ -500,6 +527,35 @@ export default function AdminLessonMaterials() {
                 <><Loader2 className="h-4 w-4 animate-spin mr-2" />Adicionando...</>
               ) : "Adicionar exercício"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: Resultado IA ── */}
+      <Dialog open={showAIDialog} onOpenChange={setShowAIDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-yellow-500" />
+              Exercícios Gerados pela IA
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-xs text-muted-foreground mb-3">
+              Copie o conteúdo abaixo e use como referência para criar PDFs ou adicionar exercícios manualmente.
+            </p>
+            <pre className="whitespace-pre-wrap text-xs leading-relaxed font-sans bg-muted rounded-lg p-4 overflow-x-auto">
+              {aiContent}
+            </pre>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              if (aiContent) navigator.clipboard.writeText(aiContent);
+              toast.success("Copiado!");
+            }}>
+              Copiar texto
+            </Button>
+            <Button onClick={() => setShowAIDialog(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

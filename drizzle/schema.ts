@@ -857,3 +857,33 @@ export const aiAnalyses = pgTable("aiAnalyses", {
 
 export type AiAnalysis = typeof aiAnalyses.$inferSelect;
 export type InsertAiAnalysis = typeof aiAnalyses.$inferInsert;
+
+/**
+ * Course Groups — Agrupamento de módulos/aulas dentro de um curso
+ */
+export const courseGroups = pgTable("courseGroups", {
+  id: serial("id").primaryKey(),
+  courseId: integer("courseId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  order: integer("order").default(0).notNull(),
+  isPublished: integer("isPublished").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type CourseGroup = typeof courseGroups.$inferSelect;
+export type InsertCourseGroup = typeof courseGroups.$inferInsert;
+
+/**
+ * Course Group Lessons — vínculo entre grupos e aulas
+ */
+export const courseGroupLessons = pgTable("courseGroupLessons", {
+  id: serial("id").primaryKey(),
+  groupId: integer("groupId").notNull(),
+  lessonId: integer("lessonId").notNull(),
+  order: integer("order").default(0).notNull(),
+});
+
+export type CourseGroupLesson = typeof courseGroupLessons.$inferSelect;
+export type InsertCourseGroupLesson = typeof courseGroupLessons.$inferInsert;

@@ -24,7 +24,7 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 // ─── Gemini ─────────────────────────────────────────────────────────────────
 
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent";
 
 async function callGemini(prompt: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;

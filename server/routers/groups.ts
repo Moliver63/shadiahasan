@@ -103,6 +103,19 @@ export const courseGroupsRouter = router({
       return result;
     }),
 
+  /** Admin: lista todas as aulas do curso incluindo não publicadas */
+  adminListLessons: adminProcedure
+    .input(z.object({ courseId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select({ id: lessons.id, title: lessons.title, duration: lessons.duration, order: lessons.order, isPublished: lessons.isPublished })
+        .from(lessons)
+        .where(eq(lessons.courseId, input.courseId))
+        .orderBy(asc(lessons.order));
+    }),
+
   // ── Criação e edição ────────────────────────────────────────────────────────
 
   /** Cria novo grupo e vincula aulas selecionadas */

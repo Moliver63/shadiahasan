@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Button } from "./ui/button";
 import { Maximize2, X } from "lucide-react";
+import { toast } from "sonner";
 
 interface VRViewerProps {
   videoUrl: string;
@@ -99,9 +100,14 @@ export default function VRViewer({ videoUrl, title, onClose }: VRViewerProps) {
           setIsVRMode(true);
           console.log("VR session started", session);
         } else {
-          alert(
-            "WebXR não suportado neste dispositivo. Use Meta Quest Browser para melhor experiência."
-          );
+          // Dispositivo não suporta WebXR — entra em fullscreen como fallback elegante
+          toast.info("VR imersivo não disponível neste dispositivo. Entrando em tela cheia. Use o Meta Quest Browser para VR completo.", {
+            duration: 5000,
+          });
+          if (container.requestFullscreen) {
+            await container.requestFullscreen();
+            setIsFullscreen(true);
+          }
         }
       } else {
         if (container.requestFullscreen) {

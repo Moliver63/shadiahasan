@@ -842,3 +842,18 @@ export const exerciseResponses = pgTable("exerciseResponses", {
 
 export type ExerciseResponse = typeof exerciseResponses.$inferSelect;
 export type InsertExerciseResponse = typeof exerciseResponses.$inferInsert;
+
+/**
+ * AI Analysis — análise de respostas de exercícios pela IA Mentora (Gemini)
+ */
+export const aiAnalyses = pgTable("aiAnalyses", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  exerciseId: integer("exerciseId").notNull(),
+  lessonId: integer("lessonId").notNull(),
+  analysis: text("analysis").notNull(), // texto gerado pelo Gemini
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AiAnalysis = typeof aiAnalyses.$inferSelect;
+export type InsertAiAnalysis = typeof aiAnalyses.$inferInsert;

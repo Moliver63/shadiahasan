@@ -246,6 +246,7 @@ export default function LessonView() {
 
   // Inicia countdown quando aula é concluída e há próxima aula disponível
   const navTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownPausedRef = useRef(false);
 
   // Reset de todos os estados ao trocar de aula — evita vazamento entre aulas
   useEffect(() => {
@@ -286,6 +287,39 @@ export default function LessonView() {
       };
     }
   }, [completionConfirmed, nextUnlockedLesson, setLocation, countdown]);
+
+  // Pausa o countdown quando o aluno troca de aba ou minimiza o navegador
+  // Retoma quando o aluno volta — evita redirecionamento silencioso em background
+  useEffect(() => {
+    if (countdown === null) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Pausa: limpa o intervalo e marca como pausado
+        countdownPausedRef.current = true;
+        if (countdownRef.current) {
+          clearInterval(countdownRef.current);
+          countdownRef.current = null;
+        }
+      } else {
+        // Retoma: só se o countdown ainda estiver ativo e pausado
+        if (!countdownPausedRef.current || countdown === null) return;
+        countdownPausedRef.current = false;
+        countdownRef.current = setInterval(() => {
+          setCountdown((prev) => {
+            if (prev === null || prev <= 1) {
+              clearInterval(countdownRef.current!);
+              return null;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [countdown]);
 
   const handleProgress = useCallback((progress: number) => {
     if (lesson && hasAccess && progress > 90) {

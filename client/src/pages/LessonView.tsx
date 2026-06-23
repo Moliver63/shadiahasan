@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { Link, useLocation, useParams } from "wouter";
+import LessonMaterials from "@/components/LessonMaterials";
 
 // Detecta se a URL é do YouTube
 function isYouTubeUrl(url: string): boolean {
@@ -633,6 +634,9 @@ export default function LessonView() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Material de Apoio + Exercícios Mentais */}
+            <LessonMaterials lessonId={lessonId} />
 
             {/* Lesson Description */}
             {lesson.description && (

@@ -25,9 +25,18 @@ export default function AdminCourseGroups() {
   const courseId = parseInt(params.id || "0");
 
   // Queries
-  const { data: course } = trpc.courses.getById.useQuery({ id: courseId });
-  const { data: groups = [], refetch: refetchGroups } = trpc.courseGroups.adminListByCourse.useQuery({ courseId });
-  const { data: allLessons = [] } = trpc.lessons.listByCourse.useQuery({ courseId });
+  const { data: course } = trpc.courses.getById.useQuery(
+    { id: courseId },
+    { enabled: courseId > 0 }
+  );
+  const { data: groups = [], refetch: refetchGroups } = trpc.courseGroups.adminListByCourse.useQuery(
+    { courseId },
+    { enabled: courseId > 0 }
+  );
+  const { data: allLessons = [] } = trpc.courseGroups.adminListLessons.useQuery(
+    { courseId },
+    { enabled: courseId > 0 }
+  );
 
   // Aulas que ainda não estão em nenhum grupo
   const groupedLessonIds = new Set((groups as any[]).flatMap((g: any) => g.lessons.map((l: any) => l.lessonId)));

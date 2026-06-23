@@ -18,6 +18,7 @@ import AdminCourses from "./pages/AdminCourses";
 import AdminPlans from "./pages/AdminPlans";
 import AdminTestimonials from "./pages/AdminTestimonials";
 import AdminCourseLessons from "./pages/AdminCourseLessons";
+import AdminLessonMaterials from "./pages/AdminLessonMaterials";
 import AdminSettings from "./pages/AdminSettings";
 import AdminLessons from "./pages/AdminLessons";
 import AdminStudents from "./pages/AdminStudents";
@@ -108,6 +109,7 @@ function Router() {
       <ProtectedRoute path={"/admin/courses/:id/lessons"} component={AdminCourseLessons} requireAdmin />
       <ProtectedRoute path={"/admin/settings"} component={AdminSettings} requireAdmin />
       <ProtectedRoute path={"/admin/lessons"} component={AdminLessons} requireAdmin />
+      <ProtectedRoute path={"/admin/lessons/:id/materials"} component={AdminLessonMaterials} requireAdmin />
       <ProtectedRoute path={"/admin/students"} component={AdminStudents} requireAdmin />
       <Route path={"/ebooks"} component={Ebooks} />
       <ProtectedRoute path={"/ebook/:id"} component={EbookReader} />

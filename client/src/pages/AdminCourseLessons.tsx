@@ -29,7 +29,7 @@ import {
   Plus, Edit, Trash2, ArrowLeft, Eye, EyeOff,
   PlayCircle, Upload, Youtube, Cloud, Lock, Unlock,
   CheckCircle2, AlertCircle, Loader2, RotateCw, Languages, Star,
-  GripVertical, ArrowUp, ArrowDown,
+  GripVertical, ArrowUp, ArrowDown, BookOpen,
 } from "lucide-react";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
@@ -816,6 +816,12 @@ export default function AdminCourseLessons() {
                     </div>
 
                     <div className="flex gap-2 shrink-0">
+                      <Link href={`/admin/lessons/${lesson.id}/materials`}>
+                        <Button variant="outline" size="sm">
+                          <BookOpen className="h-3 w-3 mr-1" />
+                          Material
+                        </Button>
+                      </Link>
                       <Button variant="outline" size="sm" onClick={() => openEditDialog(lesson)}>
                         <Edit className="h-3 w-3 mr-1" />
                         Editar

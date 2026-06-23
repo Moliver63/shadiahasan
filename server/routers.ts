@@ -6,6 +6,7 @@ import { subscriptionsRouter } from "./routers/subscriptions";
 import { referralsRouter } from "./routers/referrals";
 import { videosRouter } from "./routers/videos";
 import { profileRouter } from "./routers/profile";
+import { materialsRouter } from "./routers/materials";
 import { publicProcedure, router, protectedProcedure, superAdminProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -1854,6 +1855,9 @@ export const appRouter = router({
   
   // Referrals system router
   referrals: referralsRouter,
+
+  // Material de Apoio + Exercícios Mentais
+  materials: materialsRouter,
 });
 
 export type AppRouter = typeof appRouter;

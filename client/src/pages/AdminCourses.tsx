@@ -23,7 +23,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import Sortable from "sortablejs";
 import {
-  Plus, Edit, Trash2, Eye, EyeOff, Wand2, RefreshCw, ImageIcon, Upload, Loader2,
+  Plus, Edit, Trash2, Eye, EyeOff, Wand2, RefreshCw, ImageIcon, Upload, Loader2, Layers,
   GripVertical, ArrowUp, ArrowDown, Copy, Search, X,
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -565,6 +565,12 @@ export default function AdminCourses() {
                       </Button>
                       <Link href={`/admin/courses/${course.id}/lessons`}>
                         <Button variant="outline" size="sm">Aulas</Button>
+                      </Link>
+                      <Link href={`/admin/courses/${course.id}/groups`}>
+                        <Button variant="outline" size="sm" title="Agrupamentos de aulas">
+                          <Layers className="h-3.5 w-3.5 sm:mr-1" />
+                          <span className="hidden sm:inline">Grupos</span>
+                        </Button>
                       </Link>
                       <Button
                         variant="outline"

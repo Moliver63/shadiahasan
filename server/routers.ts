@@ -7,6 +7,7 @@ import { referralsRouter } from "./routers/referrals";
 import { videosRouter } from "./routers/videos";
 import { profileRouter } from "./routers/profile";
 import { materialsRouter } from "./routers/materials";
+import { courseGroupsRouter } from "./routers/groups";
 import { publicProcedure, router, protectedProcedure, superAdminProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -1858,6 +1859,9 @@ export const appRouter = router({
 
   // Material de Apoio + Exercícios Mentais
   materials: materialsRouter,
+
+  // Agrupamento de módulos
+  courseGroups: courseGroupsRouter,
 });
 
 export type AppRouter = typeof appRouter;

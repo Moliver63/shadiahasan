@@ -19,17 +19,10 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 const COURSE_GROUPS_SCHEMA_MESSAGE =
   "Os agrupamentos de aulas ainda não foram inicializados no banco de dados. Tente novamente em alguns segundos ou execute a sincronização do schema.";
 
-let courseGroupsSchemaReady = false;
-let courseGroupsSchemaCheck: Promise<boolean> | null = null;
-
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
+  try { return JSON.stringify(error); } catch { return String(error); }
 }
 
 function isCourseGroupsSchemaError(error: unknown) {
@@ -41,10 +34,7 @@ function isCourseGroupsSchemaError(error: unknown) {
 }
 
 function createSchemaUnavailableError() {
-  return new TRPCError({
-    code: "PRECONDITION_FAILED",
-    message: COURSE_GROUPS_SCHEMA_MESSAGE,
-  });
+  return new TRPCError({ code: "PRECONDITION_FAILED", message: COURSE_GROUPS_SCHEMA_MESSAGE });
 }
 
 function isDataUrl(value?: string | null) {
@@ -52,61 +42,46 @@ function isDataUrl(value?: string | null) {
 }
 
 async function ensureCourseGroupsSchema(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
-  if (courseGroupsSchemaReady) return true;
-  if (courseGroupsSchemaCheck) return courseGroupsSchemaCheck;
-
-  courseGroupsSchemaCheck = (async () => {
-    try {
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS "courseGroups" (
-          "id" serial PRIMARY KEY,
-          "courseId" integer NOT NULL,
-          "title" varchar(255) NOT NULL,
-          "description" text,
-          "coverUrl" text,
-          "order" integer NOT NULL DEFAULT 0,
-          "isPublished" integer NOT NULL DEFAULT 1,
-          "createdAt" timestamp NOT NULL DEFAULT now(),
-          "updatedAt" timestamp NOT NULL DEFAULT now()
-        )
-      `);
-
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS "courseGroupLessons" (
-          "id" serial PRIMARY KEY,
-          "groupId" integer NOT NULL,
-          "lessonId" integer NOT NULL,
-          "order" integer NOT NULL DEFAULT 0
-        )
-      `);
-
-      await db.execute(sql`
-        CREATE INDEX IF NOT EXISTS "courseGroups_courseId_order_idx"
-        ON "courseGroups" ("courseId", "order")
-      `);
-
-      await db.execute(sql`
-        CREATE INDEX IF NOT EXISTS "courseGroupLessons_groupId_order_idx"
-        ON "courseGroupLessons" ("groupId", "order")
-      `);
-
-      await db.execute(sql`
-        CREATE UNIQUE INDEX IF NOT EXISTS "courseGroupLessons_group_lesson_uidx"
-        ON "courseGroupLessons" ("groupId", "lessonId")
-      `);
-
-      courseGroupsSchemaReady = true;
-      console.info("[courseGroups] schema ready");
-      return true;
-    } catch (error) {
-      console.error("[courseGroups] schema init failed", error);
-      return false;
-    } finally {
-      courseGroupsSchemaCheck = null;
-    }
-  })();
-
-  return courseGroupsSchemaCheck;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "courseGroups" (
+        "id" serial PRIMARY KEY,
+        "courseId" integer NOT NULL,
+        "title" varchar(255) NOT NULL,
+        "description" text,
+        "coverUrl" text,
+        "order" integer NOT NULL DEFAULT 0,
+        "isPublished" integer NOT NULL DEFAULT 1,
+        "createdAt" timestamp NOT NULL DEFAULT now(),
+        "updatedAt" timestamp NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(sql`ALTER TABLE "courseGroups" ADD COLUMN IF NOT EXISTS "coverUrl" text`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "courseGroupLessons" (
+        "id" serial PRIMARY KEY,
+        "groupId" integer NOT NULL,
+        "lessonId" integer NOT NULL,
+        "order" integer NOT NULL DEFAULT 0
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS "courseGroups_courseId_order_idx"
+      ON "courseGroups" ("courseId", "order")
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS "courseGroupLessons_groupId_order_idx"
+      ON "courseGroupLessons" ("groupId", "order")
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS "courseGroupLessons_group_lesson_uidx"
+      ON "courseGroupLessons" ("groupId", "lessonId")
+    `);
+    return true;
+  } catch (error) {
+    console.error("[courseGroups] schema init failed", error);
+    return false;
+  }
 }
 
 async function runReadWithSchema<T>(
@@ -116,7 +91,6 @@ async function runReadWithSchema<T>(
 ) {
   const ready = await ensureCourseGroupsSchema(db);
   if (!ready) return fallback;
-
   try {
     return await operation();
   } catch (error) {
@@ -135,7 +109,6 @@ async function runWriteWithSchema<T>(
 ) {
   const ready = await ensureCourseGroupsSchema(db);
   if (!ready) throw createSchemaUnavailableError();
-
   try {
     return await operation();
   } catch (error) {
@@ -152,7 +125,7 @@ export const courseGroupsRouter = router({
 
   // ── Leitura ────────────────────────────────────────────────────────────────
 
-  /** Lista todos os grupos de um curso com suas aulas */
+  /** Lista todos os grupos publicados de um curso com suas aulas */
   listByCourse: publicProcedure
     .input(z.object({ courseId: z.number() }))
     .query(async ({ input }) => {
@@ -165,14 +138,14 @@ export const courseGroupsRouter = router({
           .from(courseGroups)
           .where(and(
             eq(courseGroups.courseId, input.courseId),
-            eq(courseGroups.isPublished, 1)
+            eq(courseGroups.isPublished, 1),
           ))
           .orderBy(asc(courseGroups.order));
 
         const result = await Promise.all(
           groups.map(async (group) => {
             const groupLessons = await db
-              .select({ lessonId: courseGroupLessons.lessonId, order: courseGroupLessons.order })
+              .select({ lessonId: courseGroupLessons.lessonId, groupOrder: courseGroupLessons.order })
               .from(courseGroupLessons)
               .where(eq(courseGroupLessons.groupId, group.id))
               .orderBy(asc(courseGroupLessons.order));
@@ -189,7 +162,7 @@ export const courseGroupsRouter = router({
       }, [] as Array<Record<string, unknown>>);
     }),
 
-  /** Admin: lista grupos com detalhes completos */
+  /** Admin: lista grupos com detalhes completos (inclui despublicados) */
   adminListByCourse: adminProcedure
     .input(z.object({ courseId: z.number() }))
     .query(async ({ input }) => {
@@ -209,7 +182,7 @@ export const courseGroupsRouter = router({
               .select({
                 id: courseGroupLessons.id,
                 lessonId: courseGroupLessons.lessonId,
-                order: courseGroupLessons.order,
+                groupOrder: courseGroupLessons.order,
               })
               .from(courseGroupLessons)
               .where(eq(courseGroupLessons.groupId, group.id))
@@ -217,7 +190,7 @@ export const courseGroupsRouter = router({
 
             const lessonDetails = groupLessons.length > 0
               ? await db
-                  .select({ id: lessons.id, title: lessons.title, duration: lessons.duration, order: lessons.order })
+                  .select({ id: lessons.id, title: lessons.title, duration: lessons.duration })
                   .from(lessons)
                   .where(inArray(lessons.id, groupLessons.map((gl) => gl.lessonId)))
               : [];
@@ -225,8 +198,11 @@ export const courseGroupsRouter = router({
             return {
               ...group,
               lessons: groupLessons.map((gl) => ({
-                ...gl,
-                ...lessonDetails.find((l) => l.id === gl.lessonId),
+                id: gl.id,
+                lessonId: gl.lessonId,
+                order: gl.groupOrder,
+                title: lessonDetails.find((l) => l.id === gl.lessonId)?.title ?? "",
+                duration: lessonDetails.find((l) => l.id === gl.lessonId)?.duration ?? null,
               })),
               lessonCount: groupLessons.length,
             };
@@ -237,9 +213,10 @@ export const courseGroupsRouter = router({
       }, [] as Array<Record<string, unknown>>);
     }),
 
-  /** Admin: lista TODAS as aulas de TODOS os cursos para agrupamento */
+  /** Admin: lista aulas do curso atual para seleção no agrupamento */
   adminListLessons: adminProcedure
-    .query(async () => {
+    .input(z.object({ courseId: z.number() }))
+    .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];
 
@@ -256,7 +233,8 @@ export const courseGroupsRouter = router({
           })
           .from(lessons)
           .leftJoin(courses, eq(lessons.courseId, courses.id))
-          .orderBy(asc(courses.title), asc(lessons.order));
+          .where(eq(lessons.courseId, input.courseId))
+          .orderBy(asc(lessons.order));
 
         return allLessons;
       }, [] as Array<Record<string, unknown>>);
@@ -295,7 +273,7 @@ export const courseGroupsRouter = router({
             courseId: input.courseId,
             title: input.title,
             description: input.description,
-            coverUrl: input.coverUrl?.trim() || undefined,
+            coverUrl: input.coverUrl?.trim() || null,
             order: input.order,
           })
           .returning();
@@ -312,7 +290,7 @@ export const courseGroupsRouter = router({
       });
     }),
 
-  /** Edita título/descrição de um grupo */
+  /** Edita título, descrição, capa e opcionalmente substitui as aulas do grupo */
   update: adminProcedure
     .input(z.object({
       groupId: z.number(),
@@ -320,6 +298,8 @@ export const courseGroupsRouter = router({
       description: z.string().optional(),
       coverUrl: z.string().optional().nullable(),
       order: z.number().optional(),
+      isPublished: z.number().min(0).max(1).optional(),
+      lessonIds: z.array(z.number()).optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -333,16 +313,30 @@ export const courseGroupsRouter = router({
             ...(input.description !== undefined && { description: input.description }),
             ...(input.coverUrl !== undefined && { coverUrl: input.coverUrl }),
             ...(input.order !== undefined && { order: input.order }),
+            ...(input.isPublished !== undefined && { isPublished: input.isPublished }),
             updatedAt: new Date(),
           })
           .where(eq(courseGroups.id, input.groupId))
           .returning();
 
+        if (input.lessonIds !== undefined) {
+          await db.delete(courseGroupLessons).where(eq(courseGroupLessons.groupId, input.groupId));
+          if (input.lessonIds.length > 0) {
+            await db.insert(courseGroupLessons).values(
+              input.lessonIds.map((lessonId, idx) => ({
+                groupId: input.groupId,
+                lessonId,
+                order: idx,
+              }))
+            );
+          }
+        }
+
         return updated;
       });
     }),
 
-  /** Adiciona aulas a um grupo existente */
+  /** Adiciona aulas a um grupo existente (sem duplicar) */
   addLessons: adminProcedure
     .input(z.object({
       groupId: z.number(),
@@ -391,9 +385,8 @@ export const courseGroupsRouter = router({
           .delete(courseGroupLessons)
           .where(and(
             eq(courseGroupLessons.groupId, input.groupId),
-            eq(courseGroupLessons.lessonId, input.lessonId)
+            eq(courseGroupLessons.lessonId, input.lessonId),
           ));
-
         return { success: true };
       });
     }),
@@ -416,11 +409,10 @@ export const courseGroupsRouter = router({
               .set({ order: idx })
               .where(and(
                 eq(courseGroupLessons.groupId, input.groupId),
-                eq(courseGroupLessons.lessonId, lessonId)
+                eq(courseGroupLessons.lessonId, lessonId),
               ))
           )
         );
-
         return { success: true };
       });
     }),
@@ -443,7 +435,6 @@ export const courseGroupsRouter = router({
               .where(eq(courseGroups.id, groupId))
           )
         );
-
         return { success: true };
       });
     }),
@@ -456,14 +447,8 @@ export const courseGroupsRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
       return runWriteWithSchema(db, async () => {
-        await db
-          .delete(courseGroupLessons)
-          .where(eq(courseGroupLessons.groupId, input.groupId));
-
-        await db
-          .delete(courseGroups)
-          .where(eq(courseGroups.id, input.groupId));
-
+        await db.delete(courseGroupLessons).where(eq(courseGroupLessons.groupId, input.groupId));
+        await db.delete(courseGroups).where(eq(courseGroups.id, input.groupId));
         return { success: true };
       });
     }),

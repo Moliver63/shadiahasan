@@ -11,13 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/lib/trpc";
 import {
   Plus, Trash2, ArrowLeft, Edit, Layers, PlayCircle,
-  ChevronDown, ChevronUp, Loader2, FolderOpen, ImageIcon, Upload,
+  ChevronDown, ChevronUp, Loader2, FolderOpen, ImageIcon,
+  GripVertical, Eye, EyeOff,
 } from "lucide-react";
-import { useRef } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useParams } from "wouter";
 
@@ -34,9 +35,13 @@ export default function AdminCourseGroups() {
     { courseId },
     { enabled: courseId > 0 }
   );
-  const { data: allLessons = [] } = trpc.courseGroups.adminListLessons.useQuery();
+  // Corrigido: filtra apenas aulas do curso atual
+  const { data: allLessons = [] } = trpc.courseGroups.adminListLessons.useQuery(
+    { courseId },
+    { enabled: courseId > 0 }
+  );
 
-  // Aulas que ainda não estão em nenhum grupo
+  // Aulas já vinculadas a algum grupo neste curso
   const groupedLessonIds = new Set((groups as any[]).flatMap((g: any) => g.lessons.map((l: any) => l.lessonId)));
   const ungroupedLessons = (allLessons as any[]).filter((l: any) => !groupedLessonIds.has(l.id));
 
@@ -54,8 +59,12 @@ export default function AdminCourseGroups() {
     onError: (e) => toast.error("Erro: " + e.message),
   });
   const addLessonsMutation = trpc.courseGroups.addLessons.useMutation({
-    onSuccess: (data) => { refetchGroups(); toast.success(`${data.added} aula(s) adicionada(s)!`); setShowAddLessonsDialog(false); setSelectedLessonIds([]); },
+    onSuccess: (data) => { refetchGroups(); toast.success(`${(data as any).added} aula(s) adicionada(s)!`); setShowAddLessonsDialog(false); setSelectedLessonIds([]); },
     onError: (e) => toast.error("Erro: " + e.message),
+  });
+  const reorderGroupsMutation = trpc.courseGroups.reorderGroups.useMutation({
+    onSuccess: () => refetchGroups(),
+    onError: (e) => toast.error("Erro ao reordenar: " + e.message),
   });
   const uploadThumbnailMutation = trpc.courses.uploadThumbnail.useMutation();
 
@@ -74,10 +83,7 @@ export default function AdminCourseGroups() {
     try {
       const dataUrl = await readFileAsDataUrl(file);
       const base64Data = dataUrl.split(",")[1];
-
-      if (!base64Data) {
-        throw new Error("Não foi possível processar a imagem selecionada.");
-      }
+      if (!base64Data) throw new Error("Não foi possível processar a imagem selecionada.");
 
       if (mode === "create") setNewCoverPreview(dataUrl);
       else setEditCoverPreview(dataUrl);
@@ -88,27 +94,15 @@ export default function AdminCourseGroups() {
         base64Data,
       });
 
-      if (!url || url.startsWith("data:")) {
-        throw new Error("O servidor não retornou uma URL pública válida para a capa.");
-      }
+      if (!url || url.startsWith("data:")) throw new Error("O servidor não retornou uma URL pública válida para a capa.");
 
-      if (mode === "create") {
-        setNewCoverUrl(url);
-        setNewCoverPreview(url);
-      } else {
-        setEditCoverUrl(url);
-        setEditCoverPreview(url);
-      }
+      if (mode === "create") { setNewCoverUrl(url); setNewCoverPreview(url); }
+      else { setEditCoverUrl(url); setEditCoverPreview(url); }
 
       toast.success("Capa enviada!");
     } catch (error: any) {
-      if (mode === "create") {
-        setNewCoverUrl("");
-        setNewCoverPreview("");
-      } else {
-        setEditCoverUrl(editingGroup?.coverUrl ?? "");
-        setEditCoverPreview(editingGroup?.coverUrl ?? "");
-      }
+      if (mode === "create") { setNewCoverUrl(""); setNewCoverPreview(""); }
+      else { setEditCoverUrl(editingGroup?.coverUrl ?? ""); setEditCoverPreview(editingGroup?.coverUrl ?? ""); }
       toast.error(error?.message || "Erro no upload da capa.");
     } finally {
       setIsUploadingCover(false);
@@ -165,14 +159,6 @@ export default function AdminCourseGroups() {
     );
   }
 
-  function selectAllLessons(ids: number[]) {
-    setSelectedLessonIds(Array.from(new Set(ids)));
-  }
-
-  function clearSelectedLessons() {
-    setSelectedLessonIds([]);
-  }
-
   function handleCreate() {
     if (!newTitle.trim()) { toast.error("Informe o nome do agrupamento."); return; }
     if (selectedLessonIds.length === 0) { toast.error("Selecione ao menos uma aula."); return; }
@@ -213,19 +199,35 @@ export default function AdminCourseGroups() {
     setShowAddLessonsDialog(true);
   }
 
-  const selectableCreateLessonIds = ungroupedLessons.map((lesson: any) => lesson.id);
-  const allCreateLessonsSelected =
-    selectableCreateLessonIds.length > 0 &&
-    selectableCreateLessonIds.every((id) => selectedLessonIds.includes(id));
+  function togglePublish(group: any) {
+    const newVal = group.isPublished === 1 ? 0 : 1;
+    updateGroupMutation.mutate(
+      { groupId: group.id, isPublished: newVal },
+      {
+        onSuccess: () => {
+          refetchGroups();
+          toast.success(newVal === 1 ? "Grupo publicado." : "Grupo despublicado.");
+        },
+      }
+    );
+  }
 
-  // Aulas disponíveis para adicionar ao grupo selecionado
+  function moveGroup(index: number, direction: "up" | "down") {
+    const arr = [...(groups as any[])];
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= arr.length) return;
+    [arr[index], arr[target]] = [arr[target], arr[index]];
+    reorderGroupsMutation.mutate({ groupIds: arr.map((g: any) => g.id) });
+  }
+
+  const ungroupedLessonIds = ungroupedLessons.map((l: any) => l.id);
+  const allCreateSelected = ungroupedLessonIds.length > 0 && ungroupedLessonIds.every((id) => selectedLessonIds.includes(id));
+
   const targetGroup = (groups as any[]).find((g: any) => g.id === targetGroupId);
   const targetGroupLessonIds = new Set((targetGroup?.lessons ?? []).map((l: any) => l.lessonId));
-  const availableToAdd = (allLessons as any[]).filter((l: any) => !targetGroupLessonIds.has(l.id) && !groupedLessonIds.has(l.id));
-  const availableToAddIds = availableToAdd.map((lesson: any) => lesson.id);
-  const allAvailableToAddSelected =
-    availableToAddIds.length > 0 &&
-    availableToAddIds.every((id) => selectedLessonIds.includes(id));
+  const availableToAdd = ungroupedLessons.filter((l: any) => !targetGroupLessonIds.has(l.id));
+  const availableToAddIds = availableToAdd.map((l: any) => l.id);
+  const allAvailableSelected = availableToAddIds.length > 0 && availableToAddIds.every((id) => selectedLessonIds.includes(id));
 
   return (
     <DashboardLayout>
@@ -257,7 +259,7 @@ export default function AdminCourseGroups() {
           <Card>
             <CardContent className="pt-4 pb-4">
               <p className="text-2xl font-bold">{(allLessons as any[]).length}</p>
-              <p className="text-xs text-muted-foreground">Total de aulas</p>
+              <p className="text-xs text-muted-foreground">Aulas do curso</p>
             </CardContent>
           </Card>
           <Card>
@@ -282,21 +284,56 @@ export default function AdminCourseGroups() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {(groups as any[]).map((group: any) => (
-              <Card key={group.id}>
-                {/* Header do grupo */}
+            {(groups as any[]).map((group: any, index: number) => (
+              <Card key={group.id} className={group.isPublished === 0 ? "opacity-60" : ""}>
                 <div className="flex items-center gap-3 p-4">
+                  {/* Reorder arrows */}
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <button
+                      className="text-muted-foreground hover:text-foreground disabled:opacity-20"
+                      disabled={index === 0}
+                      onClick={() => moveGroup(index, "up")}
+                      title="Mover para cima"
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                    <GripVertical className="h-4 w-4 text-muted-foreground/40" />
+                    <button
+                      className="text-muted-foreground hover:text-foreground disabled:opacity-20"
+                      disabled={index === (groups as any[]).length - 1}
+                      onClick={() => moveGroup(index, "down")}
+                      title="Mover para baixo"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
                   {group.coverUrl ? (
                     <img src={group.coverUrl} alt={group.title} className="h-10 w-14 rounded object-cover shrink-0 border" />
                   ) : (
                     <FolderOpen className="h-5 w-5 text-primary shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold truncate">{group.title}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold truncate">{group.title}</p>
+                      {group.isPublished === 0 && (
+                        <Badge variant="outline" className="text-xs shrink-0">Rascunho</Badge>
+                      )}
+                    </div>
                     {group.description && <p className="text-xs text-muted-foreground truncate">{group.description}</p>}
                   </div>
                   <Badge variant="secondary" className="shrink-0">{group.lessonCount} aula(s)</Badge>
                   <div className="flex items-center gap-1 shrink-0">
+                    {/* Toggle publicado */}
+                    <button
+                      className="text-muted-foreground hover:text-foreground p-1.5 rounded hover:bg-muted"
+                      title={group.isPublished === 1 ? "Despublicar" : "Publicar"}
+                      onClick={() => togglePublish(group)}
+                    >
+                      {group.isPublished === 1
+                        ? <Eye className="h-4 w-4" />
+                        : <EyeOff className="h-4 w-4" />}
+                    </button>
                     <Button size="sm" variant="ghost" onClick={() => openAddLessons(group.id)} title="Adicionar aulas">
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -367,7 +404,7 @@ export default function AdminCourseGroups() {
           <DialogHeader>
             <DialogTitle>Criar Agrupamento</DialogTitle>
             <DialogDescription>
-              Crie um bloco de aulas relacionado e selecione quais lições farão parte deste agrupamento.
+              Agrupe aulas relacionadas e dê um nome ao bloco.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -403,55 +440,35 @@ export default function AdminCourseGroups() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <Label>Selecione as aulas</Label>
+                <Label>Selecione as aulas do curso</Label>
                 <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => selectAllLessons(selectableCreateLessonIds)}
-                    disabled={selectableCreateLessonIds.length === 0 || allCreateLessonsSelected}
-                  >
+                  <Button type="button" size="sm" variant="outline"
+                    onClick={() => setSelectedLessonIds(ungroupedLessonIds)}
+                    disabled={ungroupedLessonIds.length === 0 || allCreateSelected}>
                     Selecionar todas
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={clearSelectedLessons}
-                    disabled={selectedLessonIds.length === 0}
-                  >
+                  <Button type="button" size="sm" variant="ghost"
+                    onClick={() => setSelectedLessonIds([])}
+                    disabled={selectedLessonIds.length === 0}>
                     Limpar
                   </Button>
                 </div>
               </div>
-              {(allLessons as any[]).length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhuma aula disponível.</p>
+              {ungroupedLessons.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {(allLessons as any[]).length === 0
+                    ? "Nenhuma aula cadastrada neste curso."
+                    : "Todas as aulas já estão em algum agrupamento."}
+                </p>
               ) : (
-                <div className="max-h-60 overflow-y-auto space-y-2 border rounded-lg p-3">
-                  {/* Agrupa aulas por curso para facilitar seleção */}
-                  {Object.entries(
-                    (allLessons as any[]).reduce((acc: any, lesson: any) => {
-                      const key = lesson.courseTitle || "Sem curso";
-                      if (!acc[key]) acc[key] = [];
-                      acc[key].push(lesson);
-                      return acc;
-                    }, {})
-                  ).map(([courseTitle, courseLessons]: [string, any]) => (
-                    <div key={courseTitle}>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5 bg-muted/50 rounded sticky top-0">
-                        📚 {courseTitle}
-                      </p>
-                      {(courseLessons as any[]).map((lesson: any) => (
-                        <div key={lesson.id}
-                          className={`flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-accent/30 transition-colors ${groupedLessonIds.has(lesson.id) ? "opacity-40" : ""}`}
-                          onClick={() => !groupedLessonIds.has(lesson.id) && toggleLesson(lesson.id)}>
-                          <Checkbox checked={selectedLessonIds.includes(lesson.id)} disabled={groupedLessonIds.has(lesson.id)}
-                            onCheckedChange={() => !groupedLessonIds.has(lesson.id) && toggleLesson(lesson.id)} />
-                          <span className="text-sm flex-1 truncate">{lesson.title}</span>
-                          {groupedLessonIds.has(lesson.id) && <Badge variant="outline" className="text-xs shrink-0">Em grupo</Badge>}
-                        </div>
-                      ))}
+                <div className="max-h-60 overflow-y-auto space-y-1 border rounded-lg p-3">
+                  {ungroupedLessons.map((lesson: any) => (
+                    <div key={lesson.id}
+                      className="flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-accent/30 transition-colors"
+                      onClick={() => toggleLesson(lesson.id)}>
+                      <Checkbox checked={selectedLessonIds.includes(lesson.id)}
+                        onCheckedChange={() => toggleLesson(lesson.id)} />
+                      <span className="text-sm flex-1 truncate">{lesson.title}</span>
                     </div>
                   ))}
                 </div>
@@ -476,7 +493,7 @@ export default function AdminCourseGroups() {
           <DialogHeader>
             <DialogTitle>Editar Agrupamento</DialogTitle>
             <DialogDescription>
-              Atualize o nome, a descrição e a capa do agrupamento selecionado.
+              Atualize o nome, a descrição e a capa do agrupamento.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -524,56 +541,36 @@ export default function AdminCourseGroups() {
           <DialogHeader>
             <DialogTitle>Adicionar Aulas ao Grupo</DialogTitle>
             <DialogDescription>
-              Escolha aulas disponíveis para incluir neste agrupamento sem duplicar vínculos existentes.
+              Escolha aulas disponíveis (sem agrupamento) para incluir neste bloco.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             {availableToAdd.length > 0 && (
               <div className="flex items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => selectAllLessons(availableToAddIds)}
-                  disabled={allAvailableToAddSelected}
-                >
+                <Button type="button" size="sm" variant="outline"
+                  onClick={() => setSelectedLessonIds(availableToAddIds)}
+                  disabled={allAvailableSelected}>
                   Selecionar todas
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={clearSelectedLessons}
-                  disabled={selectedLessonIds.length === 0}
-                >
+                <Button type="button" size="sm" variant="ghost"
+                  onClick={() => setSelectedLessonIds([])}
+                  disabled={selectedLessonIds.length === 0}>
                   Limpar
                 </Button>
               </div>
             )}
             {availableToAdd.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Todas as aulas já estão neste grupo ou em outro.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Todas as aulas já estão em algum agrupamento.
+              </p>
             ) : (
-              <div className="max-h-72 overflow-y-auto space-y-2 border rounded-lg p-3">
-                {Object.entries(
-                  (availableToAdd as any[]).reduce((acc: any, lesson: any) => {
-                    const key = lesson.courseTitle || "Sem curso";
-                    if (!acc[key]) acc[key] = [];
-                    acc[key].push(lesson);
-                    return acc;
-                  }, {})
-                ).map(([courseTitle, courseLessons]: [string, any]) => (
-                  <div key={courseTitle}>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5 bg-muted/50 rounded">
-                      📚 {courseTitle}
-                    </p>
-                    {(courseLessons as any[]).map((lesson: any) => (
-                      <div key={lesson.id} className="flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-accent/30 transition-colors"
-                        onClick={() => toggleLesson(lesson.id)}>
-                        <Checkbox checked={selectedLessonIds.includes(lesson.id)}
-                          onCheckedChange={() => toggleLesson(lesson.id)} />
-                        <span className="text-sm flex-1 truncate">{lesson.title}</span>
-                      </div>
-                    ))}
+              <div className="max-h-72 overflow-y-auto space-y-1 border rounded-lg p-3">
+                {availableToAdd.map((lesson: any) => (
+                  <div key={lesson.id} className="flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-accent/30 transition-colors"
+                    onClick={() => toggleLesson(lesson.id)}>
+                    <Checkbox checked={selectedLessonIds.includes(lesson.id)}
+                      onCheckedChange={() => toggleLesson(lesson.id)} />
+                    <span className="text-sm flex-1 truncate">{lesson.title}</span>
                   </div>
                 ))}
               </div>
@@ -583,7 +580,7 @@ export default function AdminCourseGroups() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowAddLessonsDialog(false); clearSelectedLessons(); }}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setShowAddLessonsDialog(false); setSelectedLessonIds([]); }}>Cancelar</Button>
             <Button onClick={() => targetGroupId && addLessonsMutation.mutate({ groupId: targetGroupId, lessonIds: selectedLessonIds })}
               disabled={addLessonsMutation.isPending || selectedLessonIds.length === 0}>
               {addLessonsMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Adicionando...</> : "Adicionar"}
@@ -598,15 +595,13 @@ export default function AdminCourseGroups() {
           <DialogHeader>
             <DialogTitle>Desfazer agrupamento?</DialogTitle>
             <DialogDescription>
-              O agrupamento será removido, mas as aulas continuarão disponíveis no curso.
+              O agrupamento será removido, mas todas as aulas continuarão disponíveis no curso.
             </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground py-2">
-            O agrupamento será removido, mas todas as aulas serão mantidas intactas no curso.
-          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
             <Button variant="destructive" onClick={() => confirmDelete && deleteGroupMutation.mutate({ groupId: confirmDelete })}>
+              {deleteGroupMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Desfazer agrupamento
             </Button>
           </DialogFooter>

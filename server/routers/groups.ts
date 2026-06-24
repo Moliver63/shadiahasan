@@ -57,6 +57,7 @@ async function ensureCourseGroupsSchema(db: NonNullable<Awaited<ReturnType<typeo
       )
     `);
     await db.execute(sql`ALTER TABLE "courseGroups" ADD COLUMN IF NOT EXISTS "coverUrl" text`);
+      await db.execute(sql`ALTER TABLE "courseGroups" ADD COLUMN IF NOT EXISTS "subtitle" varchar(255)`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS "courseGroupLessons" (
         "id" serial PRIMARY KEY,
@@ -245,6 +246,7 @@ export const courseGroupsRouter = router({
     .input(z.object({
       courseId: z.number(),
       title: z.string().min(1),
+      subtitle: z.string().optional(),
       description: z.string().optional(),
       coverUrl: z.string().optional().refine(
         (value) => !value || !isDataUrl(value),
@@ -270,6 +272,7 @@ export const courseGroupsRouter = router({
           .values({
             courseId: input.courseId,
             title: input.title,
+            subtitle: input.subtitle,
             description: input.description,
             coverUrl: input.coverUrl?.trim() || null,
             order: input.order,
@@ -293,6 +296,7 @@ export const courseGroupsRouter = router({
     .input(z.object({
       groupId: z.number(),
       title: z.string().min(1).optional(),
+      subtitle: z.string().optional().nullable(),
       description: z.string().optional(),
       coverUrl: z.string().optional().nullable(),
       order: z.number().optional(),
@@ -308,6 +312,7 @@ export const courseGroupsRouter = router({
           .update(courseGroups)
           .set({
             ...(input.title && { title: input.title }),
+            ...(input.subtitle !== undefined && { subtitle: input.subtitle }),
             ...(input.description !== undefined && { description: input.description }),
             ...(input.coverUrl !== undefined && { coverUrl: input.coverUrl }),
             ...(input.order !== undefined && { order: input.order }),

@@ -865,6 +865,7 @@ export const courseGroups = pgTable("courseGroups", {
   id: serial("id").primaryKey(),
   courseId: integer("courseId").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
+  subtitle: varchar("subtitle", { length: 255 }),
   description: text("description"),
   coverUrl: text("coverUrl"),
   order: integer("order").default(0).notNull(),

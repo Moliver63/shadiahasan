@@ -115,6 +115,7 @@ export default function AdminCourseGroups() {
   // Estado — criar grupo
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [newSubtitle, setNewSubtitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newCoverUrl, setNewCoverUrl] = useState("");
   const [newCoverPreview, setNewCoverPreview] = useState("");
@@ -127,6 +128,7 @@ export default function AdminCourseGroups() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingGroup, setEditingGroup] = useState<any>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [editSubtitle, setEditSubtitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editCoverUrl, setEditCoverUrl] = useState("");
   const [editCoverPreview, setEditCoverPreview] = useState("");
@@ -141,7 +143,7 @@ export default function AdminCourseGroups() {
   // Estado — confirmação de delete
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
-  function resetForm() { setNewTitle(""); setNewDesc(""); setNewCoverUrl(""); setNewCoverPreview(""); setSelectedLessonIds([]); }
+  function resetForm() { setNewTitle(""); setNewSubtitle(""); setNewDesc(""); setNewCoverUrl(""); setNewCoverPreview(""); setSelectedLessonIds([]); }
 
   function toggleExpand(id: number) {
     setExpandedGroups((prev) => {
@@ -165,6 +167,7 @@ export default function AdminCourseGroups() {
     createGroupMutation.mutate({
       courseId,
       title: newTitle.trim(),
+      subtitle: newSubtitle.trim() || undefined,
       description: newDesc.trim() || undefined,
       coverUrl: newCoverUrl || undefined,
       lessonIds: selectedLessonIds,
@@ -178,6 +181,7 @@ export default function AdminCourseGroups() {
     updateGroupMutation.mutate({
       groupId: editingGroup.id,
       title: editTitle.trim(),
+      subtitle: editSubtitle.trim() || null,
       description: editDesc.trim() || undefined,
       coverUrl: editCoverUrl || null,
     });
@@ -186,6 +190,7 @@ export default function AdminCourseGroups() {
   function openEdit(group: any) {
     setEditingGroup(group);
     setEditTitle(group.title);
+    setEditSubtitle(group.subtitle ?? "");
     setEditDesc(group.description ?? "");
     setEditCoverUrl(group.coverUrl ?? "");
     setEditCoverPreview(group.coverUrl ?? "");
@@ -319,6 +324,7 @@ export default function AdminCourseGroups() {
                         <Badge variant="outline" className="text-xs shrink-0">Rascunho</Badge>
                       )}
                     </div>
+                    {group.subtitle && <p className="text-xs text-primary/80 truncate">{group.subtitle}</p>}
                     {group.description && <p className="text-xs text-muted-foreground truncate">{group.description}</p>}
                   </div>
                   <Badge variant="secondary" className="shrink-0">{group.lessonCount} aula(s)</Badge>
@@ -412,6 +418,10 @@ export default function AdminCourseGroups() {
               <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Ex: Fundamentos do Curso" />
             </div>
             <div className="space-y-2">
+              <Label>Subtítulo (opcional)</Label>
+              <Input value={newSubtitle} onChange={(e) => setNewSubtitle(e.target.value)} placeholder="Ex: Conceitos fundamentais" />
+            </div>
+            <div className="space-y-2">
               <Label>Descrição (opcional)</Label>
               <Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={2} className="resize-none" placeholder="Breve descrição..." />
             </div>
@@ -499,6 +509,10 @@ export default function AdminCourseGroups() {
             <div className="space-y-2">
               <Label>Nome</Label>
               <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Subtítulo (opcional)</Label>
+              <Input value={editSubtitle} onChange={(e) => setEditSubtitle(e.target.value)} placeholder="Ex: Conceitos fundamentais" />
             </div>
             <div className="space-y-2">
               <Label>Descrição</Label>

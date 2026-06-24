@@ -65,6 +65,7 @@ function GroupSection({ group, groupLessons, isEnrolled, onStartLesson }: {
         <Layers className="h-4 w-4 text-primary shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm">{group.title}</p>
+          {group.subtitle && <p className="text-xs text-primary/80">{group.subtitle}</p>}
           {group.description && <p className="text-xs text-muted-foreground">{group.description}</p>}
         </div>
         <span className="text-xs text-muted-foreground shrink-0">{groupLessons.length} aula(s)</span>

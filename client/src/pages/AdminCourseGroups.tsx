@@ -62,35 +62,34 @@ export default function AdminCourseGroups() {
     onSuccess: () => refetchGroups(),
     onError: (e) => toast.error("Erro ao reordenar: " + e.message),
   });
-  const uploadThumbnailMutation = trpc.courses.uploadThumbnail.useMutation();
 
-  function readFileAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error("Falha ao ler a imagem selecionada."));
-      reader.readAsDataURL(file);
-    });
-  }
 
   async function handleCoverUpload(file: File, mode: "create" | "edit") {
     if (file.size > 2 * 1024 * 1024) { toast.error("Imagem muito grande. Máximo 2MB."); return; }
     setIsUploadingCover(true);
+
+    // Preview local imediato
+    const localPreview = URL.createObjectURL(file);
+    if (mode === "create") setNewCoverPreview(localPreview);
+    else setEditCoverPreview(localPreview);
+
     try {
-      const dataUrl = await readFileAsDataUrl(file);
-      const base64Data = dataUrl.split(",")[1];
-      if (!base64Data) throw new Error("Não foi possível processar a imagem selecionada.");
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", "thome_unsigned");
+      formData.append("folder", "shadiahasan/group-covers");
 
-      if (mode === "create") setNewCoverPreview(dataUrl);
-      else setEditCoverPreview(dataUrl);
-
-      const { url } = await uploadThumbnailMutation.mutateAsync({
-        fileName: file.name,
-        contentType: file.type,
-        base64Data,
+      const res = await fetch("https://api.cloudinary.com/v1_1/dzty82u60/image/upload", {
+        method: "POST",
+        body: formData,
       });
 
-      if (!url || url.startsWith("data:")) throw new Error("O servidor não retornou uma URL pública válida para a capa.");
+      if (!res.ok) throw new Error("Falha no upload da imagem.");
+
+      const data = await res.json();
+      const url: string = data.secure_url;
+
+      if (!url) throw new Error("Cloudinary não retornou URL.");
 
       if (mode === "create") { setNewCoverUrl(url); setNewCoverPreview(url); }
       else { setEditCoverUrl(url); setEditCoverPreview(url); }

@@ -14,8 +14,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
 import {
   Plus, Trash2, ArrowLeft, Edit, Layers, PlayCircle,
-  ChevronDown, ChevronUp, Loader2, FolderOpen,
+  ChevronDown, ChevronUp, Loader2, FolderOpen, ImageIcon, Upload,
 } from "lucide-react";
+import { useRef } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Link, useParams } from "wouter";
@@ -56,6 +57,33 @@ export default function AdminCourseGroups() {
     onSuccess: (data) => { refetchGroups(); toast.success(`${data.added} aula(s) adicionada(s)!`); setShowAddLessonsDialog(false); setSelectedLessonIds([]); },
     onError: (e) => toast.error("Erro: " + e.message),
   });
+  const uploadThumbnailMutation = trpc.courses.uploadThumbnail.useMutation();
+
+  async function handleCoverUpload(file: File, mode: "create" | "edit") {
+    if (file.size > 2 * 1024 * 1024) { toast.error("Imagem muito grande. Máximo 2MB."); return; }
+    setIsUploadingCover(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const preview = reader.result as string;
+        if (mode === "create") setNewCoverPreview(preview);
+        else setEditCoverPreview(preview);
+      };
+      reader.readAsDataURL(file);
+
+      const base64Reader = new FileReader();
+      base64Reader.onload = async () => {
+        const base64Data = (base64Reader.result as string).split(",")[1];
+        const { url } = await uploadThumbnailMutation.mutateAsync({ fileName: file.name, contentType: file.type, base64Data });
+        if (mode === "create") { setNewCoverUrl(url); setNewCoverPreview(url); }
+        else { setEditCoverUrl(url); setEditCoverPreview(url); }
+        toast.success("Capa enviada!");
+      };
+      base64Reader.readAsDataURL(file);
+    } catch { toast.error("Erro no upload da capa."); }
+    finally { setIsUploadingCover(false); }
+  }
+
   const removeLessonMutation = trpc.courseGroups.removeLesson.useMutation({
     onSuccess: () => { refetchGroups(); toast.success("Aula removida do grupo."); },
     onError: (e) => toast.error("Erro: " + e.message),
@@ -65,13 +93,20 @@ export default function AdminCourseGroups() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newCoverUrl, setNewCoverUrl] = useState("");
+  const [newCoverPreview, setNewCoverPreview] = useState("");
   const [selectedLessonIds, setSelectedLessonIds] = useState<number[]>([]);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   // Estado — editar grupo
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingGroup, setEditingGroup] = useState<any>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editCoverUrl, setEditCoverUrl] = useState("");
+  const [editCoverPreview, setEditCoverPreview] = useState("");
 
   // Estado — adicionar aulas a grupo existente
   const [showAddLessonsDialog, setShowAddLessonsDialog] = useState(false);
@@ -83,7 +118,7 @@ export default function AdminCourseGroups() {
   // Estado — confirmação de delete
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
-  function resetForm() { setNewTitle(""); setNewDesc(""); setSelectedLessonIds([]); }
+  function resetForm() { setNewTitle(""); setNewDesc(""); setNewCoverUrl(""); setNewCoverPreview(""); setSelectedLessonIds([]); }
 
   function toggleExpand(id: number) {
     setExpandedGroups((prev) => {
@@ -106,6 +141,7 @@ export default function AdminCourseGroups() {
       courseId,
       title: newTitle.trim(),
       description: newDesc.trim() || undefined,
+      coverUrl: newCoverUrl || undefined,
       lessonIds: selectedLessonIds,
       order: (groups as any[]).length,
     });
@@ -117,6 +153,7 @@ export default function AdminCourseGroups() {
       groupId: editingGroup.id,
       title: editTitle.trim(),
       description: editDesc.trim() || undefined,
+      coverUrl: editCoverUrl || null,
     });
   }
 
@@ -124,6 +161,8 @@ export default function AdminCourseGroups() {
     setEditingGroup(group);
     setEditTitle(group.title);
     setEditDesc(group.description ?? "");
+    setEditCoverUrl(group.coverUrl ?? "");
+    setEditCoverPreview(group.coverUrl ?? "");
     setShowEditDialog(true);
   }
 
@@ -197,7 +236,11 @@ export default function AdminCourseGroups() {
               <Card key={group.id}>
                 {/* Header do grupo */}
                 <div className="flex items-center gap-3 p-4">
-                  <FolderOpen className="h-5 w-5 text-primary shrink-0" />
+                  {group.coverUrl ? (
+                    <img src={group.coverUrl} alt={group.title} className="h-10 w-14 rounded object-cover shrink-0 border" />
+                  ) : (
+                    <FolderOpen className="h-5 w-5 text-primary shrink-0" />
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold truncate">{group.title}</p>
                     {group.description && <p className="text-xs text-muted-foreground truncate">{group.description}</p>}
@@ -283,6 +326,28 @@ export default function AdminCourseGroups() {
               <Label>Descrição (opcional)</Label>
               <Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={2} className="resize-none" placeholder="Breve descrição..." />
             </div>
+            {/* Upload de capa */}
+            <div className="space-y-2">
+              <Label>Capa do agrupamento (opcional)</Label>
+              <input ref={fileInputRef} type="file" className="hidden" accept="image/*"
+                onChange={(e) => e.target.files?.[0] && handleCoverUpload(e.target.files[0], "create")} />
+              {newCoverPreview ? (
+                <div className="relative rounded-lg overflow-hidden border h-32 bg-muted">
+                  <img src={newCoverPreview} alt="Capa" className="w-full h-full object-cover" />
+                  <button onClick={() => { setNewCoverUrl(""); setNewCoverPreview(""); }}
+                    className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <Button variant="outline" className="w-full h-24 border-dashed flex flex-col gap-1"
+                  onClick={() => fileInputRef.current?.click()} disabled={isUploadingCover}>
+                  {isUploadingCover ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
+                  <span className="text-xs text-muted-foreground">{isUploadingCover ? "Enviando..." : "Clique para fazer upload"}</span>
+                </Button>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label>Selecione as aulas</Label>
               {(allLessons as any[]).length === 0 ? (
@@ -342,6 +407,26 @@ export default function AdminCourseGroups() {
             <div className="space-y-2">
               <Label>Descrição</Label>
               <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2} className="resize-none" />
+            </div>
+            <div className="space-y-2">
+              <Label>Capa do agrupamento</Label>
+              <input ref={editFileInputRef} type="file" className="hidden" accept="image/*"
+                onChange={(e) => e.target.files?.[0] && handleCoverUpload(e.target.files[0], "edit")} />
+              {editCoverPreview ? (
+                <div className="relative rounded-lg overflow-hidden border h-32 bg-muted">
+                  <img src={editCoverPreview} alt="Capa" className="w-full h-full object-cover" />
+                  <button onClick={() => { setEditCoverUrl(""); setEditCoverPreview(""); }}
+                    className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <Button variant="outline" className="w-full h-24 border-dashed flex flex-col gap-1"
+                  onClick={() => editFileInputRef.current?.click()} disabled={isUploadingCover}>
+                  {isUploadingCover ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
+                  <span className="text-xs text-muted-foreground">{isUploadingCover ? "Enviando..." : "Clique para fazer upload"}</span>
+                </Button>
+              )}
             </div>
           </div>
           <DialogFooter>

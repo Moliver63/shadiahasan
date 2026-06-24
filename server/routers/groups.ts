@@ -6,7 +6,7 @@ import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
-import { courseGroups, courseGroupLessons, lessons } from "../../drizzle/schema";
+import { courseGroups, courseGroupLessons, lessons, courses } from "../../drizzle/schema";
 import { eq, and, asc, inArray } from "drizzle-orm";
 
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -104,16 +104,28 @@ export const courseGroupsRouter = router({
     }),
 
   /** Admin: lista todas as aulas do curso incluindo não publicadas */
+  /** Admin: lista TODAS as aulas de TODOS os cursos para agrupamento */
   adminListLessons: adminProcedure
-    .input(z.object({ courseId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async () => {
       const db = await getDb();
       if (!db) return [];
-      return db
-        .select({ id: lessons.id, title: lessons.title, duration: lessons.duration, order: lessons.order, isPublished: lessons.isPublished })
+
+      // Busca todas as aulas com o título do curso para facilitar identificação
+      const allLessons = await db
+        .select({
+          id: lessons.id,
+          title: lessons.title,
+          duration: lessons.duration,
+          order: lessons.order,
+          isPublished: lessons.isPublished,
+          courseId: lessons.courseId,
+          courseTitle: courses.title,
+        })
         .from(lessons)
-        .where(eq(lessons.courseId, input.courseId))
-        .orderBy(asc(lessons.order));
+        .leftJoin(courses, eq(lessons.courseId, courses.id))
+        .orderBy(asc(courses.title), asc(lessons.order));
+
+      return allLessons;
     }),
 
   // ── Criação e edição ────────────────────────────────────────────────────────

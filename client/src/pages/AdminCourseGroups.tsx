@@ -33,10 +33,7 @@ export default function AdminCourseGroups() {
     { courseId },
     { enabled: courseId > 0 }
   );
-  const { data: allLessons = [] } = trpc.courseGroups.adminListLessons.useQuery(
-    { courseId },
-    { enabled: courseId > 0 }
-  );
+  const { data: allLessons = [] } = trpc.courseGroups.adminListLessons.useQuery();
 
   // Aulas que ainda não estão em nenhum grupo
   const groupedLessonIds = new Set((groups as any[]).flatMap((g: any) => g.lessons.map((l: any) => l.lessonId)));
@@ -139,7 +136,7 @@ export default function AdminCourseGroups() {
   // Aulas disponíveis para adicionar ao grupo selecionado
   const targetGroup = (groups as any[]).find((g: any) => g.id === targetGroupId);
   const targetGroupLessonIds = new Set((targetGroup?.lessons ?? []).map((l: any) => l.lessonId));
-  const availableToAdd = (allLessons as any[]).filter((l: any) => !targetGroupLessonIds.has(l.id));
+  const availableToAdd = (allLessons as any[]).filter((l: any) => !targetGroupLessonIds.has(l.id) && !groupedLessonIds.has(l.id));
 
   return (
     <DashboardLayout>
@@ -292,13 +289,29 @@ export default function AdminCourseGroups() {
                 <p className="text-sm text-muted-foreground">Nenhuma aula disponível.</p>
               ) : (
                 <div className="max-h-60 overflow-y-auto space-y-2 border rounded-lg p-3">
-                  {(allLessons as any[]).map((lesson: any) => (
-                    <div key={lesson.id} className={`flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-accent/30 transition-colors ${groupedLessonIds.has(lesson.id) ? "opacity-40" : ""}`}
-                      onClick={() => !groupedLessonIds.has(lesson.id) && toggleLesson(lesson.id)}>
-                      <Checkbox checked={selectedLessonIds.includes(lesson.id)} disabled={groupedLessonIds.has(lesson.id)}
-                        onCheckedChange={() => !groupedLessonIds.has(lesson.id) && toggleLesson(lesson.id)} />
-                      <span className="text-sm flex-1 truncate">{lesson.title}</span>
-                      {groupedLessonIds.has(lesson.id) && <Badge variant="outline" className="text-xs shrink-0">Em grupo</Badge>}
+                  {/* Agrupa aulas por curso para facilitar seleção */}
+                  {Object.entries(
+                    (allLessons as any[]).reduce((acc: any, lesson: any) => {
+                      const key = lesson.courseTitle || "Sem curso";
+                      if (!acc[key]) acc[key] = [];
+                      acc[key].push(lesson);
+                      return acc;
+                    }, {})
+                  ).map(([courseTitle, courseLessons]: [string, any]) => (
+                    <div key={courseTitle}>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5 bg-muted/50 rounded sticky top-0">
+                        📚 {courseTitle}
+                      </p>
+                      {(courseLessons as any[]).map((lesson: any) => (
+                        <div key={lesson.id}
+                          className={`flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-accent/30 transition-colors ${groupedLessonIds.has(lesson.id) ? "opacity-40" : ""}`}
+                          onClick={() => !groupedLessonIds.has(lesson.id) && toggleLesson(lesson.id)}>
+                          <Checkbox checked={selectedLessonIds.includes(lesson.id)} disabled={groupedLessonIds.has(lesson.id)}
+                            onCheckedChange={() => !groupedLessonIds.has(lesson.id) && toggleLesson(lesson.id)} />
+                          <span className="text-sm flex-1 truncate">{lesson.title}</span>
+                          {groupedLessonIds.has(lesson.id) && <Badge variant="outline" className="text-xs shrink-0">Em grupo</Badge>}
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -349,12 +362,26 @@ export default function AdminCourseGroups() {
               <p className="text-sm text-muted-foreground text-center py-4">Todas as aulas já estão neste grupo ou em outro.</p>
             ) : (
               <div className="max-h-72 overflow-y-auto space-y-2 border rounded-lg p-3">
-                {availableToAdd.map((lesson: any) => (
-                  <div key={lesson.id} className="flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-accent/30 transition-colors"
-                    onClick={() => toggleLesson(lesson.id)}>
-                    <Checkbox checked={selectedLessonIds.includes(lesson.id)}
-                      onCheckedChange={() => toggleLesson(lesson.id)} />
-                    <span className="text-sm flex-1 truncate">{lesson.title}</span>
+                {Object.entries(
+                  (availableToAdd as any[]).reduce((acc: any, lesson: any) => {
+                    const key = lesson.courseTitle || "Sem curso";
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(lesson);
+                    return acc;
+                  }, {})
+                ).map(([courseTitle, courseLessons]: [string, any]) => (
+                  <div key={courseTitle}>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5 bg-muted/50 rounded">
+                      📚 {courseTitle}
+                    </p>
+                    {(courseLessons as any[]).map((lesson: any) => (
+                      <div key={lesson.id} className="flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-accent/30 transition-colors"
+                        onClick={() => toggleLesson(lesson.id)}>
+                        <Checkbox checked={selectedLessonIds.includes(lesson.id)}
+                          onCheckedChange={() => toggleLesson(lesson.id)} />
+                        <span className="text-sm flex-1 truncate">{lesson.title}</span>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>

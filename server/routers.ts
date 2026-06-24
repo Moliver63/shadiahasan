@@ -12,6 +12,7 @@ import { publicProcedure, router, protectedProcedure, superAdminProcedure } from
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "./db";
+import { storagePut } from "./storage";
 
 // Admin-only procedure helper
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -509,6 +510,13 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
 
+        if (!input.contentType.startsWith('image/')) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Tipo de arquivo inválido. Envie uma imagem.',
+          });
+        }
+
         // Aceita tanto "data:image/png;base64,XXXX" quanto "XXXX" puro
         const base64 = input.base64Data.includes(',')
           ? input.base64Data.split(',')[1]
@@ -516,7 +524,7 @@ export const appRouter = router({
 
         const buffer = Buffer.from(base64, 'base64');
 
-        // Limite de 2MB para thumbnails armazenadas como data URL no banco
+        // Limite de 2MB para thumbnails
         const MAX_SIZE = 2 * 1024 * 1024;
         if (buffer.length > MAX_SIZE) {
           throw new TRPCError({
@@ -525,12 +533,25 @@ export const appRouter = router({
           });
         }
 
-        // Armazena a imagem como data URL direto no campo thumbnail (text).
-        // Não depende de storage externo (BUILT_IN_FORGE_API_URL não está
-        // configurado/funcional neste ambiente).
-        const dataUrl = `data:${input.contentType};base64,${base64}`;
+        const safeFileName = input.fileName.replace(/[^\w.\-]+/g, '_');
+        const storageKey = `thumbnails/courses/${Date.now()}-${safeFileName}`;
 
-        return { url: dataUrl };
+        try {
+          const { url } = await storagePut(storageKey, buffer, input.contentType);
+
+          if (!url || url.startsWith('data:')) {
+            throw new Error('O serviço de upload não retornou uma URL pública válida.');
+          }
+
+          return { url };
+        } catch (error) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: error instanceof Error
+              ? error.message
+              : 'Falha ao enviar thumbnail.',
+          });
+        }
       }),
 
     list: publicProcedure.query(async () => {

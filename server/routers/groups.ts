@@ -127,7 +127,7 @@ export const courseGroupsRouter = router({
 
   /** Lista todos os grupos publicados de um curso com suas aulas */
   listByCourse: publicProcedure
-    .input(z.object({ courseId: z.number() }))
+    .input(z.object({ courseId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];
@@ -164,7 +164,7 @@ export const courseGroupsRouter = router({
 
   /** Admin: lista grupos com detalhes completos (inclui despublicados) */
   adminListByCourse: adminProcedure
-    .input(z.object({ courseId: z.number() }))
+    .input(z.object({ courseId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];

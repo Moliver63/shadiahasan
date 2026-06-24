@@ -27,6 +27,7 @@ import {
   CreditCard,
   ExternalLink,
   LayoutDashboard,
+  Layers,
   MessageSquareQuote,
   LogOut,
   PanelLeft,
@@ -46,6 +47,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
   { icon: BookOpen, label: "Cursos", path: "/admin/courses" },
+  { icon: Layers, label: "Agrupamentos", path: "/admin/groups" },
   { icon: PlayCircle, label: "Aulas", path: "/admin/lessons" },
   { icon: Users, label: "Usuários", path: "/admin/users" },
   { icon: CreditCard, label: "Assinaturas", path: "/admin/manage-subscriptions" },

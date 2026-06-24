@@ -17,6 +17,17 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { apiLimiter } from "./rateLimit";
 
+// ── Tratamento global de erros para evitar crash silencioso ──────────────────
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT EXCEPTION]', err);
+  // Não deixa o processo morrer silenciosamente
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[UNHANDLED REJECTION] Promise:', promise, 'Reason:', reason);
+  // Não deixa o processo morrer silenciosamente
+});
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
@@ -90,4 +101,7 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((err) => {
+  console.error('[STARTUP ERROR]', err);
+  process.exit(1);
+});

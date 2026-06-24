@@ -16,7 +16,16 @@ export async function getDb() {
         ssl: process.env.DATABASE_URL.includes("localhost")
           ? undefined
           : { rejectUnauthorized: false },
+        max: 10,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
       });
+
+      // Sem esse handler, erros de conexão idle derrubam o processo Node
+      _pool.on("error", (err) => {
+        console.error("[Database] Pool error (idle client):", err.message);
+      });
+
       _db = drizzle(_pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);

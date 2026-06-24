@@ -136,6 +136,7 @@ export const courseGroupsRouter = router({
       courseId: z.number(),
       title: z.string().min(1),
       description: z.string().optional(),
+      coverUrl: z.string().optional(),
       lessonIds: z.array(z.number()).min(1, "Selecione ao menos uma aula"),
       order: z.number().default(0),
     }))
@@ -149,6 +150,7 @@ export const courseGroupsRouter = router({
           courseId: input.courseId,
           title: input.title,
           description: input.description,
+          coverUrl: input.coverUrl,
           order: input.order,
         })
         .returning();
@@ -171,6 +173,7 @@ export const courseGroupsRouter = router({
       groupId: z.number(),
       title: z.string().min(1).optional(),
       description: z.string().optional(),
+      coverUrl: z.string().optional().nullable(),
       order: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
@@ -182,6 +185,7 @@ export const courseGroupsRouter = router({
         .set({
           ...(input.title && { title: input.title }),
           ...(input.description !== undefined && { description: input.description }),
+          ...(input.coverUrl !== undefined && { coverUrl: input.coverUrl }),
           ...(input.order !== undefined && { order: input.order }),
           updatedAt: new Date(),
         })

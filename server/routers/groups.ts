@@ -215,13 +215,12 @@ export const courseGroupsRouter = router({
 
   /** Admin: lista aulas do curso atual para seleção no agrupamento */
   adminListLessons: adminProcedure
-    .input(z.object({ courseId: z.number().optional() }))
-    .query(async ({ input }) => {
+    .query(async () => {
       const db = await getDb();
       if (!db) return [];
 
       return runReadWithSchema(db, async () => {
-        const baseQuery = db
+        const allLessons = await db
           .select({
             id: lessons.id,
             title: lessons.title,
@@ -232,11 +231,8 @@ export const courseGroupsRouter = router({
             courseTitle: courses.title,
           })
           .from(lessons)
-          .leftJoin(courses, eq(lessons.courseId, courses.id));
-
-        const allLessons = input.courseId
-          ? await baseQuery.where(eq(lessons.courseId, input.courseId)).orderBy(asc(lessons.order))
-          : await baseQuery.orderBy(asc(courses.title), asc(lessons.order));
+          .leftJoin(courses, eq(lessons.courseId, courses.id))
+          .orderBy(asc(courses.title), asc(lessons.order));
 
         return allLessons;
       }, [] as Array<Record<string, unknown>>);

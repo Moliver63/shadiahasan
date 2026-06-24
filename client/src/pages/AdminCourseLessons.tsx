@@ -29,7 +29,7 @@ import {
   Plus, Edit, Trash2, ArrowLeft, Eye, EyeOff,
   PlayCircle, Upload, Youtube, Cloud, Lock, Unlock,
   CheckCircle2, AlertCircle, Loader2, RotateCw, Languages, Star,
-  GripVertical, ArrowUp, ArrowDown, BookOpen,
+  GripVertical, ArrowUp, ArrowDown, BookOpen, Layers,
 } from "lucide-react";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
@@ -724,6 +724,12 @@ export default function AdminCourseLessons() {
                   Sincronizar vídeos pendentes
                 </Button>
               )}
+              <Link href={`/admin/courses/${courseId}/groups`}>
+                <Button variant="outline">
+                  <Layers className="h-4 w-4 mr-2" />
+                  Agrupamentos
+                </Button>
+              </Link>
               <Button onClick={openCreateDialog}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nova Aula

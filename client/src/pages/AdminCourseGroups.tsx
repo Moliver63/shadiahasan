@@ -24,16 +24,19 @@ import { Link, useParams } from "wouter";
 
 export default function AdminCourseGroups() {
   const params = useParams();
-  const courseId = parseInt(params.id || "0");
+  const parsedCourseId = Number(params.id);
+  const courseId = Number.isInteger(parsedCourseId) && parsedCourseId > 0
+    ? parsedCourseId
+    : null;
 
   // Queries
   const { data: course } = trpc.courses.getById.useQuery(
-    { id: courseId },
-    { enabled: courseId > 0 }
+    { id: courseId ?? 0 },
+    { enabled: courseId !== null }
   );
   const { data: groups = [], refetch: refetchGroups } = trpc.courseGroups.adminListByCourse.useQuery(
-    { courseId },
-    { enabled: courseId > 0 }
+    { courseId: courseId ?? 0 },
+    { enabled: courseId !== null }
   );
   const { data: allLessons = [] } = trpc.courseGroups.adminListLessons.useQuery();
 
@@ -155,6 +158,7 @@ export default function AdminCourseGroups() {
   }
 
   function handleCreate() {
+    if (courseId === null) { toast.error("Curso inválido."); return; }
     if (!newTitle.trim()) { toast.error("Informe o nome do agrupamento."); return; }
     if (selectedLessonIds.length === 0) { toast.error("Selecione ao menos uma aula."); return; }
     if (isUploadingCover) { toast.error("Aguarde o upload da capa terminar."); return; }

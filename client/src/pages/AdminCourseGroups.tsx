@@ -5,7 +5,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -316,6 +316,9 @@ export default function AdminCourseGroups() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Criar Agrupamento</DialogTitle>
+            <DialogDescription>
+              Crie um bloco de aulas relacionado e selecione quais lições farão parte deste agrupamento.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
@@ -398,7 +401,12 @@ export default function AdminCourseGroups() {
       {/* ── Dialog: Editar agrupamento ── */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Editar Agrupamento</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Editar Agrupamento</DialogTitle>
+            <DialogDescription>
+              Atualize o nome, a descrição e a capa do agrupamento selecionado.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Nome</Label>
@@ -441,7 +449,12 @@ export default function AdminCourseGroups() {
       {/* ── Dialog: Adicionar aulas ao grupo ── */}
       <Dialog open={showAddLessonsDialog} onOpenChange={(o) => { if (!o) { setShowAddLessonsDialog(false); setSelectedLessonIds([]); } }}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Adicionar Aulas ao Grupo</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Adicionar Aulas ao Grupo</DialogTitle>
+            <DialogDescription>
+              Escolha aulas disponíveis para incluir neste agrupamento sem duplicar vínculos existentes.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-3 py-2">
             {availableToAdd.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Todas as aulas já estão neste grupo ou em outro.</p>
@@ -488,7 +501,12 @@ export default function AdminCourseGroups() {
       {/* ── Dialog: Confirmar delete ── */}
       <Dialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Desfazer agrupamento?</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Desfazer agrupamento?</DialogTitle>
+            <DialogDescription>
+              O agrupamento será removido, mas as aulas continuarão disponíveis no curso.
+            </DialogDescription>
+          </DialogHeader>
           <p className="text-sm text-muted-foreground py-2">
             O agrupamento será removido, mas todas as aulas serão mantidas intactas no curso.
           </p>

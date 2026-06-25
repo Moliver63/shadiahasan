@@ -512,7 +512,8 @@ export default function LessonView() {
                         countdown={countdown}
                         nextLesson={nextUnlockedLesson ? {
                           title: nextUnlockedLesson.title,
-                          thumbnail: (nextUnlockedLesson as any).thumbnail ?? null,
+                          // lessons não tem thumbnail própria — usa a do curso como fallback
+                          thumbnail: (course as any)?.thumbnail ?? null,
                         } : null}
                         onGoToNext={goToNextLesson}
                         onCancelCountdown={cancelCountdown}

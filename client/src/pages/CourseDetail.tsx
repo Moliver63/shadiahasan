@@ -52,8 +52,8 @@ function LessonRow({ lesson, index, isEnrolled, onStart }: {
   );
 }
 
-function GroupSection({ group, groupLessons, isEnrolled, onStartLesson }: {
-  group: any; groupLessons: any[]; isEnrolled: boolean; onStartLesson: (l: any) => void;
+function GroupSection({ group, groupLessons, isEnrolled, onStartLesson, completedLessonIds }: {
+  group: any; groupLessons: any[]; isEnrolled: boolean; onStartLesson: (l: any) => void; completedLessonIds?: number[];
 }) {
   const [open, setOpen] = useState(true);
   return (
@@ -62,13 +62,29 @@ function GroupSection({ group, groupLessons, isEnrolled, onStartLesson }: {
         className="w-full flex items-center gap-3 p-4 hover:bg-accent/20 transition-colors text-left bg-muted/30"
         onClick={() => setOpen((o) => !o)}
       >
-        <Layers className="h-4 w-4 text-primary shrink-0" />
+        {group.coverUrl ? (
+          <img src={group.coverUrl} alt={group.title} className="h-10 w-14 rounded object-cover shrink-0 border" />
+        ) : (
+          <Layers className="h-4 w-4 text-primary shrink-0" />
+        )}
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm">{group.title}</p>
           {group.subtitle && <p className="text-xs text-primary/80">{group.subtitle}</p>}
           {group.description && <p className="text-xs text-muted-foreground">{group.description}</p>}
         </div>
-        <span className="text-xs text-muted-foreground shrink-0">{groupLessons.length} aula(s)</span>
+        <div className="flex items-center gap-2 shrink-0">
+          {isEnrolled && completedLessonIds && completedLessonIds.length > 0 && (() => {
+            const done = groupLessons.filter((l: any) => completedLessonIds.includes(l.id)).length;
+            return done > 0 ? (
+              <span className="text-xs font-medium text-primary">{done}/{groupLessons.length}</span>
+            ) : (
+              <span className="text-xs text-muted-foreground">{groupLessons.length} aula(s)</span>
+            );
+          })()}
+          {(!isEnrolled || !completedLessonIds || completedLessonIds.length === 0) && (
+            <span className="text-xs text-muted-foreground">{groupLessons.length} aula(s)</span>
+          )}
+        </div>
         {open ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
       </button>
       {open && (
@@ -281,6 +297,11 @@ export default function CourseDetail() {
                           groupLessons={groupLessons}
                           isEnrolled={isEnrolled}
                           onStartLesson={handleStartLesson}
+                          completedLessonIds={(() => {
+                            try {
+                              return JSON.parse(enrollmentData?.enrollment?.completedLessons || "[]");
+                            } catch { return []; }
+                          })()}
                         />
                       );
                     })}
@@ -324,9 +345,11 @@ export default function CourseDetail() {
                 <div className="flex items-center gap-3">
                   <BookOpen className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">Aulas</p>
+                    <p className="text-sm font-medium">Conteúdo</p>
                     <p className="text-sm text-muted-foreground">
-                      {lessons?.length || 0} aulas disponíveis
+                      {(courseGroups as any[]).length > 0
+                        ? `${(courseGroups as any[]).length} módulo(s) · ${lessons?.length || 0} aulas`
+                        : `${lessons?.length || 0} aulas disponíveis`}
                     </p>
                   </div>
                 </div>

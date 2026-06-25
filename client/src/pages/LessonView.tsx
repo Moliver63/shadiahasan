@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
 import { formatDuration } from "@/lib/formatDuration";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Globe, Lock, Maximize2 } from "lucide-react";
+import { ArrowLeft, Globe, Lock, Maximize2, Layers, CheckCircle2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -85,6 +85,11 @@ export default function LessonView() {
   const { data: allLessons } = trpc.lessons.listByCourse.useQuery(
     { courseId: lesson?.courseId || 0 },
     { enabled: !!lesson }
+  );
+
+  const { data: courseGroups = [] } = trpc.courseGroups.listByCourse.useQuery(
+    { courseId: lesson?.courseId || 0 },
+    { enabled: !!lesson, staleTime: 0 }
   );
 
   const { data: enrollmentData } = trpc.enrollments.checkEnrollment.useQuery(
@@ -639,6 +644,18 @@ export default function LessonView() {
             <LessonMaterials lessonId={lessonId} lessonTitle={lesson.title} />
 
             {/* Lesson Description */}
+            {(() => {
+              const currentGroup = (courseGroups as any[]).find((g: any) => g.lessonIds.includes(lessonId));
+              if (!currentGroup) return null;
+              return (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+                  <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="text-primary font-medium">{currentGroup.title}</span>
+                  {currentGroup.subtitle && <span className="text-muted-foreground">· {currentGroup.subtitle}</span>}
+                </div>
+              );
+            })()}
+
             {lesson.description && (
               <Card>
                 <CardContent className="pt-6">
@@ -680,22 +697,21 @@ export default function LessonView() {
             <Card>
               <CardContent className="pt-6">
                 <h3 className="font-semibold mb-4">Conteúdo do Curso</h3>
-                <div className="space-y-2">
-                  {allLessons?.map((l: any, index) => {
+                {(() => {
+                  const renderLesson = (l: any, index: number, globalIndex: number) => {
                     const isCompleted = mergedCompletedLessons.includes(l.id);
                     const isLockedByPath = Boolean(l.isPathLocked);
-                    const lessonCard = (
-                      <div
-                        className={`p-3 rounded-lg border transition-colors ${
-                          l.id === lessonId
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : isLockedByPath
-                              ? "opacity-70 cursor-not-allowed"
-                              : "cursor-pointer hover:bg-accent"
-                        }`}
-                      >
+                    const isCurrent = l.id === lessonId;
+                    const card = (
+                      <div className={`p-3 rounded-lg border transition-colors ${
+                        isCurrent
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : isLockedByPath
+                            ? "opacity-70 cursor-not-allowed"
+                            : "cursor-pointer hover:bg-accent"
+                      }`}>
                         <div className="flex items-start gap-3">
-                          <span className="text-sm font-medium">{index + 1}</span>
+                          <span className="text-sm font-medium shrink-0">{globalIndex + 1}</span>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium line-clamp-2 flex items-center gap-1">
                               {l.title}
@@ -705,26 +721,70 @@ export default function LessonView() {
                             </p>
                             <div className="mt-1 flex items-center gap-2 text-xs opacity-70">
                               {l.duration && <span>{formatDuration(l.duration)}</span>}
-                              {isCompleted && <span>• concluída</span>}
-                              {isLockedByPath && <span>• bloqueada pela trilha</span>}
+                              {isCompleted && <span className="flex items-center gap-0.5"><CheckCircle2 className="h-3 w-3" /> concluída</span>}
+                              {isLockedByPath && <span>• bloqueada</span>}
                             </div>
-                            {isLockedByPath && l.unlockLabel && (
-                              <p className="mt-1 text-xs opacity-70">{l.unlockLabel}</p>
-                            )}
                           </div>
                         </div>
                       </div>
                     );
-
                     return isLockedByPath ? (
-                      <div key={l.id}>{lessonCard}</div>
+                      <div key={l.id}>{card}</div>
                     ) : (
-                      <Link key={l.id} href={`/lesson/${l.id}`}>
-                        {lessonCard}
-                      </Link>
+                      <Link key={l.id} href={`/lesson/${l.id}`}>{card}</Link>
                     );
-                  })}
-                </div>
+                  };
+
+                  if ((courseGroups as any[]).length > 0) {
+                    let globalIdx = 0;
+                    const groupedIds = new Set((courseGroups as any[]).flatMap((g: any) => g.lessonIds));
+                    return (
+                      <div className="space-y-3">
+                        {(courseGroups as any[]).map((group: any) => {
+                          const groupLessons = (allLessons || []).filter((l: any) => group.lessonIds.includes(l.id));
+                          const completedInGroup = groupLessons.filter((l: any) => mergedCompletedLessons.includes(l.id)).length;
+                          const currentInGroup = groupLessons.some((l: any) => l.id === lessonId);
+                          return (
+                            <div key={group.id} className="rounded-lg border overflow-hidden">
+                              <div className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wide ${currentInGroup ? "bg-primary/10 text-primary" : "bg-muted/50 text-muted-foreground"}`}>
+                                <Layers className="h-3 w-3 shrink-0" />
+                                <span className="flex-1 truncate">{group.title}</span>
+                                <span className="shrink-0 tabular-nums">{completedInGroup}/{groupLessons.length}</span>
+                              </div>
+                              <div className="p-2 space-y-1">
+                                {groupLessons.map((l: any) => {
+                                  const node = renderLesson(l, 0, globalIdx);
+                                  globalIdx++;
+                                  return node;
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {(() => {
+                          const ungrouped = (allLessons || []).filter((l: any) => !groupedIds.has(l.id));
+                          if (ungrouped.length === 0) return null;
+                          return (
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide px-1">Outras aulas</p>
+                              {ungrouped.map((l: any) => {
+                                const node = renderLesson(l, 0, globalIdx);
+                                globalIdx++;
+                                return node;
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      {allLessons?.map((l: any, index) => renderLesson(l, index, index))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>

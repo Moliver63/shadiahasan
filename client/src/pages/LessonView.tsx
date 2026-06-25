@@ -40,6 +40,8 @@ export default function LessonView() {
   const params = useParams();
   const lessonId = parseInt(params.id || "0");
   const [, setLocation] = useLocation();
+  // autoPlay: true quando o aluno chegou aqui pelo countdown ou botão "Ir agora"
+  const autoPlay = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("autoplay") === "1";
   const { isAuthenticated, user } = useAuth();
   const [showVR, setShowVR] = useState(false);
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
@@ -282,10 +284,10 @@ export default function LessonView() {
     // Prioridade: próxima aula no curso → próxima aula na coleção → próxima coleção
     if (nextUnlockedLesson) {
       setIsExiting(true);
-      setTimeout(() => setLocation(`/lesson/${nextUnlockedLesson.id}`), 600);
+      setTimeout(() => setLocation(`/lesson/${nextUnlockedLesson.id}?autoplay=1`), 600);
     } else if (collectionContext?.nextLesson) {
       setIsExiting(true);
-      setTimeout(() => setLocation(`/lesson/${collectionContext.nextLesson!.lessonId}`), 600);
+      setTimeout(() => setLocation(`/lesson/${collectionContext.nextLesson!.lessonId}?autoplay=1`), 600);
     } else if (collectionContext?.nextCollection) {
       setIsExiting(true);
       setTimeout(() => setLocation(`/collections/${collectionContext.nextCollection!.id}`), 600);
@@ -338,9 +340,9 @@ export default function LessonView() {
     function navigate() {
       const { destLesson, destCollection } = getDestination();
       if (destLesson && "id" in destLesson) {
-        setLocation(`/lesson/${(destLesson as any).id}`);
+        setLocation(`/lesson/${(destLesson as any).id}?autoplay=1`);
       } else if (destLesson && "lessonId" in destLesson) {
-        setLocation(`/lesson/${(destLesson as any).lessonId}`);
+        setLocation(`/lesson/${(destLesson as any).lessonId}?autoplay=1`);
       } else if (destCollection) {
         setLocation(`/collections/${destCollection.id}`);
       }
@@ -597,6 +599,7 @@ export default function LessonView() {
                         src={playbackUrl}
                         title={lesson.title}
                         preferredLanguage={effectiveLanguage}
+                        autoPlay={autoPlay}
                         onProgress={handleProgress}
                         onComplete={handleComplete}
                         countdown={countdown}

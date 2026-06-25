@@ -27,6 +27,7 @@ interface VideoPlayerProps {
   src: string;
   title?: string;
   preferredLanguage?: string; // ex: "pt-BR", "en" — vem de userSettings.language
+  autoPlay?: boolean; // inicia automaticamente (usado ao navegar pelo countdown)
   onProgress?: (progress: number) => void;
   onComplete?: () => void;
   // Countdown Netflix — passado pelo LessonView, renderizado dentro do player
@@ -55,6 +56,7 @@ export default function VideoPlayer({
   src,
   title,
   preferredLanguage,
+  autoPlay = false,
   onProgress,
   onComplete,
   countdown,
@@ -116,6 +118,18 @@ export default function VideoPlayer({
     setDuration(0);
     setIsPlaying(false);
     setShowControls(true);
+
+    // Autoplay ao navegar automaticamente pelo countdown
+    if (autoPlay) {
+      const tryPlay = () => {
+        if (video.readyState >= 2) {
+          void video.play();
+        } else {
+          video.addEventListener("canplay", () => void video.play(), { once: true });
+        }
+      };
+      tryPlay();
+    }
 
     const syncNativeAudioTracks = () => {
       const nativeTracks = Array.from(
@@ -242,7 +256,7 @@ export default function VideoPlayer({
         clearTimeout(hideControlsTimeout.current);
       }
     };
-  }, [src, onProgress, onComplete, youtubeId]);
+  }, [src, onProgress, onComplete, youtubeId, autoPlay]);
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -406,7 +420,7 @@ export default function VideoPlayer({
       >
         <iframe
           className="absolute top-0 left-0 w-full h-full"
-          src={`https://www.youtube.com/embed/${youtubeId}?rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+          src={`https://www.youtube.com/embed/${youtubeId}?rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}${autoPlay ? "&autoplay=1&mute=0" : ""}`}
           title={title || "YouTube Video"}
           frameBorder="0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

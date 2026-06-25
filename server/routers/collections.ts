@@ -447,6 +447,86 @@ export const contentCollectionsRouter = router({
       return copy;
     }),
 
+  /** Busca o contexto de uma aula dentro de uma coleção — próxima aula, coleção atual */
+  getLessonContext: publicProcedure
+    .input(z.object({ lessonId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+
+      return withSchema(db, async () => {
+        // Acha todas as coleções ativas que contêm esta aula
+        const memberships = await db.execute(sql`
+          SELECT cci."collectionId", cci."order" as "lessonOrder",
+                 cc.title as "collectionTitle", cc."coverUrl" as "collectionCover",
+                 cc."isActive"
+          FROM "contentCollectionItems" cci
+          JOIN "contentCollections" cc ON cc.id = cci."collectionId"
+          WHERE cci."lessonId" = ${input.lessonId}
+            AND cc."isActive" = 1
+          LIMIT 1
+        `);
+
+        const membership = memberships.rows?.[0] as any;
+        if (!membership) return null;
+
+        const collectionId = membership.collectionId;
+        const lessonOrder = Number(membership.lessonOrder);
+
+        // Busca a próxima aula na coleção (pela order)
+        const nextItems = await db.execute(sql`
+          SELECT cci."lessonId", cci."order",
+                 l.title as "lessonTitle", l.duration,
+                 c.thumbnail as "courseThumbnail"
+          FROM "contentCollectionItems" cci
+          JOIN lessons l ON l.id = cci."lessonId"
+          LEFT JOIN courses c ON c.id = l."courseId"
+          WHERE cci."collectionId" = ${collectionId}
+            AND cci."order" > ${lessonOrder}
+            AND l."isPublished" = 1
+          ORDER BY cci."order" ASC
+          LIMIT 1
+        `);
+
+        const nextItem = nextItems.rows?.[0] as any;
+
+        // Busca a próxima coleção ativa (por order) quando esta for a última aula
+        let nextCollection = null;
+        if (!nextItem) {
+          const nextCols = await db.execute(sql`
+            SELECT id, title, subtitle, "coverUrl",
+                   (SELECT COUNT(*) FROM "contentCollectionItems" WHERE "collectionId" = cc.id) as "lessonCount"
+            FROM "contentCollections" cc
+            WHERE cc."isActive" = 1
+              AND cc."order" > (SELECT "order" FROM "contentCollections" WHERE id = ${collectionId})
+            ORDER BY cc."order" ASC
+            LIMIT 1
+          `);
+          nextCollection = nextCols.rows?.[0] ?? null;
+        }
+
+        return {
+          collectionId,
+          collectionTitle: membership.collectionTitle,
+          collectionCover: membership.collectionCover,
+          currentOrder: lessonOrder,
+          nextLesson: nextItem ? {
+            lessonId: nextItem.lessonId,
+            title: nextItem.lessonTitle,
+            duration: nextItem.duration,
+            thumbnail: nextItem.courseThumbnail,
+          } : null,
+          nextCollection: nextCollection ? {
+            id: nextCollection.id,
+            title: nextCollection.title,
+            subtitle: nextCollection.subtitle,
+            coverUrl: nextCollection.coverUrl,
+            lessonCount: Number(nextCollection.lessonCount),
+          } : null,
+        };
+      }, null);
+    }),
+
   delete: adminProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {

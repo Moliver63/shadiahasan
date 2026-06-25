@@ -92,6 +92,12 @@ export default function LessonView() {
     { enabled: !!lesson, staleTime: 0 }
   );
 
+  // Contexto da coleção — próxima aula ou próxima coleção ao terminar
+  const { data: collectionContext } = trpc.collections.getLessonContext.useQuery(
+    { lessonId },
+    { enabled: lessonId > 0, staleTime: 0 }
+  );
+
   const { data: enrollmentData } = trpc.enrollments.checkEnrollment.useQuery(
     { courseId: lesson?.courseId || 0 },
     { enabled: !!lesson && isAuthenticated }
@@ -157,11 +163,15 @@ export default function LessonView() {
     ? isCurrentLessonCompleted
       ? `Seu próximo passo é continuar com "${nextUnlockedLesson.title}".`
       : `Ao concluir esta aula, seu próximo passo será "${nextUnlockedLesson.title}".`
-    : nextLesson?.isPathLocked && nextLesson.unlockLabel
-      ? nextLesson.unlockLabel
-      : isCurrentLessonCompleted
-        ? "Parabéns! Você concluiu a última aula disponível desta etapa do curso."
-        : "Conclua esta aula para finalizar o curso e registrar seu avanço.";
+    : collectionContext?.nextLesson
+      ? `Próxima aula do programa: "${collectionContext.nextLesson.title}".`
+      : collectionContext?.nextCollection
+        ? `Ao concluir, você avança para o próximo programa: "${collectionContext.nextCollection.title}".`
+        : nextLesson?.isPathLocked && nextLesson.unlockLabel
+          ? nextLesson.unlockLabel
+          : isCurrentLessonCompleted
+            ? "Parabéns! Você concluiu a última aula disponível desta etapa do curso."
+            : "Conclua esta aula para finalizar o curso e registrar seu avanço.";
 
   const shouldFetchPlaybackUrl =
     !!lesson &&
@@ -243,12 +253,18 @@ export default function LessonView() {
 
   const goToNextLesson = useCallback(() => {
     cancelCountdown();
-    if (!nextUnlockedLesson) return;
-    setIsExiting(true);
-    setTimeout(() => {
-      setLocation(`/lesson/${nextUnlockedLesson.id}`);
-    }, 600);
-  }, [cancelCountdown, nextUnlockedLesson, setLocation]);
+    // Prioridade: próxima aula no curso → próxima aula na coleção → próxima coleção
+    if (nextUnlockedLesson) {
+      setIsExiting(true);
+      setTimeout(() => setLocation(`/lesson/${nextUnlockedLesson.id}`), 600);
+    } else if (collectionContext?.nextLesson) {
+      setIsExiting(true);
+      setTimeout(() => setLocation(`/lesson/${collectionContext.nextLesson!.lessonId}`), 600);
+    } else if (collectionContext?.nextCollection) {
+      setIsExiting(true);
+      setTimeout(() => setLocation(`/collections/${collectionContext.nextCollection!.id}`), 600);
+    }
+  }, [cancelCountdown, nextUnlockedLesson, collectionContext, setLocation]);
 
   // Inicia countdown quando aula é concluída e há próxima aula disponível
   const navTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -265,8 +281,13 @@ export default function LessonView() {
     if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
   }, [lessonId]);
 
+  // nextStep: próxima aula do curso OU próxima da coleção OU próxima coleção
+  const hasNextStep = !!nextUnlockedLesson
+    || !!collectionContext?.nextLesson
+    || !!collectionContext?.nextCollection;
+
   useEffect(() => {
-    if (completionConfirmed && nextUnlockedLesson && countdown === null) {
+    if (completionConfirmed && hasNextStep && countdown === null) {
       setCountdown(10);
       countdownRef.current = setInterval(() => {
         setCountdown((prev) => {
@@ -292,7 +313,7 @@ export default function LessonView() {
         if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
       };
     }
-  }, [completionConfirmed, nextUnlockedLesson, setLocation, countdown]);
+  }, [completionConfirmed, hasNextStep, setLocation, countdown]);
 
   // Pausa o countdown quando o aluno troca de aba ou minimiza o navegador
   // Retoma quando o aluno volta — evita redirecionamento silencioso em background
@@ -510,11 +531,21 @@ export default function LessonView() {
                         onProgress={handleProgress}
                         onComplete={handleComplete}
                         countdown={countdown}
-                        nextLesson={nextUnlockedLesson ? {
-                          title: nextUnlockedLesson.title,
-                          // lessons não tem thumbnail própria — usa a do curso como fallback
-                          thumbnail: (course as any)?.thumbnail ?? null,
-                        } : null}
+                        nextLesson={(() => {
+                          if (nextUnlockedLesson) return {
+                            title: nextUnlockedLesson.title,
+                            thumbnail: (course as any)?.thumbnail ?? null,
+                          };
+                          if (collectionContext?.nextLesson) return {
+                            title: collectionContext.nextLesson.title,
+                            thumbnail: collectionContext.nextLesson.thumbnail ?? (course as any)?.thumbnail ?? null,
+                          };
+                          if (collectionContext?.nextCollection) return {
+                            title: `Próximo programa: ${collectionContext.nextCollection.title}`,
+                            thumbnail: collectionContext.nextCollection.coverUrl ?? null,
+                          };
+                          return null;
+                        })()}
                         onGoToNext={goToNextLesson}
                         onCancelCountdown={cancelCountdown}
                       />

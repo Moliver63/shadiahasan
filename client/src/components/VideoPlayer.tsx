@@ -119,18 +119,6 @@ export default function VideoPlayer({
     setIsPlaying(false);
     setShowControls(true);
 
-    // Autoplay ao navegar automaticamente pelo countdown
-    if (autoPlay) {
-      const tryPlay = () => {
-        if (video.readyState >= 2) {
-          void video.play();
-        } else {
-          video.addEventListener("canplay", () => void video.play(), { once: true });
-        }
-      };
-      tryPlay();
-    }
-
     const syncNativeAudioTracks = () => {
       const nativeTracks = Array.from(
         ((video as HTMLVideoElement & { audioTracks?: ArrayLike<any> }).audioTracks || []) as ArrayLike<any>
@@ -154,6 +142,7 @@ export default function VideoPlayer({
     if (src.includes(".m3u8")) {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
+        if (autoPlay) video.addEventListener("canplay", () => void video.play(), { once: true });
       } else {
         void import("hls.js").then((module) => {
           const Hls = module.default;
@@ -163,6 +152,7 @@ export default function VideoPlayer({
           hlsRef.current = hls;
           hls.loadSource(src);
           hls.attachMedia(video);
+          if (autoPlay) video.addEventListener("canplay", () => void video.play(), { once: true });
 
           const extractTracks = (tracksSource: any[]) =>
             (tracksSource || []).map((track: any, index: number) => ({
@@ -213,6 +203,7 @@ export default function VideoPlayer({
       }
     } else {
       video.src = src;
+      if (autoPlay) video.addEventListener("canplay", () => void video.play(), { once: true });
     }
 
     const handleTimeUpdate = () => {

@@ -440,8 +440,8 @@ export default function VideoPlayer({
       {/* Tela preta ao terminar o vídeo — aparece quando countdown está ativo */}
       {countdown != null && countdown > 0 && (
         <div
-          className="absolute inset-0 bg-black transition-opacity duration-700"
-          style={{ opacity: Math.min(1, (10 - countdown) / 3 + 0.6) }}
+          className="absolute inset-0 bg-black transition-opacity duration-700 pointer-events-none"
+          style={{ opacity: Math.min(1, (10 - countdown) / 3 + 0.6), zIndex: 10 }}
         />
       )}
 

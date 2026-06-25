@@ -437,6 +437,14 @@ export default function VideoPlayer({
         playsInline
       />
 
+      {/* Tela preta ao terminar o vídeo — aparece quando countdown está ativo */}
+      {countdown != null && countdown > 0 && (
+        <div
+          className="absolute inset-0 bg-black transition-opacity duration-700"
+          style={{ opacity: Math.min(1, (10 - countdown) / 3 + 0.6) }}
+        />
+      )}
+
       <div
         className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity duration-300 ${
           showControls ? "opacity-100" : "opacity-0"

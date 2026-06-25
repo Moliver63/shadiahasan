@@ -104,45 +104,47 @@ export default function CollectionDetail() {
                   <p className="text-muted-foreground">Nenhuma aula disponível.</p>
                 </CardContent></Card>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {lessons.map((item: any, idx: number) => (
-                    <div key={item.id}
-                      className="group cursor-pointer rounded-lg border overflow-hidden bg-card hover:border-primary/50 transition-all"
-                      onClick={() => handleStart(item)}>
-                      {/* Capa */}
-                      <div className="relative aspect-video bg-muted overflow-hidden">
+                    <div key={item.id} className="course-card" onClick={() => handleStart(item)}>
+                      <div className="course-card__media">
                         {item.course?.thumbnail ? (
-                          <img
-                            src={item.course.thumbnail}
-                            alt={item.lesson?.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
+                          <img src={item.course.thumbnail} alt={item.lesson?.title} className="course-card__img" loading="lazy" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <PlayCircle className="h-8 w-8 text-muted-foreground/40" />
+                          <div className="course-card__placeholder">
+                            <PlayCircle className="h-10 w-10 text-white/40" />
                           </div>
                         )}
-                        {/* Número */}
-                        <div className="absolute top-2 left-2 bg-black/60 text-white text-xs font-bold rounded px-1.5 py-0.5">
+
+                        <div className="course-card__gradient" />
+                        <div className="course-card__overlay" />
+
+                        {/* Botão play */}
+                        <div className="course-card__play">
+                          <div className="course-card__play-btn">
+                            {isAuthenticated
+                              ? <PlayCircle className="h-6 w-6 text-white fill-white" />
+                              : <Lock className="h-5 w-5 text-white" />}
+                          </div>
+                        </div>
+
+                        {/* Badge número */}
+                        <div className="course-card__badge" style={{top:"8px",right:"auto",left:"8px"}}>
                           {idx + 1}
                         </div>
-                        {/* Play overlay */}
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          {isAuthenticated
-                            ? <PlayCircle className="h-10 w-10 text-white" />
-                            : <Lock className="h-8 w-8 text-white" />}
-                        </div>
+
                         {/* Duração */}
                         {item.lesson?.duration && (
-                          <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-xs rounded px-1.5 py-0.5">
-                            {formatDuration(item.lesson.duration)}
+                          <div className="course-card__badge" style={{bottom:"8px",top:"auto",right:"8px",left:"auto"}}>
+                            <Clock className="h-3 w-3" />{formatDuration(item.lesson.duration)}
                           </div>
                         )}
-                      </div>
-                      {/* Info */}
-                      <div className="p-2.5">
-                        <p className="text-sm font-medium line-clamp-2 leading-snug">{item.lesson?.title}</p>
-                        <p className="text-xs text-muted-foreground mt-1 truncate">{item.course?.title}</p>
+
+                        {/* Título e curso sobre a imagem */}
+                        <div className="course-card__info">
+                          <p className="course-card__title">{item.lesson?.title}</p>
+                          <p className="course-card__desc">{item.course?.title}</p>
+                        </div>
                       </div>
                     </div>
                   ))}

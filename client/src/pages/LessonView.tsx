@@ -287,40 +287,47 @@ export default function LessonView() {
     || !!collectionContext?.nextCollection;
 
   useEffect(() => {
-    if (completionConfirmed && hasNextStep && countdown === null) {
-      setCountdown(10);
-      countdownRef.current = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev === null || prev <= 1) {
-            clearInterval(countdownRef.current!);
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+    // Só inicia uma vez quando completionConfirmed vira true e há próximo passo
+    if (!completionConfirmed || !hasNextStep) return;
+    // Evita duplo disparo se collectionContext chegar depois
+    if (countdownRef.current) return;
 
-      // Navega automaticamente ao atingir 0 (com animação de saída nos últimos 600ms)
-      const exitTimeout = setTimeout(() => {
-        setIsExiting(true);
-        navTimeoutRef.current = setTimeout(() => {
-          // Prioridade: aula do curso → aula da coleção → próxima coleção
-          if (nextUnlockedLesson) {
-            setLocation(`/lesson/${nextUnlockedLesson.id}`);
-          } else if (collectionContext?.nextLesson) {
-            setLocation(`/lesson/${collectionContext.nextLesson.lessonId}`);
-          } else if (collectionContext?.nextCollection) {
-            setLocation(`/collections/${collectionContext.nextCollection.id}`);
-          }
-        }, 600);
-      }, 9400);
+    setCountdown(10);
+    countdownRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(countdownRef.current!);
+          countdownRef.current = null;
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-      return () => {
-        clearInterval(countdownRef.current!);
-        clearTimeout(exitTimeout);
-        if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
-      };
-    }
-  }, [completionConfirmed, hasNextStep, nextUnlockedLesson, collectionContext, setLocation, countdown]);
+    // Captura destino no momento em que o countdown começa
+    const destLesson = nextUnlockedLesson ?? collectionContext?.nextLesson ?? null;
+    const destCollection = collectionContext?.nextCollection ?? null;
+
+    const exitTimeout = setTimeout(() => {
+      setIsExiting(true);
+      navTimeoutRef.current = setTimeout(() => {
+        if (destLesson && 'id' in destLesson) {
+          setLocation(`/lesson/${(destLesson as any).id}`);
+        } else if (destLesson && 'lessonId' in destLesson) {
+          setLocation(`/lesson/${(destLesson as any).lessonId}`);
+        } else if (destCollection) {
+          setLocation(`/collections/${destCollection.id}`);
+        }
+      }, 600);
+    }, 9400);
+
+    return () => {
+      clearInterval(countdownRef.current!);
+      countdownRef.current = null;
+      clearTimeout(exitTimeout);
+      if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
+    };
+  }, [completionConfirmed, hasNextStep]);
 
   // Pausa o countdown quando o aluno troca de aba ou minimiza o navegador
   // Retoma quando o aluno volta — evita redirecionamento silencioso em background

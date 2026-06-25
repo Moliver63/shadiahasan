@@ -303,7 +303,14 @@ export default function LessonView() {
       const exitTimeout = setTimeout(() => {
         setIsExiting(true);
         navTimeoutRef.current = setTimeout(() => {
-          setLocation(`/lesson/${nextUnlockedLesson.id}`);
+          // Prioridade: aula do curso → aula da coleção → próxima coleção
+          if (nextUnlockedLesson) {
+            setLocation(`/lesson/${nextUnlockedLesson.id}`);
+          } else if (collectionContext?.nextLesson) {
+            setLocation(`/lesson/${collectionContext.nextLesson.lessonId}`);
+          } else if (collectionContext?.nextCollection) {
+            setLocation(`/collections/${collectionContext.nextCollection.id}`);
+          }
         }, 600);
       }, 9400);
 
@@ -313,7 +320,7 @@ export default function LessonView() {
         if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
       };
     }
-  }, [completionConfirmed, hasNextStep, setLocation, countdown]);
+  }, [completionConfirmed, hasNextStep, nextUnlockedLesson, collectionContext, setLocation, countdown]);
 
   // Pausa o countdown quando o aluno troca de aba ou minimiza o navegador
   // Retoma quando o aluno volta — evita redirecionamento silencioso em background

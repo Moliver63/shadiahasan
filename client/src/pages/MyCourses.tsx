@@ -23,6 +23,28 @@ import { toast } from "sonner";
 import { OptimizedImage } from "@/components/OptimizedImage";
 import CourseCard from "@/components/CourseCard";
 
+function CourseCardWithGroup({ id, title, description, thumbnail, slug, progress }: {
+  id: number; title: string; description?: string | null;
+  thumbnail?: string | null; slug: string; progress?: number;
+}) {
+  const { data: groups = [] } = trpc.courseGroups.listByCourse.useQuery(
+    { courseId: id },
+    { enabled: id > 0, staleTime: 60_000 }
+  );
+  const firstGroup = (groups as any[]).find((g: any) => g.coverUrl);
+  const displayThumbnail = firstGroup?.coverUrl || thumbnail;
+  return (
+    <CourseCard
+      id={id}
+      title={title}
+      description={description}
+      thumbnail={displayThumbnail}
+      slug={slug}
+      progress={progress}
+    />
+  );
+}
+
 export default function MyCourses() {
   const { user, isAuthenticated, loading } = useAuth();
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
@@ -142,7 +164,7 @@ export default function MyCourses() {
 
               return (
                 <div key={enrollment.id}>
-                  <CourseCard
+                  <CourseCardWithGroup
                     id={course.id}
                     title={course.title}
                     description={course.description}

@@ -4,6 +4,30 @@ import { trpc } from "@/lib/trpc";
 import { BookOpen } from "lucide-react";
 import PublicHeader from "@/components/PublicHeader";
 
+function CourseWithGroup({ course }: { course: any }) {
+  const { data: groups = [] } = trpc.courseGroups.listByCourse.useQuery(
+    { courseId: course.id },
+    { enabled: course.id > 0, staleTime: 60_000 }
+  );
+
+  // Usa a capa do primeiro grupo publicado se existir, senão thumbnail do curso
+  const firstGroup = (groups as any[]).find((g: any) => g.coverUrl);
+  const displayThumbnail = firstGroup?.coverUrl || course.thumbnail;
+  const totalLessons = (groups as any[]).reduce((acc: number, g: any) => acc + (g.lessonCount || 0), 0);
+
+  return (
+    <CourseCard
+      key={course.id}
+      id={course.id}
+      title={course.title}
+      description={course.description}
+      thumbnail={displayThumbnail}
+      slug={course.slug}
+      lessonCount={totalLessons > 0 ? totalLessons : course.lessonCount}
+    />
+  );
+}
+
 export default function Courses() {
   const { data: courses, isLoading } = trpc.courses.list.useQuery();
 
@@ -51,14 +75,7 @@ export default function Courses() {
         ) : courses && courses.length > 0 ? (
           <div className="grid gap-4 sm:gap-6 grid-cols-2 md:grid-cols-3 lg:grid-cols-4" style={{paddingBottom:"2rem"}}>
             {courses.map((course) => (
-              <CourseCard
-                key={course.id}
-                id={course.id}
-                title={course.title}
-                description={course.description}
-                thumbnail={course.thumbnail}
-                slug={course.slug}
-              />
+              <CourseWithGroup key={course.id} course={course} />
             ))}
           </div>
         ) : (

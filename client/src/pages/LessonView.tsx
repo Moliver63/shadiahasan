@@ -51,6 +51,7 @@ export default function LessonView() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isExiting, setIsExiting] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const completionUiStartedRef = useRef(false);
   const utils = trpc.useUtils();
 
   // Idioma preferido do usuário para auto-seleção de faixa de áudio
@@ -215,7 +216,10 @@ export default function LessonView() {
       {
         onSuccess: () => {
           setHasMarkedComplete(true);
-          setCompletionConfirmed(true); // libera o countdown agora que o backend confirmou
+          // completionConfirmed é setado pelo startCompletionFlow quando chamado via onComplete
+          if (completionUiStartedRef.current) {
+            setCompletionConfirmed(true);
+          }
         },
         onError: () => {
           // Rollback visual se o backend falhar
@@ -232,16 +236,36 @@ export default function LessonView() {
   // Marca conclusão silenciosa (sem countdown) — chamada quando progress > 90%
   // O countdown só inicia no onComplete (fim real do vídeo)
   const markCompletionSilent = useCallback(() => {
+    // Só grava se ainda não gravou e não é aula já concluída
     if (completionUiStarted || currentLessonAlreadyCompleted || hasMarkedComplete) return;
-    markLessonAsCompleted(); // persiste no backend sem UI de countdown
-  }, [completionUiStarted, currentLessonAlreadyCompleted, hasMarkedComplete, markLessonAsCompleted]);
+    // Grava progresso mas NÃO seta completionConfirmed — countdown vem do onComplete
+    if (!lesson || !hasAccess) return;
+    if (updateProgressMutation.isPending) return;
+    const completedLessonsToPersist = [...new Set([...completedLessons, lessonId])];
+    const progressToPersist = totalLessons > 0
+      ? Math.min(100, Math.round((completedLessonsToPersist.length / totalLessons) * 100))
+      : (enrollmentData?.enrollment?.progress ?? 0);
+    updateProgressMutation.mutate(
+      { courseId: lesson.courseId, progress: progressToPersist, completedLessons: JSON.stringify(completedLessonsToPersist) },
+      { onSuccess: () => setHasMarkedComplete(true) } // SEM setCompletionConfirmed
+    );
+  }, [completionUiStarted, currentLessonAlreadyCompleted, hasMarkedComplete, lesson, hasAccess, updateProgressMutation, completedLessons, lessonId, totalLessons, enrollmentData]);
 
   // Conclusão completa: toast + countdown + persistência — chamada no onComplete (fim do vídeo)
   const startCompletionFlow = useCallback(() => {
-    if (completionUiStarted || currentLessonAlreadyCompleted || hasMarkedComplete) return;
-    setCompletionUiStarted(true);
-    toast.success("Aula concluída!");
-    markLessonAsCompleted();
+    // Sempre inicia o countdown ao terminar o vídeo
+    // Para aulas já concluídas: só dispara o countdown sem regravar
+    if (!completionUiStarted) {
+      completionUiStartedRef.current = true;
+      setCompletionUiStarted(true);
+      if (!currentLessonAlreadyCompleted && !hasMarkedComplete) {
+        toast.success("Aula concluída!");
+        markLessonAsCompleted();
+      } else {
+        // Aula já concluída anteriormente — inicia countdown direto sem regravar
+        setCompletionConfirmed(true);
+      }
+    }
   }, [completionUiStarted, currentLessonAlreadyCompleted, hasMarkedComplete, markLessonAsCompleted]);
 
   const cancelCountdown = useCallback(() => {

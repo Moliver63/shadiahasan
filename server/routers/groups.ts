@@ -57,7 +57,7 @@ async function ensureCourseGroupsSchema(db: NonNullable<Awaited<ReturnType<typeo
       )
     `);
     await db.execute(sql`ALTER TABLE "courseGroups" ADD COLUMN IF NOT EXISTS "coverUrl" text`);
-      await db.execute(sql`ALTER TABLE "courseGroups" ADD COLUMN IF NOT EXISTS "subtitle" varchar(255)`);
+    await db.execute(sql`ALTER TABLE "courseGroups" ADD COLUMN IF NOT EXISTS "subtitle" varchar(255)`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS "courseGroupLessons" (
         "id" serial PRIMARY KEY,

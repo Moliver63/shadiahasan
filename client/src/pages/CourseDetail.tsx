@@ -101,7 +101,7 @@ export default function CourseDetail() {
       { enabled: !!course, staleTime: 0, refetchOnMount: "always" }
     );
 
-  const { data: courseGroups = [] } = trpc.courseGroups.listByCourse.useQuery(
+  const { data: courseGroups = [], isLoading: groupsLoading } = trpc.courseGroups.listByCourse.useQuery(
     { courseId: course?.id || 0 },
     { enabled: !!course, staleTime: 0, refetchOnMount: "always", refetchOnWindowFocus: true }
   );
@@ -261,7 +261,7 @@ export default function CourseDetail() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {lessonsLoading ? (
+                {lessonsLoading || groupsLoading ? (
                   <div className="space-y-4">
                     {[1, 2, 3].map((i) => (
                       <div key={i} className="h-16 bg-muted animate-pulse rounded"></div>

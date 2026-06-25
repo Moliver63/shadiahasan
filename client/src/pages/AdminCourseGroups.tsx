@@ -313,21 +313,20 @@ export default function AdminCourseGroups() {
                   </div>
 
                   {group.coverUrl ? (
-                    <img src={group.coverUrl} alt={group.title} className="h-10 w-14 rounded object-cover shrink-0 border" />
+                    <img src={group.coverUrl} alt={group.title} className="h-9 w-12 rounded object-cover shrink-0 border" />
                   ) : (
                     <FolderOpen className="h-5 w-5 text-primary shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold truncate">{group.title}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-semibold text-sm leading-tight">{group.title || <span className="text-muted-foreground italic">Sem título</span>}</p>
                       {group.isPublished === 0 && (
                         <Badge variant="outline" className="text-xs shrink-0">Rascunho</Badge>
                       )}
                     </div>
                     {group.subtitle && <p className="text-xs text-primary/80 truncate">{group.subtitle}</p>}
-                    {group.description && <p className="text-xs text-muted-foreground truncate">{group.description}</p>}
+                    <p className="text-xs text-muted-foreground">{group.lessonCount} aula(s)</p>
                   </div>
-                  <Badge variant="secondary" className="shrink-0">{group.lessonCount} aula(s)</Badge>
                   <div className="flex items-center gap-1 shrink-0">
                     {/* Toggle publicado */}
                     <button

@@ -113,13 +113,13 @@ export default function CourseDetail() {
 
   const { data: lessons, isLoading: lessonsLoading } =
     trpc.lessons.listByCourse.useQuery(
-      { courseId: course?.id || 0 },
-      { enabled: !!course, staleTime: 0, refetchOnMount: "always" }
+      { courseId: course?.id ?? 0 },
+      { enabled: !!course && !!course.id && course.id > 0, staleTime: 0, refetchOnMount: "always" }
     );
 
   const { data: courseGroups = [], isLoading: groupsLoading } = trpc.courseGroups.listByCourse.useQuery(
-    { courseId: course?.id || 0 },
-    { enabled: !!course, staleTime: 0, refetchOnMount: "always", refetchOnWindowFocus: true }
+    { courseId: course?.id ?? 0 },
+    { enabled: !!course && !!course.id && course.id > 0, staleTime: 0, refetchOnMount: "always", refetchOnWindowFocus: true }
   );
 
   const { data: enrollmentData } = trpc.enrollments.checkEnrollment.useQuery(

@@ -80,7 +80,7 @@ async function ensureCourseGroupsSchema(db: NonNullable<Awaited<ReturnType<typeo
     `);
     return true;
   } catch (error) {
-    console.error("[courseGroups] schema init failed", error);
+    console.error("[courseGroups] schema init failed:", error instanceof Error ? error.message : String(error));
     return false;
   }
 }
@@ -91,7 +91,10 @@ async function runReadWithSchema<T>(
   fallback: T,
 ) {
   const ready = await ensureCourseGroupsSchema(db);
-  if (!ready) return fallback;
+  if (!ready) {
+    console.error("[courseGroups] schema not ready, returning fallback");
+    return fallback;
+  }
   try {
     return await operation();
   } catch (error) {
@@ -139,9 +142,11 @@ export const courseGroupsRouter = router({
           .from(courseGroups)
           .where(and(
             eq(courseGroups.courseId, input.courseId),
-            eq(courseGroups.isPublished, 1),
+            sql`"courseGroups"."isPublished" = 1`,
           ))
           .orderBy(asc(courseGroups.order));
+
+        console.log(`[courseGroups.listByCourse] courseId=${input.courseId} found=${groups.length} groups`);
 
         const result = await Promise.all(
           groups.map(async (group) => {

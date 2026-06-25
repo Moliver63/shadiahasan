@@ -45,6 +45,18 @@ type AudioTrackOption = {
 };
 
 // Detecta se a URL é do YouTube e retorna o ID do vídeo
+/** Sobe o volume de 0 para 1 em 800ms — evita ruído abrupto no autoplay */
+function fadeInAudio(video: HTMLVideoElement, durationMs = 800) {
+  const steps = 20;
+  const interval = durationMs / steps;
+  let step = 0;
+  const timer = setInterval(() => {
+    step++;
+    video.volume = Math.min(1, step / steps);
+    if (step >= steps) clearInterval(timer);
+  }, interval);
+}
+
 function getYouTubeId(url: string): string | null {
   const match = url.match(
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
@@ -142,7 +154,10 @@ export default function VideoPlayer({
     if (src.includes(".m3u8")) {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
-        if (autoPlay) video.addEventListener("canplay", () => void video.play(), { once: true });
+        if (autoPlay) video.addEventListener("canplay", () => {
+          video.volume = 0;
+          void video.play().then(() => fadeInAudio(video));
+        }, { once: true });
       } else {
         void import("hls.js").then((module) => {
           const Hls = module.default;
@@ -152,7 +167,10 @@ export default function VideoPlayer({
           hlsRef.current = hls;
           hls.loadSource(src);
           hls.attachMedia(video);
-          if (autoPlay) video.addEventListener("canplay", () => void video.play(), { once: true });
+          if (autoPlay) video.addEventListener("canplay", () => {
+            video.volume = 0;
+            void video.play().then(() => fadeInAudio(video));
+          }, { once: true });
 
           const extractTracks = (tracksSource: any[]) =>
             (tracksSource || []).map((track: any, index: number) => ({
@@ -203,7 +221,10 @@ export default function VideoPlayer({
       }
     } else {
       video.src = src;
-      if (autoPlay) video.addEventListener("canplay", () => void video.play(), { once: true });
+      if (autoPlay) video.addEventListener("canplay", () => {
+        video.volume = 0;
+        void video.play().then(() => fadeInAudio(video));
+      }, { once: true });
     }
 
     const handleTimeUpdate = () => {
@@ -224,6 +245,8 @@ export default function VideoPlayer({
 
     const handleEnded = () => {
       setIsPlaying(false);
+      // Silencia imediatamente ao terminar — evita ruído/voz durante o countdown
+      video.volume = 0;
       if (onComplete) {
         onComplete();
       }

@@ -1,35 +1,45 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import CourseCard from "@/components/CourseCard";
 import { trpc } from "@/lib/trpc";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Layers } from "lucide-react";
 import PublicHeader from "@/components/PublicHeader";
+import { Link } from "wouter";
+import { formatDuration } from "@/lib/formatDuration";
 
-function CourseWithGroup({ course }: { course: any }) {
-  const { data: groups = [] } = trpc.courseGroups.listByCourse.useQuery(
-    { courseId: course.id },
-    { enabled: course.id > 0, staleTime: 60_000 }
-  );
-
-  // Usa a capa do primeiro grupo publicado se existir, senão thumbnail do curso
-  const firstGroup = (groups as any[]).find((g: any) => g.coverUrl);
-  const displayThumbnail = firstGroup?.coverUrl || course.thumbnail;
-  const totalLessons = (groups as any[]).reduce((acc: number, g: any) => acc + (g.lessonCount || 0), 0);
-
+function CollectionCard({ col }: { col: any }) {
   return (
-    <CourseCard
-      key={course.id}
-      id={course.id}
-      title={course.title}
-      description={course.description}
-      thumbnail={displayThumbnail}
-      slug={course.slug}
-      lessonCount={totalLessons > 0 ? totalLessons : course.lessonCount}
-    />
+    <Link href={`/collections/${col.id}`}>
+      <div className="course-card group relative cursor-pointer select-none">
+        <div className="course-card__media">
+          {col.coverUrl ? (
+            <img src={col.coverUrl} alt={col.title} className="course-card__img" loading="lazy" />
+          ) : (
+            <div className="course-card__placeholder">
+              <Layers className="h-12 w-12 text-white/40" />
+            </div>
+          )}
+          <div className="course-card__gradient" />
+          <div className="course-card__overlay" />
+          <div className="course-card__info">
+            <h3 className="course-card__title">{col.title}</h3>
+            {col.subtitle && <p className="course-card__desc">{col.subtitle}</p>}
+            <span className="course-card__meta">
+              {col.lessonCount} aulas{col.totalDuration > 0 ? ` · ${formatDuration(col.totalDuration)}` : ""}
+            </span>
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }
 
 export default function Courses() {
-  const { data: courses, isLoading } = trpc.courses.list.useQuery();
+  const { data: courses, isLoading: coursesLoading } = trpc.courses.list.useQuery();
+  const { data: collections = [], isLoading: collectionsLoading } = trpc.collections.list.useQuery(
+    undefined, { staleTime: 0, refetchOnMount: "always" }
+  );
+
+  const isLoading = coursesLoading || collectionsLoading;
 
   return (
     <div className="min-h-screen bg-background">
@@ -43,54 +53,53 @@ export default function Courses() {
         className="bg-card"
       />
 
-      {/* Hero Section */}
       <section className="bg-gradient-to-br from-primary/10 via-background to-background py-16">
         <div className="container text-center">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-            Catálogo de Cursos
-          </h1>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">Catálogo de Cursos</h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
-            Explore nossos cursos e aprenda com experiências imersivas em
-            realidade virtual
+            Explore nossos cursos e aprenda com experiências imersivas em realidade virtual
           </p>
         </div>
       </section>
 
-      {/* Courses Grid */}
       <section className="container py-12">
         {isLoading ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Card key={i}>
-                <CardHeader>
-                  <div className="h-6 w-3/4 bg-muted animate-pulse rounded mb-2"></div>
-                  <div className="h-4 w-full bg-muted animate-pulse rounded"></div>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-10 w-full bg-muted animate-pulse rounded"></div>
-                </CardContent>
+                <CardHeader><div className="h-6 w-3/4 bg-muted animate-pulse rounded mb-2" /></CardHeader>
+                <CardContent><div className="h-10 w-full bg-muted animate-pulse rounded" /></CardContent>
               </Card>
             ))}
           </div>
-        ) : courses && courses.length > 0 ? (
+        ) : (collections as any[]).length > 0 || (courses && courses.length > 0) ? (
           <div className="grid gap-4 sm:gap-6 grid-cols-2 md:grid-cols-3 lg:grid-cols-4" style={{paddingBottom:"2rem"}}>
-            {courses.map((course) => (
-              <CourseWithGroup key={course.id} course={course} />
+            {/* Coleções ativas primeiro */}
+            {(collections as any[]).map((col: any) => (
+              <CollectionCard key={`col-${col.id}`} col={col} />
+            ))}
+            {/* Cursos avulsos */}
+            {(courses || []).map((course) => (
+              <CourseCard
+                key={course.id}
+                id={course.id}
+                title={course.title}
+                description={course.description}
+                thumbnail={course.thumbnail}
+                slug={course.slug}
+              />
             ))}
           </div>
         ) : (
           <Card>
             <CardContent className="py-12 text-center">
               <BookOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-lg text-muted-foreground">
-                Nenhum curso disponível no momento
-              </p>
+              <p className="text-lg text-muted-foreground">Nenhum curso disponível no momento</p>
             </CardContent>
           </Card>
         )}
       </section>
 
-      {/* Footer */}
       <footer className="border-t bg-card mt-12">
         <div className="container py-8 text-center text-sm text-muted-foreground">
           <p>© {new Date().getFullYear()} Shadia VR Platform. Todos os direitos reservados.</p>

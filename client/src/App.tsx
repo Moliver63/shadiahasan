@@ -21,6 +21,8 @@ import AdminCourseLessons from "./pages/AdminCourseLessons";
 import AdminLessonMaterials from "./pages/AdminLessonMaterials";
 import AdminCourseGroups from "./pages/AdminCourseGroups";
 import AdminGroups from "./pages/AdminGroups";
+import AdminCollections from "./pages/AdminCollections";
+import CollectionDetail from "./pages/CollectionDetail";
 import AdminSettings from "./pages/AdminSettings";
 import AdminLessons from "./pages/AdminLessons";
 import AdminStudents from "./pages/AdminStudents";
@@ -114,6 +116,8 @@ function Router() {
       <ProtectedRoute path={"/admin/lessons/:id/materials"} component={AdminLessonMaterials} requireAdmin />
       <ProtectedRoute path={"/admin/courses/:id/groups"} component={AdminCourseGroups} requireAdmin />
       <ProtectedRoute path={"/admin/groups"} component={AdminGroups} requireAdmin />
+      <ProtectedRoute path={"/admin/collections"} component={AdminCollections} requireAdmin />
+      <Route path="/collections/:id" component={CollectionDetail} />
       <ProtectedRoute path={"/admin/students"} component={AdminStudents} requireAdmin />
       <Route path={"/ebooks"} component={Ebooks} />
       <ProtectedRoute path={"/ebook/:id"} component={EbookReader} />

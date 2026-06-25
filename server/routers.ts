@@ -8,6 +8,7 @@ import { videosRouter } from "./routers/videos";
 import { profileRouter } from "./routers/profile";
 import { materialsRouter } from "./routers/materials";
 import { courseGroupsRouter } from "./routers/groups";
+import { contentCollectionsRouter } from "./routers/collections";
 import { publicProcedure, router, protectedProcedure, superAdminProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -1883,6 +1884,7 @@ export const appRouter = router({
 
   // Agrupamento de módulos
   courseGroups: courseGroupsRouter,
+  collections: contentCollectionsRouter,
 });
 
 export type AppRouter = typeof appRouter;

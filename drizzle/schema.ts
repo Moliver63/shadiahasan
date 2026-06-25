@@ -889,3 +889,51 @@ export const courseGroupLessons = pgTable("courseGroupLessons", {
 
 export type CourseGroupLesson = typeof courseGroupLessons.$inferSelect;
 export type InsertCourseGroupLesson = typeof courseGroupLessons.$inferInsert;
+
+/**
+ * Content Collections — Agrupamentos independentes de conteúdo
+ * Entidade própria que pode agregar aulas de qualquer curso/módulo
+ */
+export const contentCollections = pgTable("contentCollections", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  subtitle: varchar("subtitle", { length: 255 }),
+  description: text("description"),
+  coverUrl: text("coverUrl"),
+  order: integer("order").default(0).notNull(),
+  isActive: integer("isActive").default(1).notNull(),
+  totalDuration: integer("totalDuration").default(0).notNull(),
+  createdBy: integer("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type ContentCollection = typeof contentCollections.$inferSelect;
+export type InsertContentCollection = typeof contentCollections.$inferInsert;
+
+/**
+ * Content Collection Items — vínculos entre coleção e aulas
+ * Mantém apenas referências, sem duplicar arquivos
+ */
+export const contentCollectionItems = pgTable("contentCollectionItems", {
+  id: serial("id").primaryKey(),
+  collectionId: integer("collectionId").notNull(),
+  lessonId: integer("lessonId").notNull(),
+  order: integer("order").default(0).notNull(),
+  addedAt: timestamp("addedAt").defaultNow().notNull(),
+});
+
+export type ContentCollectionItem = typeof contentCollectionItems.$inferSelect;
+export type InsertContentCollectionItem = typeof contentCollectionItems.$inferInsert;
+
+/**
+ * Content Collection History — histórico de alterações
+ */
+export const contentCollectionHistory = pgTable("contentCollectionHistory", {
+  id: serial("id").primaryKey(),
+  collectionId: integer("collectionId").notNull(),
+  action: varchar("action", { length: 50 }).notNull(),
+  detail: text("detail"),
+  performedBy: integer("performedBy"),
+  performedAt: timestamp("performedAt").defaultNow().notNull(),
+});

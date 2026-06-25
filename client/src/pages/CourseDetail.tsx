@@ -98,12 +98,12 @@ export default function CourseDetail() {
   const { data: lessons, isLoading: lessonsLoading } =
     trpc.lessons.listByCourse.useQuery(
       { courseId: course?.id || 0 },
-      { enabled: !!course }
+      { enabled: !!course, staleTime: 0, refetchOnMount: "always" }
     );
 
   const { data: courseGroups = [] } = trpc.courseGroups.listByCourse.useQuery(
     { courseId: course?.id || 0 },
-    { enabled: !!course }
+    { enabled: !!course, staleTime: 0, refetchOnMount: "always", refetchOnWindowFocus: true }
   );
 
   const { data: enrollmentData } = trpc.enrollments.checkEnrollment.useQuery(

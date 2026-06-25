@@ -247,6 +247,8 @@ export default function LessonView() {
   const cancelCountdown = useCallback(() => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
+    if (tickRef.current) clearTimeout(tickRef.current);
+    deadlineRef.current = null;
     setCountdown(null);
     setIsExiting(false); // reverte animação de saída se cancelado após 9.4s
   }, []);
@@ -269,6 +271,8 @@ export default function LessonView() {
   // Inicia countdown quando aula é concluída e há próxima aula disponível
   const navTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownPausedRef = useRef(false);
+  const deadlineRef = useRef<number | null>(null); // timestamp absoluto do fim do countdown
+  const tickRef = useRef<ReturnType<typeof setTimeout> | null>(null); // tick único por segundo
 
   // Reset de todos os estados ao trocar de aula — evita vazamento entre aulas
   useEffect(() => {
@@ -279,6 +283,8 @@ export default function LessonView() {
     setIsExiting(false);
     if (countdownRef.current) clearInterval(countdownRef.current);
     if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
+    if (tickRef.current) clearTimeout(tickRef.current);
+    deadlineRef.current = null;
   }, [lessonId]);
 
   // nextStep: próxima aula do curso OU próxima da coleção OU próxima coleção
@@ -287,80 +293,71 @@ export default function LessonView() {
     || !!collectionContext?.nextCollection;
 
   useEffect(() => {
-    // Só inicia uma vez quando completionConfirmed vira true e há próximo passo
     if (!completionConfirmed || !hasNextStep) return;
-    // Evita duplo disparo se collectionContext chegar depois
-    if (countdownRef.current) return;
+    if (deadlineRef.current) return; // já iniciado
 
-    setCountdown(10);
-    countdownRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev === null || prev <= 1) {
-          clearInterval(countdownRef.current!);
-          countdownRef.current = null;
-          return null;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    // Captura destino no momento em que o countdown começa
+    // Captura destino e define deadline absoluto
     const destLesson = nextUnlockedLesson ?? collectionContext?.nextLesson ?? null;
     const destCollection = collectionContext?.nextCollection ?? null;
+    const TOTAL_MS = 10_000;
+    deadlineRef.current = Date.now() + TOTAL_MS;
 
-    const exitTimeout = setTimeout(() => {
-      setIsExiting(true);
-      navTimeoutRef.current = setTimeout(() => {
-        if (destLesson && 'id' in destLesson) {
-          setLocation(`/lesson/${(destLesson as any).id}`);
-        } else if (destLesson && 'lessonId' in destLesson) {
-          setLocation(`/lesson/${(destLesson as any).lessonId}`);
-        } else if (destCollection) {
-          setLocation(`/collections/${destCollection.id}`);
-        }
-      }, 600);
-    }, 9400);
-
-    return () => {
-      clearInterval(countdownRef.current!);
-      countdownRef.current = null;
-      clearTimeout(exitTimeout);
-      if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
-    };
-  }, [completionConfirmed, hasNextStep]);
-
-  // Pausa o countdown quando o aluno troca de aba ou minimiza o navegador
-  // Retoma quando o aluno volta — evita redirecionamento silencioso em background
-  useEffect(() => {
-    if (countdown === null) return;
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // Pausa: limpa o intervalo e marca como pausado
-        countdownPausedRef.current = true;
-        if (countdownRef.current) {
-          clearInterval(countdownRef.current);
-          countdownRef.current = null;
-        }
-      } else {
-        // Retoma: só se o countdown ainda estiver ativo e pausado
-        if (!countdownPausedRef.current || countdown === null) return;
-        countdownPausedRef.current = false;
-        countdownRef.current = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev === null || prev <= 1) {
-              clearInterval(countdownRef.current!);
-              return null;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+    function navigate() {
+      if (destLesson && "id" in destLesson) {
+        setLocation(`/lesson/${(destLesson as any).id}`);
+      } else if (destLesson && "lessonId" in destLesson) {
+        setLocation(`/lesson/${(destLesson as any).lessonId}`);
+      } else if (destCollection) {
+        setLocation(`/collections/${destCollection.id}`);
       }
-    };
+    }
+
+    function tick() {
+      if (!deadlineRef.current) return;
+      const remaining = deadlineRef.current - Date.now();
+      const secs = Math.max(0, Math.ceil(remaining / 1000));
+      setCountdown(secs);
+
+      if (remaining <= 600) {
+        setIsExiting(true);
+      }
+
+      if (remaining <= 0) {
+        deadlineRef.current = null;
+        navTimeoutRef.current = setTimeout(navigate, 600);
+        return;
+      }
+
+      // Agenda próximo tick no próximo segundo exato
+      const nextTick = remaining - Math.floor(remaining / 1000) * 1000;
+      tickRef.current = setTimeout(tick, nextTick > 0 ? nextTick : 1000);
+    }
+
+    tick();
+
+    function handleVisibilityChange() {
+      if (!deadlineRef.current) return;
+      if (document.hidden) {
+        // Pausa: guarda o tempo restante e cancela o tick
+        countdownPausedRef.current = true;
+        if (tickRef.current) { clearTimeout(tickRef.current); tickRef.current = null; }
+        if (navTimeoutRef.current) { clearTimeout(navTimeoutRef.current); navTimeoutRef.current = null; }
+      } else if (countdownPausedRef.current) {
+        // Retoma: mantém o deadline e reinicia os ticks
+        countdownPausedRef.current = false;
+        tick();
+      }
+    }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [countdown]);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (tickRef.current) clearTimeout(tickRef.current);
+      if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
+      deadlineRef.current = null;
+    };
+  }, [completionConfirmed, hasNextStep]);
 
   const handleProgress = useCallback((progress: number) => {
     if (lesson && hasAccess && progress > 90) {
@@ -653,7 +650,7 @@ export default function LessonView() {
                       Salvando conclusão...
                     </div>
                   )}
-                  {completionConfirmed && countdown !== null && nextUnlockedLesson && (
+                  {completionConfirmed && countdown !== null && hasNextStep && (
                     <div className="flex items-center gap-2 text-sm text-primary font-medium mt-2 mb-1">
                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
                         {countdown}

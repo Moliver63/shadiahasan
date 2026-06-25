@@ -75,53 +75,90 @@ export default function CollectionDetail() {
           {/* Main */}
           <div className="lg:col-span-2 space-y-6">
             <div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                <Layers className="h-4 w-4" /><span>Agrupamento de conteúdo</span>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+                <Layers className="h-4 w-4" /><span>Programa de conteúdo</span>
               </div>
               <h1 className="text-3xl font-bold mb-2">{collection.title}</h1>
-              {collection.subtitle && <p className="text-lg text-primary/80 mb-2">{collection.subtitle}</p>}
-              {collection.description && <p className="text-muted-foreground">{collection.description}</p>}
+              {collection.subtitle && (
+                <p className="text-xl text-primary/80 font-medium mb-3">{collection.subtitle}</p>
+              )}
+              {collection.description && (
+                <p className="text-muted-foreground leading-relaxed">{collection.description}</p>
+              )}
             </div>
 
+            {/* Capa mobile — aparece só abaixo de lg */}
             {collection.coverUrl && (
-              <div className="h-56 w-full overflow-hidden rounded-lg bg-muted sm:h-72">
+              <div className="lg:hidden h-48 w-full overflow-hidden rounded-xl bg-muted">
                 <img src={collection.coverUrl} alt={collection.title} className="w-full h-full object-cover" />
               </div>
             )}
 
             {/* Lista de aulas */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5" />Conteúdo do programa
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {lessons.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">Nenhuma aula disponível.</p>
-                ) : lessons.map((item: any, idx: number) => (
-                  <div key={item.id}
-                    className="flex items-center gap-4 p-3 rounded-lg border hover:bg-accent cursor-pointer transition-colors"
-                    onClick={() => handleStart(item)}>
-                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary font-semibold text-sm shrink-0">
-                      {idx + 1}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <BookOpen className="h-5 w-5" /> Conteúdo do programa
+              </h2>
+              {lessons.length === 0 ? (
+                <Card><CardContent className="py-8 text-center">
+                  <p className="text-muted-foreground">Nenhuma aula disponível.</p>
+                </CardContent></Card>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {lessons.map((item: any, idx: number) => (
+                    <div key={item.id}
+                      className="group cursor-pointer rounded-lg border overflow-hidden bg-card hover:border-primary/50 transition-all"
+                      onClick={() => handleStart(item)}>
+                      {/* Capa */}
+                      <div className="relative aspect-video bg-muted overflow-hidden">
+                        {item.course?.thumbnail ? (
+                          <img
+                            src={item.course.thumbnail}
+                            alt={item.lesson?.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <PlayCircle className="h-8 w-8 text-muted-foreground/40" />
+                          </div>
+                        )}
+                        {/* Número */}
+                        <div className="absolute top-2 left-2 bg-black/60 text-white text-xs font-bold rounded px-1.5 py-0.5">
+                          {idx + 1}
+                        </div>
+                        {/* Play overlay */}
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          {isAuthenticated
+                            ? <PlayCircle className="h-10 w-10 text-white" />
+                            : <Lock className="h-8 w-8 text-white" />}
+                        </div>
+                        {/* Duração */}
+                        {item.lesson?.duration && (
+                          <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-xs rounded px-1.5 py-0.5">
+                            {formatDuration(item.lesson.duration)}
+                          </div>
+                        )}
+                      </div>
+                      {/* Info */}
+                      <div className="p-2.5">
+                        <p className="text-sm font-medium line-clamp-2 leading-snug">{item.lesson?.title}</p>
+                        <p className="text-xs text-muted-foreground mt-1 truncate">{item.course?.title}</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{item.lesson?.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.course?.title}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 text-sm text-muted-foreground">
-                      {item.lesson?.duration && <span>{formatDuration(item.lesson.duration)}</span>}
-                      {isAuthenticated ? <PlayCircle className="h-4 w-4 text-primary" /> : <Lock className="h-4 w-4" />}
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Capa desktop */}
+            {collection.coverUrl && (
+              <div className="hidden lg:block overflow-hidden rounded-xl border">
+                <img src={collection.coverUrl} alt={collection.title} className="w-full object-cover" />
+              </div>
+            )}
             <Card>
               <CardHeader><CardTitle>Informações</CardTitle></CardHeader>
               <CardContent className="space-y-4">

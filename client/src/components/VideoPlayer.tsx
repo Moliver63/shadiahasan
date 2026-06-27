@@ -46,10 +46,12 @@ type AudioTrackOption = {
 
 // Detecta se a URL é do YouTube e retorna o ID do vídeo
 /** Sobe o volume de 0 para 1 em 800ms — evita ruído abrupto no autoplay */
-function fadeInAudio(video: HTMLVideoElement, durationMs = 800) {
+function fadeInAudio(video: HTMLVideoElement, onUnmute?: () => void, durationMs = 800) {
+  video.volume = 0;
   const steps = 20;
   const interval = durationMs / steps;
   let step = 0;
+  onUnmute?.(); // atualiza state de mute imediatamente
   const timer = setInterval(() => {
     step++;
     video.volume = Math.min(1, step / steps);
@@ -155,8 +157,9 @@ export default function VideoPlayer({
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
         if (autoPlay) video.addEventListener("canplay", () => {
-          video.volume = 0;
-          void video.play().then(() => fadeInAudio(video));
+          void video.play()
+            .then(() => fadeInAudio(video, () => setIsMuted(false)))
+            .catch(() => { video.volume = 1; setIsMuted(false); });
         }, { once: true });
       } else {
         void import("hls.js").then((module) => {
@@ -168,8 +171,9 @@ export default function VideoPlayer({
           hls.loadSource(src);
           hls.attachMedia(video);
           if (autoPlay) video.addEventListener("canplay", () => {
-            video.volume = 0;
-            void video.play().then(() => fadeInAudio(video));
+            void video.play()
+              .then(() => fadeInAudio(video, () => setIsMuted(false)))
+              .catch(() => { video.volume = 1; setIsMuted(false); });
           }, { once: true });
 
           const extractTracks = (tracksSource: any[]) =>
@@ -222,8 +226,9 @@ export default function VideoPlayer({
     } else {
       video.src = src;
       if (autoPlay) video.addEventListener("canplay", () => {
-        video.volume = 0;
-        void video.play().then(() => fadeInAudio(video));
+        void video.play()
+          .then(() => fadeInAudio(video, () => setIsMuted(false)))
+          .catch(() => { video.volume = 1; setIsMuted(false); });
       }, { once: true });
     }
 
@@ -247,6 +252,7 @@ export default function VideoPlayer({
       setIsPlaying(false);
       // Silencia imediatamente ao terminar — evita ruído/voz durante o countdown
       video.volume = 0;
+      setIsMuted(true);
       if (onComplete) {
         onComplete();
       }

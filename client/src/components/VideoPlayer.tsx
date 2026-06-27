@@ -99,6 +99,17 @@ export default function VideoPlayer({
 
   const youtubeId = getYouTubeId(src);
 
+  // Silencia imediatamente quando countdown inicia — cobre todos os cenários
+  // (vídeo terminado, aula já concluída com vídeo ainda tocando, etc.)
+  useEffect(() => {
+    if (countdown === null) return;
+    const video = videoRef.current;
+    if (video) {
+      video.muted = true;
+      setIsMuted(true);
+    }
+  }, [countdown]);
+
   useEffect(() => {
     if (youtubeId) return;
 

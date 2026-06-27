@@ -24,6 +24,7 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   BookOpen,
+  Calendar,
   CreditCard,
   ExternalLink,
   LayoutDashboard,
@@ -55,6 +56,7 @@ const menuItems = [
   { icon: CreditCard, label: "Planos", path: "/admin/plans" },
   { icon: MessageSquareQuote, label: "Depoimentos", path: "/admin/testimonials" },
   { icon: Users, label: "Alunos", path: "/admin/students" },
+  { icon: Calendar, label: "Calendário", path: "/admin/appointments" },
   { icon: Shield, label: "Moderação", path: "/admin/moderation" },
   { icon: Settings, label: "Configurações", path: "/admin/settings" },
 ];

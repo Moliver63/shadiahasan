@@ -47,15 +47,19 @@ type AudioTrackOption = {
 // Detecta se a URL é do YouTube e retorna o ID do vídeo
 /** Sobe o volume de 0 para 1 em 800ms — evita ruído abrupto no autoplay */
 function fadeInAudio(video: HTMLVideoElement, onUnmute?: () => void, durationMs = 800) {
+  // Garante que muted está desativado e volume começa do zero
+  video.muted = false;
   video.volume = 0;
   const steps = 20;
   const interval = durationMs / steps;
   let step = 0;
-  onUnmute?.(); // atualiza state de mute imediatamente
   const timer = setInterval(() => {
     step++;
     video.volume = Math.min(1, step / steps);
-    if (step >= steps) clearInterval(timer);
+    if (step >= steps) {
+      clearInterval(timer);
+      onUnmute?.(); // atualiza ícone só quando volume chegou a 1
+    }
   }, interval);
 }
 
@@ -159,7 +163,7 @@ export default function VideoPlayer({
         if (autoPlay) video.addEventListener("canplay", () => {
           void video.play()
             .then(() => fadeInAudio(video, () => setIsMuted(false)))
-            .catch(() => { video.volume = 1; setIsMuted(false); });
+            .catch(() => { video.muted = false; video.volume = 1; setIsMuted(false); });
         }, { once: true });
       } else {
         void import("hls.js").then((module) => {
@@ -173,7 +177,7 @@ export default function VideoPlayer({
           if (autoPlay) video.addEventListener("canplay", () => {
             void video.play()
               .then(() => fadeInAudio(video, () => setIsMuted(false)))
-              .catch(() => { video.volume = 1; setIsMuted(false); });
+              .catch(() => { video.muted = false; video.volume = 1; setIsMuted(false); });
           }, { once: true });
 
           const extractTracks = (tracksSource: any[]) =>
@@ -228,7 +232,7 @@ export default function VideoPlayer({
       if (autoPlay) video.addEventListener("canplay", () => {
         void video.play()
           .then(() => fadeInAudio(video, () => setIsMuted(false)))
-          .catch(() => { video.volume = 1; setIsMuted(false); });
+          .catch(() => { video.muted = false; video.volume = 1; setIsMuted(false); });
       }, { once: true });
     }
 
@@ -250,8 +254,8 @@ export default function VideoPlayer({
 
     const handleEnded = () => {
       setIsPlaying(false);
-      // Silencia imediatamente ao terminar — evita ruído/voz durante o countdown
-      video.volume = 0;
+      // Silencia via muted (consistente com toggleMute) — evita ruído durante countdown
+      video.muted = true;
       setIsMuted(true);
       if (onComplete) {
         onComplete();

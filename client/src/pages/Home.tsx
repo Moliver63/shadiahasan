@@ -13,6 +13,7 @@ import StatsSection from "@/components/StatsSection";
 import HowItWorks from "@/components/HowItWorks";
 import Testimonials from "@/components/Testimonials";
 import FAQSection from "@/components/FAQSection";
+import LeadCapture from "@/components/LeadCapture";
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
@@ -208,6 +209,8 @@ export default function Home() {
           </Card>
         </div>
       </section>
+
+      <LeadCapture />
 
       <Testimonials />
 

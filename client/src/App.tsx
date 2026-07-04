@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import InstallAppButton from "./components/InstallAppButton";
 import { ShadiaAssistantChat } from "./components/ShadiaAssistantChat";
 import CookieConsent from "./components/CookieConsent";
+import Analytics from "./components/Analytics";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
@@ -166,6 +167,7 @@ function App() {
         switchable
       >
         <TooltipProvider>
+          <Analytics />
           <Toaster />
           <Router />
           <InstallAppButton mode="floating" />

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import PublicHeader from "@/components/PublicHeader";
+import { trackCheckoutStart } from "@/components/Analytics";
 
 export default function Pricing() {
   const { user, isAuthenticated } = useAuth();
@@ -98,6 +99,7 @@ export default function Pricing() {
 
     try {
       toast.loading("Redirecionando para o checkout...");
+      trackCheckoutStart(planSlug, 0);
       const result = await createCheckout.mutateAsync({ planSlug });
       
       if (result.url) {

@@ -304,6 +304,22 @@ export type Testimonial = typeof testimonials.$inferSelect;
 export type InsertTestimonial = typeof testimonials.$inferInsert;
 
 /**
+ * Leads — captura de emails para funil de marketing
+ * (lead magnet: aula gratuita, newsletter, ebook)
+ */
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  name: varchar("name", { length: 255 }),
+  source: varchar("source", { length: 100 }).default("home").notNull(), // home, pricing, aula-gratuita
+  convertedToUserId: integer("convertedToUserId"), // preenchido quando vira usuário
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Lead = typeof leads.$inferSelect;
+export type InsertLead = typeof leads.$inferInsert;
+
+/**
  * Ebooks
  */
 export const ebooks = pgTable("ebooks", {

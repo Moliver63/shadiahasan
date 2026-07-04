@@ -1869,6 +1869,47 @@ export const appRouter = router({
   }),
 
   // Admin management router
+  leads: router({
+    // Captura pública de lead (email) — usado no lead magnet da home
+    capture: publicProcedure
+      .input(
+        z.object({
+          email: z.string().email("Email inválido"),
+          name: z.string().max(255).optional(),
+          source: z.string().max(100).default("home"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const database = await db.getDb();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+        const { leads } = await import("../drizzle/schema");
+
+        try {
+          await database.insert(leads).values({
+            email: input.email.toLowerCase().trim(),
+            name: input.name?.trim(),
+            source: input.source,
+          });
+        } catch (e: any) {
+          // Email duplicado (unique) — sucesso silencioso (idempotente)
+          const msg = String(e?.message ?? "");
+          const code = String(e?.code ?? "");
+          if (!msg.includes("duplicate") && code !== "23505") throw e;
+        }
+
+        return { success: true };
+      }),
+
+    // Lista de leads (admin) — exportar para ferramenta de email marketing
+    listAll: adminProcedure.query(async () => {
+      const database = await db.getDb();
+      if (!database) return [];
+      const { leads } = await import("../drizzle/schema");
+      const { desc } = await import("drizzle-orm");
+      return database.select().from(leads).orderBy(desc(leads.createdAt));
+    }),
+  }),
+
   videos: videosRouter,
 
   adminManagement: adminRouter,

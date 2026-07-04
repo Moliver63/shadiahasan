@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { trackLead } from "@/components/Analytics";
+import { toast } from "sonner";
 
 /**
  * LeadCapture — captura de email na home (lead magnet)
@@ -19,6 +20,9 @@ export default function LeadCapture() {
     onSuccess: () => {
       setDone(true);
       trackLead("home-lead-magnet");
+    },
+    onError: () => {
+      toast.error("Não foi possível salvar seu email. Tente novamente em instantes.");
     },
   });
 

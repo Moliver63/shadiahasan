@@ -24,6 +24,7 @@ import AdminCourseGroups from "./pages/AdminCourseGroups";
 import AdminCollections from "./pages/AdminCollections";
 import CollectionDetail from "./pages/CollectionDetail";
 import AdminSettings from "./pages/AdminSettings";
+import AdminAnalytics from "./pages/AdminAnalytics";
 import AdminLessons from "./pages/AdminLessons";
 import AdminStudents from "./pages/AdminStudents";
 import Courses from "./pages/Courses";

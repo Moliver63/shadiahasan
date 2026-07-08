@@ -34,6 +34,7 @@ import {
   PanelLeft,
   PlayCircle,
   Settings,
+  BarChart2,
   Shield,
   Users,
   Wallet,
@@ -58,6 +59,7 @@ const menuItems = [
   { icon: Users, label: "Alunos", path: "/admin/students" },
   { icon: Calendar, label: "Calendário", path: "/admin/appointments" },
   { icon: Shield, label: "Moderação", path: "/admin/moderation" },
+  { icon: BarChart2, label: "Analytics", path: "/admin/analytics" },
   { icon: Settings, label: "Configurações", path: "/admin/settings" },
 ];
 

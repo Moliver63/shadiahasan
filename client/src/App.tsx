@@ -112,6 +112,7 @@ function Router() {
       <ProtectedRoute path={"/admin/plans"} component={AdminPlans} requireAdmin />
       <ProtectedRoute path={"/admin/testimonials"} component={AdminTestimonials} requireAdmin />
       <ProtectedRoute path={"/admin/courses/:id/lessons"} component={AdminCourseLessons} requireAdmin />
+      <ProtectedRoute path={"/admin/analytics"} component={AdminAnalytics} requireAdmin />
       <ProtectedRoute path={"/admin/settings"} component={AdminSettings} requireAdmin />
       <ProtectedRoute path={"/admin/lessons"} component={AdminLessons} requireAdmin />
       <ProtectedRoute path={"/admin/lessons/:id/materials"} component={AdminLessonMaterials} requireAdmin />

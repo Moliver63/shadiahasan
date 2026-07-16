@@ -29,6 +29,22 @@ import {
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
+// Upload de capa via Cloudinary (mesmo preset usado nas coleções)
+async function uploadToCloudinary(file: File): Promise<string> {
+  if (file.size > 10 * 1024 * 1024) throw new Error("Imagem muito grande. Máximo 10MB.");
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", "thome_unsigned");
+  formData.append("folder", "shadiahasan/thumbnails");
+  const res = await fetch("https://api.cloudinary.com/v1_1/dzty82u60/image/upload", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error("Falha no upload da imagem.");
+  const data = await res.json();
+  return data.secure_url;
+}
+
 
 // Keyword map: Portuguese common words → English for image search
 const ptToEn: Record<string, string> = {
@@ -59,14 +75,6 @@ const generateThumbnailFromTitle = (title: string): string => {
   return `https://picsum.photos/seed/${encodeURIComponent(query)}-${seed}/1600/900`;
 };
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 const normalize = (s: string) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -98,7 +106,6 @@ export default function AdminCourses() {
 
   const utils = trpc.useUtils();
   const { data: courses, isLoading } = trpc.courses.listAll.useQuery();
-  const uploadThumbnailMutation = trpc.courses.uploadThumbnail.useMutation();
 
   // Mantém a lista local sincronizada com o servidor (ordenada por `order`)
   useEffect(() => {
@@ -208,20 +215,15 @@ export default function AdminCourses() {
         toast.error("Selecione um arquivo de imagem válido.");
         return;
       }
-      const MAX_SIZE = 2 * 1024 * 1024;
+      const MAX_SIZE = 10 * 1024 * 1024;
       if (file.size > MAX_SIZE) {
-        toast.error("Imagem muito grande. Máximo 2MB.");
+        toast.error("Imagem muito grande. Máximo 10MB.");
         return;
       }
       setIsUploadingThumb(true);
       try {
-        const base64Data = await fileToBase64(file);
-        setThumbnailPreview(base64Data);
-        const { url } = await uploadThumbnailMutation.mutateAsync({
-          fileName: file.name,
-          contentType: file.type,
-          base64Data,
-        });
+        setThumbnailPreview(URL.createObjectURL(file));
+        const url = await uploadToCloudinary(file);
         setFormData((prev) => ({ ...prev, thumbnail: url }));
         setThumbnailPreview(url);
         toast.success("Imagem enviada com sucesso!");
@@ -232,7 +234,7 @@ export default function AdminCourses() {
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [uploadThumbnailMutation]
+    []
   );
 
   const handleSubmit = (e: React.FormEvent) => {

@@ -73,6 +73,7 @@ const loadAnalytics = () => {
   const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID;
 
   if (!endpoint || !websiteId) return;
+  if (endpoint.includes("seudominio") || endpoint.includes("localhost")) return;
   if (document.querySelector('script[data-website-id]')) return;
 
   const script = document.createElement("script");

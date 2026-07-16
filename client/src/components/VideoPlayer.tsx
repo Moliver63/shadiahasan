@@ -96,6 +96,7 @@ export default function VideoPlayer({
   const [showControls, setShowControls] = useState(true);
   const [audioTracks, setAudioTracks] = useState<AudioTrackOption[]>([]);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState("0");
+  const [isAudioOnly, setIsAudioOnly] = useState(false);
 
   const youtubeId = getYouTubeId(src);
 
@@ -258,6 +259,10 @@ export default function VideoPlayer({
     const handleLoadedMetadata = () => {
       setDuration(video.duration || 0);
       syncNativeAudioTracks();
+      // Detecta MP4 só-áudio: videoWidth=0 significa sem stream de vídeo
+      if (video.videoWidth === 0 && video.duration > 0) {
+        setIsAudioOnly(true);
+      }
     };
 
     const handlePlay = () => setIsPlaying(true);
@@ -473,13 +478,45 @@ export default function VideoPlayer({
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
+      {/* Elemento <video> sempre montado para compatibilidade com o ref e eventos */}
       <video
         ref={videoRef}
-        className="aspect-video w-full"
+        className={isAudioOnly ? "hidden" : "aspect-video w-full"}
         onClick={togglePlay}
         onDoubleClick={() => void toggleFullscreen()}
         playsInline
       />
+
+      {/* Interface visual de áudio — aparece quando MP4 não tem stream de vídeo */}
+      {isAudioOnly && (
+        <div
+          className="aspect-video w-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5 cursor-pointer select-none"
+          onClick={togglePlay}
+        >
+          <div className="flex flex-col items-center gap-4">
+            {/* Onda animada */}
+            <div className="flex items-end gap-1 h-16">
+              {[0.4, 0.7, 1, 0.8, 0.5, 0.9, 0.6, 1, 0.7, 0.4].map((h, i) => (
+                <div
+                  key={i}
+                  className={`w-2 rounded-full bg-primary ${isPlaying ? "animate-pulse" : "opacity-40"}`}
+                  style={{
+                    height: `${h * 100}%`,
+                    animationDelay: `${i * 80}ms`,
+                    animationDuration: "600ms",
+                  }}
+                />
+              ))}
+            </div>
+            {/* Tempo */}
+            <span className="text-white/70 text-sm font-mono">
+              {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, "0")}
+              {" / "}
+              {Math.floor(duration / 60)}:{String(Math.floor(duration % 60)).padStart(2, "0")}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Tela preta ao terminar o vídeo — aparece quando countdown está ativo */}
       {countdown != null && countdown > 0 && (

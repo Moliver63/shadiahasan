@@ -422,8 +422,12 @@ export default function AdminCourseLessons() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("video/")) {
-      toast.error("Selecione um arquivo de vídeo válido.");
+    const isVideo = file.type.startsWith("video/");
+    const isAudioMp4 = file.type === "audio/mp4" || file.type === "audio/x-m4a";
+    const isAudioGeneric = file.type.startsWith("audio/");
+
+    if (!isVideo && !isAudioMp4 && !isAudioGeneric) {
+      toast.error("Selecione um arquivo de vídeo ou áudio válido (MP4, M4A, MP3, etc).");
       return;
     }
 
@@ -437,10 +441,13 @@ export default function AdminCourseLessons() {
 
     try {
       // 1. Obter URL de upload direto do servidor
+      // Cloudflare Stream só aceita mimeType video/* — áudio MP4 envia como video/mp4
+      const cfMimeType = file.type.startsWith("video/") ? file.type : "video/mp4";
+
       const { uploadUrl, uid } = await createUploadUrlMutation.mutateAsync({
         name: formData.title || file.name,
         fileSize: file.size,
-        mimeType: file.type,
+        mimeType: cfMimeType,
         isProtected: formData.isAccessRestricted === 1,
       });
 
@@ -982,7 +989,7 @@ export default function AdminCourseLessons() {
                         <input
                           ref={fileInputRef}
                           type="file"
-                          accept="video/*"
+                          accept="video/*,audio/mp4,audio/x-m4a,audio/mpeg"
                           className="hidden"
                           onChange={handleFileSelect}
                         />

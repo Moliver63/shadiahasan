@@ -13,7 +13,6 @@ import { publicProcedure, router, protectedProcedure, superAdminProcedure } from
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "./db";
-import { storagePut } from "./storage";
 
 // Admin-only procedure helper
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -496,7 +495,8 @@ export const appRouter = router({
     /**
      * Upload de thumbnail do curso (imagem) via storage proxy interno.
      * Recebe a imagem em base64 (data URL ou string base64 pura) e o
-     * content-type, salva no storage e retorna a URL pública.
+     * content-type via Cloudflare Images e retorna a URL pública.
+     * Migrado de storagePut (Forge) para Cloudflare Images (credenciais já configuradas).
      */
     uploadThumbnail: protectedProcedure
       .input(
@@ -518,6 +518,16 @@ export const appRouter = router({
           });
         }
 
+        const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+        const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+
+        if (!accountId || !apiToken) {
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: 'Cloudflare não configurado: adicione CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_API_TOKEN no Render.',
+          });
+        }
+
         // Aceita tanto "data:image/png;base64,XXXX" quanto "XXXX" puro
         const base64 = input.base64Data.includes(',')
           ? input.base64Data.split(',')[1]
@@ -525,24 +535,45 @@ export const appRouter = router({
 
         const buffer = Buffer.from(base64, 'base64');
 
-        // Limite de 2MB para thumbnails
-        const MAX_SIZE = 2 * 1024 * 1024;
+        // Limite de 10MB (Cloudflare Images aceita até 10MB)
+        const MAX_SIZE = 10 * 1024 * 1024;
         if (buffer.length > MAX_SIZE) {
           throw new TRPCError({
             code: 'PAYLOAD_TOO_LARGE',
-            message: 'Imagem muito grande. Máximo 2MB.',
+            message: 'Imagem muito grande. Máximo 10MB.',
           });
         }
 
-        const safeFileName = input.fileName.replace(/[^\w.\-]+/g, '_');
-        const storageKey = `thumbnails/courses/${Date.now()}-${safeFileName}`;
-
         try {
-          const { url } = await storagePut(storageKey, buffer, input.contentType);
+          // Upload direto para Cloudflare Images API
+          const safeFileName = input.fileName.replace(/[^\w.\-]+/g, '_');
+          const blob = new Blob([buffer], { type: input.contentType });
+          const formData = new FormData();
+          formData.append('file', blob, safeFileName);
+          formData.append('requireSignedURLs', 'false'); // URL pública
 
-          if (!url || url.startsWith('data:')) {
-            throw new Error('O serviço de upload não retornou uma URL pública válida.');
+          const response = await fetch(
+            `https://api.cloudflare.com/client/v4/accounts/${accountId}/images/v1`,
+            {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${apiToken}` },
+              body: formData,
+            }
+          );
+
+          const json = await response.json() as any;
+
+          if (!response.ok || !json.success) {
+            const errMsg = json?.errors?.[0]?.message ?? 'Erro no Cloudflare Images';
+            throw new Error(errMsg);
           }
+
+          // URL pública da imagem no Cloudflare Images CDN
+          const url = json.result?.variants?.[0] ?? json.result?.id
+            ? `https://imagedelivery.net/${accountId}/${json.result.id}/public`
+            : null;
+
+          if (!url) throw new Error('Cloudflare não retornou URL da imagem.');
 
           return { url };
         } catch (error) {

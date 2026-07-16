@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  AlertCircle,
   Languages,
   Maximize,
   Minimize,
@@ -97,6 +98,7 @@ export default function VideoPlayer({
   const [audioTracks, setAudioTracks] = useState<AudioTrackOption[]>([]);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState("0");
   const [isAudioOnly, setIsAudioOnly] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const youtubeId = getYouTubeId(src);
 
@@ -148,6 +150,8 @@ export default function VideoPlayer({
     setDuration(0);
     setIsPlaying(false);
     setShowControls(true);
+    setLoadError(null);
+    setIsAudioOnly(false);
 
     const syncNativeAudioTracks = () => {
       const nativeTracks = Array.from(
@@ -186,6 +190,18 @@ export default function VideoPlayer({
           hlsRef.current = hls;
           hls.loadSource(src);
           hls.attachMedia(video);
+
+          hls.on(Hls.Events.ERROR, (_event: unknown, data: any) => {
+            if (data.fatal) {
+              const msg = data.response?.code === 424
+                ? "Vídeo não disponível (foi removido ou está sendo processado)."
+                : data.response?.code === 403
+                ? "Acesso negado a este vídeo."
+                : "Erro ao carregar o vídeo. Tente novamente.";
+              setLoadError(msg);
+              hls.destroy();
+            }
+          });
           if (autoPlay) video.addEventListener("canplay", () => {
             void video.play()
               .then(() => fadeInAudio(video, () => setIsMuted(false)))
@@ -265,6 +281,17 @@ export default function VideoPlayer({
       }
     };
 
+    const handleVideoError = () => {
+      const err = video.error;
+      if (!err) return;
+      const msg = err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+        ? "Formato de vídeo não suportado ou fonte indisponível."
+        : err.code === MediaError.MEDIA_ERR_NETWORK
+        ? "Erro de rede ao carregar o vídeo. Verifique sua conexão."
+        : "Erro ao carregar o vídeo. Tente novamente.";
+      setLoadError(msg);
+    };
+
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
 
@@ -280,6 +307,7 @@ export default function VideoPlayer({
 
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("error", handleVideoError);
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
     video.addEventListener("ended", handleEnded);
@@ -287,6 +315,7 @@ export default function VideoPlayer({
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("error", handleVideoError);
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("ended", handleEnded);
@@ -478,17 +507,31 @@ export default function VideoPlayer({
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
+      {/* Tela de erro — aparece quando HLS ou src falham */}
+      {loadError && (
+        <div className="aspect-video w-full flex flex-col items-center justify-center bg-black/90 gap-3 px-6 text-center">
+          <AlertCircle className="h-10 w-10 text-destructive shrink-0" />
+          <p className="text-white/90 text-sm font-medium">{loadError}</p>
+          <button
+            onClick={() => { setLoadError(null); }}
+            className="mt-2 px-4 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs transition-colors"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
       {/* Elemento <video> sempre montado para compatibilidade com o ref e eventos */}
       <video
         ref={videoRef}
-        className={isAudioOnly ? "hidden" : "aspect-video w-full"}
+        className={isAudioOnly ? "hidden" : loadError ? "hidden" : "aspect-video w-full"}
         onClick={togglePlay}
         onDoubleClick={() => void toggleFullscreen()}
         playsInline
       />
 
       {/* Interface visual de áudio — aparece quando MP4 não tem stream de vídeo */}
-      {isAudioOnly && (
+      {isAudioOnly && !loadError && (
         <div
           className="aspect-video w-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5 cursor-pointer select-none"
           onClick={togglePlay}

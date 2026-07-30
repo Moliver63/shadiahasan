@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export default function ChatButton() {
   const [isOpen, setIsOpen] = useState(false);
-  const phoneNumber = "5547991426662"; // +55 47 99142-6662
+  const phoneNumber = "5547991665536"; // +55 47 99166-5536
   
   const message = encodeURIComponent(
     "Olá, Shadia! 👋\n\n" +

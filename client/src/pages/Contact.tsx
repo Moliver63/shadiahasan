@@ -25,7 +25,7 @@ export default function Contact() {
     
     // Criar mensagem para WhatsApp
     const whatsappMessage = encodeURIComponent(`*Agendamento de Sessão*\n\n*Nome:* ${formData.name}\n*Email:* ${formData.email}\n*Telefone:* ${formData.phone}\n*Data Preferida:* ${formData.preferredDate}\n*Horário Preferido:* ${formData.preferredTime}\n*Mensagem:*\n${formData.message}`);
-    const whatsappUrl = `https://wa.me/5547991426662?text=${whatsappMessage}`;
+    const whatsappUrl = `https://wa.me/5547991665536?text=${whatsappMessage}`;
     
     window.open(whatsappUrl, "_blank");
     toast.success("Redirecionando para WhatsApp...");
@@ -163,7 +163,7 @@ export default function Contact() {
               <CardContent>
                 <p className="mb-4 break-all text-xl font-semibold sm:text-2xl">+55 47 99142-6662</p>
                 <Button
-                  onClick={() => window.open("https://wa.me/5547991426662", "_blank")}
+                  onClick={() => window.open("https://wa.me/5547991665536", "_blank")}
                   className="w-full"
                   size="lg"
                 >

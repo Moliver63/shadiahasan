@@ -84,7 +84,7 @@ export default function CheckoutSuccess() {
               <br />
               Dúvidas? Entre em contato pelo{" "}
               <a 
-                href="https://wa.me/5511999999999" 
+                href="https://wa.me/5547991665536" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-purple-600 hover:underline"

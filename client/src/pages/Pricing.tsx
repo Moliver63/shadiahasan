@@ -234,7 +234,7 @@ export default function Pricing() {
             <a href="https://instagram.com/shadia_hasan" target="_blank" rel="noopener noreferrer" className="hover:text-purple-600 transition-colors">
               Instagram
             </a>
-            <a href="https://wa.me/5547991426662" target="_blank" rel="noopener noreferrer" className="hover:text-purple-600 transition-colors">
+            <a href="https://wa.me/5547991665536" target="_blank" rel="noopener noreferrer" className="hover:text-purple-600 transition-colors">
               WhatsApp
             </a>
           </div>

@@ -179,7 +179,7 @@ export default function FAQ() {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button
                   size="lg"
-                  onClick={() => window.open("https://wa.me/5547991426662", "_blank")}
+                  onClick={() => window.open("https://wa.me/5547991665536", "_blank")}
                 >
                   <MessageCircle className="h-5 w-5 mr-2" />
                   WhatsApp

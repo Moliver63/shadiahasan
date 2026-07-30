@@ -5,7 +5,7 @@ import { MessageCircle } from "lucide-react";
  * Aparece fixo no canto inferior direito da tela
  */
 export default function WhatsAppButton() {
-  const phoneNumber = "5547991426662"; // +55 47 99142-6662
+  const phoneNumber = "5547991665536"; // +55 47 99166-5536
   const message = encodeURIComponent(
     "Olá Shadia! Vim através do seu site e gostaria de saber mais sobre os cursos."
   );

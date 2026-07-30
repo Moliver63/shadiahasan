@@ -95,7 +95,7 @@ export function ShadiaAssistantChat() {
       const message = encodeURIComponent(
         "Olá! Gostaria de conversar sobre os programas de desenvolvimento pessoal."
       );
-      window.open(`https://wa.me/5547991426662?text=${message}`, "_blank");
+      window.open(`https://wa.me/5547991665536?text=${message}`, "_blank");
     }
   };
 

@@ -131,6 +131,7 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+import { courseGroups, courseGroupLessons, contentCollections, contentCollectionItems } from "../drizzle/schema";
 import { courses, courseModules, lessons, enrollments, Course, CourseModule, Lesson, Enrollment, InsertCourse, InsertCourseModule, InsertLesson, InsertEnrollment } from "../drizzle/schema";
 import { sql } from "drizzle-orm";
 
@@ -202,6 +203,62 @@ export async function reorderCourses(items: { id: number; order: number }[]) {
   });
 }
 
+
+// ── Agrupamento: limpeza e cópia de vínculos ────────────────────────────────
+// As tabelas de grupos/programas são criadas sob demanda pelos routers, então
+// podem não existir ainda. Por isso toda operação aqui é tolerante a falha:
+// nunca deve impedir a exclusão/duplicação principal.
+async function safeGrouping(label: string, fn: () => Promise<void>) {
+  try {
+    await fn();
+  } catch (e) {
+    console.warn(`[grouping:${label}]`, e instanceof Error ? e.message : e);
+  }
+}
+
+// Remove vínculos de aulas (grupos e programas) e recalcula a duração dos programas afetados
+async function removeLessonLinks(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, lessonIds: number[]) {
+  if (lessonIds.length === 0) return;
+  await safeGrouping("groupLessons", async () => {
+    await db.delete(courseGroupLessons).where(inArray(courseGroupLessons.lessonId, lessonIds));
+  });
+  await safeGrouping("collectionItems", async () => {
+    const affected = await db
+      .select({ collectionId: contentCollectionItems.collectionId })
+      .from(contentCollectionItems)
+      .where(inArray(contentCollectionItems.lessonId, lessonIds));
+    const colIds = Array.from(new Set(affected.map((a) => a.collectionId)));
+    if (colIds.length === 0) return;
+    await db.delete(contentCollectionItems).where(inArray(contentCollectionItems.lessonId, lessonIds));
+    for (const colId of colIds) {
+      const [row] = await db
+        .select({ total: sql<number>`COALESCE(SUM(${lessons.duration}), 0)` })
+        .from(contentCollectionItems)
+        .leftJoin(lessons, eq(lessons.id, contentCollectionItems.lessonId))
+        .where(eq(contentCollectionItems.collectionId, colId));
+      await db
+        .update(contentCollections)
+        .set({ totalDuration: Number(row?.total ?? 0), updatedAt: new Date() })
+        .where(eq(contentCollections.id, colId));
+    }
+  });
+}
+
+// Remove tudo que depende de cursos: vínculos das aulas e os grupos do curso
+async function removeCourseGrouping(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, courseIds: number[]) {
+  if (courseIds.length === 0) return;
+  const courseLessons = await db.select({ id: lessons.id }).from(lessons).where(inArray(lessons.courseId, courseIds));
+  await removeLessonLinks(db, courseLessons.map((l) => l.id));
+  await safeGrouping("courseGroups", async () => {
+    const groups = await db.select({ id: courseGroups.id }).from(courseGroups).where(inArray(courseGroups.courseId, courseIds));
+    const groupIds = groups.map((g) => g.id);
+    if (groupIds.length > 0) {
+      await db.delete(courseGroupLessons).where(inArray(courseGroupLessons.groupId, groupIds));
+      await db.delete(courseGroups).where(inArray(courseGroups.id, groupIds));
+    }
+  });
+}
+
 // Duplica um curso e TODAS as suas aulas (slug único, inicia como rascunho)
 export async function duplicateCourse(id: number, instructorId: number) {
   const db = await getDb();
@@ -246,8 +303,9 @@ export async function duplicateCourse(id: number, instructorId: number) {
     .where(eq(lessons.courseId, id))
     .orderBy(asc(lessons.order));
 
+  const lessonIdMap = new Map<number, number>(); // id antigo -> id novo
   for (const l of origLessons) {
-    await db.insert(lessons).values({
+    const [insertedLesson] = await db.insert(lessons).values({
       courseId: newId,
       moduleId: l.moduleId ?? undefined,
       title: l.title,
@@ -259,10 +317,46 @@ export async function duplicateCourse(id: number, instructorId: number) {
       duration: l.duration ?? undefined,
       isPublished: l.isPublished,
       isAccessRestricted: l.isAccessRestricted,
-    });
+    }).returning({ id: lessons.id });
+    if (insertedLesson) lessonIdMap.set(l.id, insertedLesson.id);
   }
 
-  return { id: newId, lessonsCopied: origLessons.length };
+  // Copia os grupos (módulos) do curso, apontando para as aulas novas
+  let groupsCopied = 0;
+  await safeGrouping("duplicateGroups", async () => {
+    const origGroups = await db
+      .select()
+      .from(courseGroups)
+      .where(eq(courseGroups.courseId, id))
+      .orderBy(asc(courseGroups.order));
+    for (const g of origGroups) {
+      const [newGroup] = await db
+        .insert(courseGroups)
+        .values({
+          courseId: newId,
+          title: g.title,
+          subtitle: g.subtitle ?? undefined,
+          description: g.description ?? undefined,
+          coverUrl: g.coverUrl ?? undefined,
+          order: g.order,
+          isPublished: g.isPublished,
+        })
+        .returning({ id: courseGroups.id });
+      if (!newGroup) continue;
+      const links = await db
+        .select()
+        .from(courseGroupLessons)
+        .where(eq(courseGroupLessons.groupId, g.id))
+        .orderBy(asc(courseGroupLessons.order));
+      const rows = links
+        .filter((gl) => lessonIdMap.has(gl.lessonId))
+        .map((gl) => ({ groupId: newGroup.id, lessonId: lessonIdMap.get(gl.lessonId)!, order: gl.order }));
+      if (rows.length > 0) await db.insert(courseGroupLessons).values(rows);
+      groupsCopied++;
+    }
+  });
+
+  return { id: newId, lessonsCopied: origLessons.length, groupsCopied };
 }
 
 // Ações em lote — cursos
@@ -277,6 +371,7 @@ export async function bulkDeleteCourses(ids: number[]) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (ids.length === 0) return;
+  await removeCourseGrouping(db, ids);
   await db.delete(lessons).where(inArray(lessons.courseId, ids));
   await db.delete(enrollments).where(inArray(enrollments.courseId, ids));
   await db.delete(courses).where(inArray(courses.id, ids));
@@ -293,7 +388,8 @@ export async function deleteCourse(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // Delete related lessons and enrollments first
+  // Delete related grouping, lessons and enrollments first
+  await removeCourseGrouping(db, [id]);
   await db.delete(lessons).where(eq(lessons.courseId, id));
   await db.delete(enrollments).where(eq(enrollments.courseId, id));
   await db.delete(courses).where(eq(courses.id, id));
@@ -346,6 +442,7 @@ export async function deleteLesson(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  await removeLessonLinks(db, [id]);
   await db.delete(lessons).where(eq(lessons.id, id));
 }
 
@@ -376,7 +473,7 @@ export async function duplicateLesson(id: number) {
   const nextOrder = Number(orderRow?.maxOrder ?? 0) + 1;
 
   const newTitle = `${orig.title} (cópia)`;
-  await db.insert(lessons).values({
+  const [created] = await db.insert(lessons).values({
     courseId: orig.courseId,
     moduleId: orig.moduleId ?? undefined,
     title: newTitle,
@@ -388,14 +485,25 @@ export async function duplicateLesson(id: number) {
     duration: orig.duration ?? undefined,
     isPublished: 0, // cópia começa como rascunho
     isAccessRestricted: orig.isAccessRestricted,
-  });
+  }).returning({ id: lessons.id });
 
-  const [created] = await db
-    .select()
-    .from(lessons)
-    .where(and(eq(lessons.courseId, orig.courseId), eq(lessons.title, newTitle)))
-    .orderBy(desc(lessons.id))
-    .limit(1);
+  // A cópia entra nos mesmos grupos (módulos) da aula original, no fim de cada um
+  if (created) {
+    await safeGrouping("duplicateLessonGroups", async () => {
+      const links = await db.select().from(courseGroupLessons).where(eq(courseGroupLessons.lessonId, id));
+      for (const link of links) {
+        const [maxRow] = await db
+          .select({ maxOrder: sql<number>`COALESCE(MAX(${courseGroupLessons.order}), 0)` })
+          .from(courseGroupLessons)
+          .where(eq(courseGroupLessons.groupId, link.groupId));
+        await db.insert(courseGroupLessons).values({
+          groupId: link.groupId,
+          lessonId: created.id,
+          order: Number(maxRow?.maxOrder ?? 0) + 1,
+        });
+      }
+    });
+  }
   return { id: created?.id };
 }
 
@@ -411,6 +519,7 @@ export async function bulkDeleteLessons(ids: number[]) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (ids.length === 0) return;
+  await removeLessonLinks(db, ids);
   await db.delete(lessons).where(inArray(lessons.id, ids));
 }
 

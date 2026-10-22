@@ -125,6 +125,31 @@ async function runWriteWithSchema<T>(
   }
 }
 
+/** Garante que todas as aulas pertencem ao curso do grupo (senão o aluno nunca as vê). */
+async function assertLessonsBelongToCourse(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  courseId: number,
+  lessonIds: number[],
+) {
+  if (lessonIds.length === 0) return;
+  const rows = await db
+    .select({ id: lessons.id, courseId: lessons.courseId, title: lessons.title })
+    .from(lessons)
+    .where(inArray(lessons.id, lessonIds));
+  const found = new Set(rows.map((r) => r.id));
+  const missing = lessonIds.filter((id) => !found.has(id));
+  const foreign = rows.filter((r) => r.courseId !== courseId);
+  if (missing.length > 0 || foreign.length > 0) {
+    const names = foreign.map((r) => `"${r.title}"`).join(", ");
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: foreign.length > 0
+        ? `Estas aulas pertencem a outro curso e não aparecem para o aluno neste curso: ${names}. Use Programas para agrupar aulas de cursos diferentes.`
+        : "Algumas aulas selecionadas não existem mais.",
+    });
+  }
+}
+
 export const courseGroupsRouter = router({
 
   // ── Leitura ────────────────────────────────────────────────────────────────
@@ -196,7 +221,7 @@ export const courseGroupsRouter = router({
 
             const lessonDetails = groupLessons.length > 0
               ? await db
-                  .select({ id: lessons.id, title: lessons.title, duration: lessons.duration })
+                  .select({ id: lessons.id, title: lessons.title, duration: lessons.duration, courseId: lessons.courseId, isPublished: lessons.isPublished })
                   .from(lessons)
                   .where(inArray(lessons.id, groupLessons.map((gl) => gl.lessonId)))
               : [];
@@ -209,6 +234,8 @@ export const courseGroupsRouter = router({
                 order: gl.groupOrder,
                 title: lessonDetails.find((l) => l.id === gl.lessonId)?.title ?? "",
                 duration: lessonDetails.find((l) => l.id === gl.lessonId)?.duration ?? null,
+                courseId: lessonDetails.find((l) => l.id === gl.lessonId)?.courseId ?? null,
+                isPublished: lessonDetails.find((l) => l.id === gl.lessonId)?.isPublished ?? 0,
               })),
               lessonCount: groupLessons.length,
             };
@@ -221,7 +248,8 @@ export const courseGroupsRouter = router({
 
   /** Admin: lista aulas do curso atual para seleção no agrupamento */
   adminListLessons: adminProcedure
-    .query(async () => {
+    .input(z.object({ courseId: z.number().int().positive().optional() }).optional())
+    .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];
 
@@ -238,6 +266,7 @@ export const courseGroupsRouter = router({
           })
           .from(lessons)
           .leftJoin(courses, eq(lessons.courseId, courses.id))
+          .where(input?.courseId ? eq(lessons.courseId, input.courseId) : undefined)
           .orderBy(asc(courses.title), asc(lessons.order));
 
         return allLessons;
@@ -271,6 +300,8 @@ export const courseGroupsRouter = router({
             message: "A capa do agrupamento precisa ser uma URL de arquivo enviada previamente, não uma imagem base64.",
           });
         }
+
+        await assertLessonsBelongToCourse(db, input.courseId, input.lessonIds);
 
         const [group] = await db
           .insert(courseGroups)
@@ -328,6 +359,7 @@ export const courseGroupsRouter = router({
           .returning();
 
         if (input.lessonIds !== undefined) {
+          if (updated) await assertLessonsBelongToCourse(db, updated.courseId, input.lessonIds);
           await db.delete(courseGroupLessons).where(eq(courseGroupLessons.groupId, input.groupId));
           if (input.lessonIds.length > 0) {
             await db.insert(courseGroupLessons).values(
@@ -355,6 +387,10 @@ export const courseGroupsRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
       return runWriteWithSchema(db, async () => {
+        const [grp] = await db.select().from(courseGroups).where(eq(courseGroups.id, input.groupId)).limit(1);
+        if (!grp) throw new TRPCError({ code: "NOT_FOUND", message: "Grupo não encontrado" });
+        await assertLessonsBelongToCourse(db, grp.courseId, input.lessonIds);
+
         const existing = await db
           .select()
           .from(courseGroupLessons)

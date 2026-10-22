@@ -38,7 +38,10 @@ export default function AdminCourseGroups() {
     { courseId: courseId ?? 0 },
     { enabled: courseId !== null }
   );
-  const { data: allLessons = [] } = trpc.courseGroups.adminListLessons.useQuery();
+  const { data: allLessons = [] } = trpc.courseGroups.adminListLessons.useQuery(
+    { courseId: courseId ?? undefined },
+    { enabled: courseId !== null }
+  );
 
   // Aulas já vinculadas a algum grupo neste curso
   const groupedLessonIds = new Set((groups as any[]).flatMap((g: any) => g.lessons.map((l: any) => l.lessonId)));
@@ -365,6 +368,12 @@ export default function AdminCourseGroups() {
                           <span className="text-xs font-medium text-muted-foreground w-5 text-center">{idx + 1}</span>
                           <PlayCircle className="h-4 w-4 text-primary shrink-0" />
                           <p className="text-sm flex-1 truncate">{lesson.title}</p>
+                          {lesson.courseId !== null && lesson.courseId !== courseId && (
+                            <span className="text-[10px] font-medium rounded px-1.5 py-0.5 bg-red-100 text-red-700 shrink-0" title="Esta aula é de outro curso e não aparece para o aluno aqui. Remova-a.">outro curso</span>
+                          )}
+                          {lesson.isPublished === 0 && (
+                            <span className="text-[10px] font-medium rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 shrink-0" title="Aula em rascunho: o aluno não vê até publicar.">rascunho</span>
+                          )}
                           <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0"
                             onClick={() => removeLessonMutation.mutate({ groupId: group.id, lessonId: lesson.lessonId })}>
                             <Trash2 className="h-3.5 w-3.5" />

@@ -118,9 +118,10 @@ export const contentCollectionsRouter = router({
 
   getById: publicProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return null;
+      const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "superadmin";
       return withSchema(db, async () => {
         const [col] = await db
           .select()
@@ -128,6 +129,8 @@ export const contentCollectionsRouter = router({
           .where(eq(contentCollections.id, input.id))
           .limit(1);
         if (!col) return null;
+        // Programa inativo (rascunho) só é visível para admin
+        if (!isAdmin && col.isActive !== 1) return null;
 
         const items = await db
           .select({
@@ -148,7 +151,6 @@ export const contentCollectionsRouter = router({
                 duration: lessons.duration,
                 courseId: lessons.courseId,
                 isPublished: lessons.isPublished,
-                videoPlaybackUrl: lessons.videoPlaybackUrl,
                 description: lessons.description,
                 order: lessons.order,
               })
@@ -156,7 +158,7 @@ export const contentCollectionsRouter = router({
               .where(inArray(lessons.id, lessonIds))
           : [];
 
-        const courseIds = [...new Set(lessonDetails.map((l: any) => l.courseId))];
+        const courseIds = Array.from(new Set(lessonDetails.map((l: any) => l.courseId)));
         const courseDetails = courseIds.length > 0
           ? await db
               .select({ id: courses.id, title: courses.title, thumbnail: courses.thumbnail, slug: courses.slug })
@@ -164,14 +166,20 @@ export const contentCollectionsRouter = router({
               .where(inArray(courses.id, courseIds))
           : [];
 
-        return {
-          ...col,
-          lessons: items.map((item: any) => {
+        // Nunca expõe URL de vídeo aqui; o player usa lessons.getById (com checagem de acesso).
+        // Aulas não publicadas e vínculos órfãos só aparecem para admin.
+        const visibleItems = items
+          .map((item: any) => {
             const lesson = lessonDetails.find((l: any) => l.id === item.lessonId);
             const course = lesson ? courseDetails.find((c: any) => c.id === lesson.courseId) : null;
             return { ...item, lesson, course };
-          }),
-          lessonCount: items.length,
+          })
+          .filter((i: any) => isAdmin || (i.lesson && i.lesson.isPublished === 1));
+
+        return {
+          ...col,
+          lessons: visibleItems,
+          lessonCount: visibleItems.length,
         };
       }, null);
     }),

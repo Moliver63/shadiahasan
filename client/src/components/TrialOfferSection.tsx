@@ -16,8 +16,11 @@ export default function TrialOfferSection() {
   const { data: info } = trpc.trial.info.useQuery();
   const { data: entries } = trpc.trial.entryLessons.useQuery();
   const { user, isAuthenticated } = useAuth();
-  const [payLessonId, setPayLessonId] = useState<number | null>(null);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const { data: diagnostics } = trpc.trial.adminDiagnose.useQuery(undefined, {
+    enabled: isAdmin && !!entries && entries.length === 0,
+  });
+  const [payLessonId, setPayLessonId] = useState<number | null>(null);
 
   if (!info || !entries) return null;
 
@@ -55,6 +58,20 @@ export default function TrialOfferSection() {
             <p>
               <strong className="font-semibold text-[#e8c48f]">Aviso para administradores.</strong>{" "}
               A compra ainda não funciona para os alunos porque {missing.join(" e ")}. O botão leva para a lista de cursos.
+              {entries.length === 0 && diagnostics && (
+                <span className="mt-2 block text-xs text-[#d8cabd]">
+                  {diagnostics.length === 0 && "Nenhum curso encontrado."}
+                  {diagnostics.map((c) => (
+                    <span key={c.courseId} className="block">
+                      {c.courseTitle}: {c.coursePublished ? "curso publicado" : "curso NÃO publicado"}, {c.lessonsTotal} aulas,{" "}
+                      {c.lessonsPublished} publicadas, {c.lessonsRestricted} restritas, {c.lessonsEligible} elegíveis
+                    </span>
+                  ))}
+                  <span className="mt-1 block">
+                    Uma aula só vira entrada se o curso e a aula estiverem publicados, a aula estiver marcada como restrita (exige plano) e tiver vídeo.
+                  </span>
+                </span>
+              )}
             </p>
           </div>
         </div>

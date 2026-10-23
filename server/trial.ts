@@ -171,6 +171,50 @@ export async function getEntryLessons(): Promise<EntryLesson[]> {
   return result;
 }
 
+export type EntryDiagnosticsRow = {
+  courseId: number;
+  courseTitle: string;
+  coursePublished: boolean;
+  lessonsTotal: number;
+  lessonsPublished: number;
+  /** publicadas e restritas (exigem plano ou compra) */
+  lessonsRestricted: number;
+  /** publicadas, restritas e com vídeo: as que podem ser aula de entrada */
+  lessonsEligible: number;
+};
+
+/** Admin: por que cada curso tem (ou não) aula de entrada. Só leitura. */
+export async function getEntryDiagnostics(): Promise<EntryDiagnosticsRow[]> {
+  const d = await db.getDb();
+  if (!d) return [];
+  const courseRows = await d
+    .select({ id: courses.id, title: courses.title, isPublished: courses.isPublished, order: courses.order })
+    .from(courses)
+    .orderBy(courses.order, courses.id);
+  const lessonRows = await d
+    .select({
+      courseId: lessons.courseId,
+      isPublished: lessons.isPublished,
+      isAccessRestricted: lessons.isAccessRestricted,
+      hasVideo: sql<boolean>`(${lessons.videoAssetId} IS NOT NULL OR ${lessons.videoPlaybackUrl} IS NOT NULL)`,
+    })
+    .from(lessons);
+  return courseRows.map((c) => {
+    const own = lessonRows.filter((l) => l.courseId === c.id);
+    const published = own.filter((l) => l.isPublished === 1);
+    const restricted = published.filter((l) => l.isAccessRestricted === 1);
+    return {
+      courseId: c.id,
+      courseTitle: c.title,
+      coursePublished: c.isPublished === 1,
+      lessonsTotal: own.length,
+      lessonsPublished: published.length,
+      lessonsRestricted: restricted.length,
+      lessonsEligible: c.isPublished === 1 ? restricted.filter((l) => !!l.hasVideo).length : 0,
+    };
+  });
+}
+
 export async function isEntryLesson(lessonId: number): Promise<boolean> {
   return (await getEntryLessons()).some((e) => e.lessonId === lessonId);
 }

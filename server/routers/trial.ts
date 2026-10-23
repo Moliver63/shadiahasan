@@ -10,7 +10,7 @@ import { getDb } from "../db";
 import { lessons } from "../../drizzle/schema";
 import { AsaasError } from "../asaas";
 import {
-  createTrialCheckout, getEntryLessonForCourse, getEntryLessons, getTrialPriceCents, getTrialStatus,
+  createTrialCheckout, getEntryDiagnostics, getEntryLessonForCourse, getEntryLessons, getTrialPriceCents, getTrialStatus,
   getTrialValidDays, setEntryLesson, TrialError,
 } from "../trial";
 import { isAsaasConfigured } from "../asaas";
@@ -29,6 +29,9 @@ export const trialRouter = router({
     const entries = await getEntryLessons();
     return entries.map(({ source, ...rest }) => rest);
   }),
+
+  /** Admin: por que cada curso tem (ou não) aula de entrada. */
+  adminDiagnose: adminProcedure.query(async () => getEntryDiagnostics()),
 
   /** Admin: aula de entrada do curso (escolhida ou automática). */
   adminEntryForCourse: adminProcedure

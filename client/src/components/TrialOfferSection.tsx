@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { Lock, PlayCircle, ShieldCheck, RefreshCcwDot, Clock, Eye } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { formatDuration } from "@/lib/formatDuration";
-import { formatBRL } from "@/components/TrialPassDialog";
+import TrialPassDialog, { formatBRL } from "@/components/TrialPassDialog";
+import { getLoginUrl } from "@/const";
 
 /**
  * Oferta de degustação: 1 aula completa por um valor único (Asaas).
@@ -13,7 +15,8 @@ import { formatBRL } from "@/components/TrialPassDialog";
 export default function TrialOfferSection() {
   const { data: info } = trpc.trial.info.useQuery();
   const { data: entries } = trpc.trial.entryLessons.useQuery();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const [payLessonId, setPayLessonId] = useState<number | null>(null);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   if (!info || !entries) return null;
@@ -25,6 +28,17 @@ export default function TrialOfferSection() {
   const showAdminNotice = missing.length > 0 && isAdmin;
   // Só dá para comprar com Asaas configurado e ao menos uma aula de entrada.
   const canBuy = info.enabled && entries.length > 0;
+
+  /** Abre o pagamento da aula; quem ainda não entrou na conta passa antes pelo login. */
+  const startPayment = (lessonId: number) => {
+    if (!isAuthenticated) {
+      window.location.href = getLoginUrl();
+      return;
+    }
+    setPayLessonId(lessonId);
+  };
+  const scrollToCards = () =>
+    document.getElementById("aulas-de-entrada")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const price = formatBRL(info.priceCents);
 
@@ -66,9 +80,10 @@ export default function TrialOfferSection() {
             </p>
             {(() => {
               const cls = "inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-[#d9b27c] to-[#f0d3a4] px-8 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-[#2b1d16] shadow-lg transition hover:brightness-105 sm:w-auto";
-              return canBuy
-                ? <a href="#aulas-de-entrada" className={cls}>Quero experimentar</a>
-                : <Link href="/courses" className={cls}>Quero experimentar</Link>;
+              if (!canBuy) return <Link href="/courses" className={cls}>Quero experimentar</Link>;
+              // Com uma única aula de entrada vai direto ao pagamento; com várias, o aluno escolhe o curso.
+              const onClick = entries.length === 1 ? () => startPayment(entries[0].lessonId) : scrollToCards;
+              return <button type="button" onClick={onClick} className={cls}>Quero experimentar</button>;
             })()}
           </div>
 
@@ -94,10 +109,11 @@ export default function TrialOfferSection() {
           <p className="mb-5 text-[11px] font-medium uppercase tracking-[0.3em] text-[#d9b27c]">Escolha por onde começar</p>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {entries.map((entry) => (
-              <Link
+              <button
+                type="button"
                 key={entry.lessonId}
-                href={`/lesson/${entry.lessonId}`}
-                className="group flex flex-col overflow-hidden rounded-2xl border border-[#d9b27c]/20 bg-[#1d1410]/60 transition hover:border-[#d9b27c]/60"
+                onClick={() => startPayment(entry.lessonId)}
+                className="group flex flex-col overflow-hidden rounded-2xl border border-[#d9b27c]/20 bg-[#1d1410]/60 text-left transition hover:border-[#d9b27c]/60"
               >
                 <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#3a2619]">
                   {entry.courseThumbnail ? (
@@ -124,12 +140,22 @@ export default function TrialOfferSection() {
                   </p>
                   <span className="mt-3 text-sm font-medium text-[#e8c48f]">Assistir por {price}</span>
                 </div>
-              </Link>
+              </button>
             ))}
           </div>
         </div>
         )}
       </div>
+
+      {canBuy && payLessonId !== null && (
+        <TrialPassDialog
+          open
+          onOpenChange={(open) => { if (!open) setPayLessonId(null); }}
+          lessonId={payLessonId}
+          priceCents={info.priceCents}
+          validDays={info.validDays}
+        />
+      )}
     </section>
   );
 }

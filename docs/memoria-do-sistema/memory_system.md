@@ -297,7 +297,7 @@ ASAAS_API_KEY=...  ASAAS_WEBHOOK_TOKEN=...  ASAAS_BASE_URL=...
 
 ## 11. Problemas conhecidos (abertos em 2026-10-23)
 
-1. **Webhook do Stripe provavelmente nunca valida.** O `server/_core/index.ts` aplica `express.json()` antes de montar `/api/stripe/webhook`, e a rota precisa do corpo cru. Reproduzido em teste local: com `express.json()` antes, a resposta é 400 "payload must be provided as a string or a Buffer"; sem ele, 200. Correção: montar a rota do Stripe **antes** do `express.json()`. Conferir nos logs do Render por "Falha na verificação da assinatura".
+1. ~~Webhook do Stripe nunca validava~~ **Corrigido em 2026-10-23.** O `express.json()` rodava antes da rota `/api/stripe/webhook`, que precisa do corpo cru (resposta 400 "payload must be provided as a string or a Buffer"). Agora a rota é montada **antes** do `express.json()` em `server/_core/index.ts`. Não mover de volta. Verificado no servidor real: evento assinado → 200; assinatura inválida ou ausente → 400.
 2. **Valores no webhook do Stripe:** a ativação grava `amount: 0`; a falha divide por 100 sendo que o financeiro já divide (valor sai 100x menor).
 3. **`pnpm check` com 17 erros de tipo no `main`** (Analytics, AdminAppointments, AdminCollections, CourseDetail, Courses, LessonView, materials). Parte das correções feitas localmente pode não ter sido publicada. Não barra o build.
 4. **Capas cinza no desktop:** confirmar em produção após publicar o `Courses.tsx` atualizado.
@@ -315,10 +315,10 @@ ASAAS_API_KEY=...  ASAAS_WEBHOOK_TOKEN=...  ASAAS_BASE_URL=...
 - [x] ordenar cursos e aulas (drag & drop + ↑↓), duplicar e ações em lote
 - [x] agrupamento: grupos só do próprio curso, cascata ao excluir, cópia de grupos ao duplicar, `collections.getById` sem URL de vídeo
 - [x] pagamento via Asaas (PIX, boleto, cartão) com webhook idempotente
+- [x] webhook do Stripe passou a receber o corpo cru (rota montada antes do `express.json()`)
 
 ### Ainda pendente
 
-- [ ] corrigir a ordem do `express.json()` x webhook do Stripe (item 11.1)
 - [ ] corrigir valores gravados pelo webhook do Stripe (item 11.2)
 - [ ] UI no admin para `courses.allowIndividualPurchase` e preço avulso
 - [ ] checkout de pagamento único (Stripe e/ou Asaas) para compra avulsa de curso
@@ -334,7 +334,7 @@ ASAAS_API_KEY=...  ASAAS_WEBHOOK_TOKEN=...  ASAAS_BASE_URL=...
 
 ## 13. Ordem recomendada para próximas manutenções
 
-1. corrigir o webhook do Stripe (11.1 e 11.2) e validar uma assinatura real de ponta a ponta;
+1. corrigir os valores gravados pelo webhook do Stripe (11.2) e validar uma assinatura real de ponta a ponta (o webhook só passou a validar em 2026-10-23, então pode haver assinaturas pagas antes disso sem ativação: conferir no painel do Stripe e ativar no admin);
 2. cadastrar as variáveis do Asaas, testar no sandbox e só então usar a chave de produção;
 3. publicar o `Courses.tsx` com `OptimizedImage` (`motion`/`priority`) e conferir as capas no desktop;
 4. fechar os erros de `pnpm check` e deixar o comando em zero;

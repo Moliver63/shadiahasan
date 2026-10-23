@@ -22,7 +22,7 @@
 
 import { and, desc, eq, sql } from "drizzle-orm";
 import * as db from "./db";
-import { courses, lessons, paymentHistory, trialPasses, trialEntryLessons, asaasAccounts } from "../drizzle/schema";
+import { contentCollections, contentCollectionItems, courses, lessons, paymentHistory, trialPasses, trialEntryLessons, asaasAccounts } from "../drizzle/schema";
 import {
   AsaasError,
   asaasRequest,
@@ -99,7 +99,9 @@ export function ensureTrialSchema(): Promise<boolean> {
 // ─── Aula de entrada por curso ───────────────────────────────────────────────
 
 export type EntryLesson = {
+  /** Curso da aula (usado pelo admin do curso e pela escolha da aula de entrada). */
   courseId: number;
+  /** Nome exibido no card: o do Programa, ou o do curso quando a vitrine é um curso publicado. */
   courseTitle: string;
   courseSlug: string;
   courseThumbnail: string | null;
@@ -107,38 +109,26 @@ export type EntryLesson = {
   lessonTitle: string;
   duration: number | null;
   source: "admin" | "auto";
+  /** Programa (coleção) de origem; null quando a vitrine é um curso publicado. */
+  programId: number | null;
 };
 
 /**
- * Uma aula de entrada por curso publicado. Vale a escolhida no painel; sem escolha (ou se a
- * escolhida deixou de servir), a primeira aula paga publicada e com vídeo do curso.
+ * Uma aula de entrada por vitrine. Vitrine = Programa ativo (o que o aluno vê no site; os cursos
+ * de origem podem continuar em rascunho) ou curso publicado fora de qualquer Programa.
+ * Vale a aula escolhida no painel; sem escolha (ou se ela deixou de servir), a primeira aula paga,
+ * publicada e com vídeo, na ordem do Programa ou do curso. Uma aula nunca aparece em duas vitrines.
  */
 export async function getEntryLessons(): Promise<EntryLesson[]> {
   const d = await db.getDb();
   if (!d) return [];
   await ensureTrialSchema();
 
-  const sellable = await d
-    .select({
-      lessonId: lessons.id,
-      courseId: lessons.courseId,
-      lessonTitle: lessons.title,
-      duration: lessons.duration,
-      order: lessons.order,
-      courseTitle: courses.title,
-      courseSlug: courses.slug,
-      courseThumbnail: courses.thumbnail,
-      courseOrder: courses.order,
-    })
-    .from(lessons)
-    .innerJoin(courses, eq(courses.id, lessons.courseId))
-    .where(and(
-      eq(courses.isPublished, 1),
-      eq(lessons.isPublished, 1),
-      eq(lessons.isAccessRestricted, 1),
-      sql`(${lessons.videoAssetId} IS NOT NULL OR ${lessons.videoPlaybackUrl} IS NOT NULL)`,
-    ))
-    .orderBy(courses.order, courses.id, lessons.order, lessons.id);
+  const eligibleLesson = and(
+    eq(lessons.isPublished, 1),
+    eq(lessons.isAccessRestricted, 1),
+    sql`(${lessons.videoAssetId} IS NOT NULL OR ${lessons.videoPlaybackUrl} IS NOT NULL)`,
+  );
 
   let chosen = new Map<number, number>();
   try {
@@ -146,17 +136,81 @@ export async function getEntryLessons(): Promise<EntryLesson[]> {
     chosen = new Map(rows.map((r) => [r.courseId, r.lessonId]));
   } catch { /* tabela ainda não existe: só o automático */ }
 
+  const result: EntryLesson[] = [];
+  const usedLessons = new Set<number>();
+
+  // 1) Programas ativos, na ordem da vitrine
+  const programRows = await d
+    .select({
+      programId: contentCollections.id,
+      programTitle: contentCollections.title,
+      programCover: contentCollections.coverUrl,
+      lessonId: lessons.id,
+      courseId: lessons.courseId,
+      lessonTitle: lessons.title,
+      duration: lessons.duration,
+      courseSlug: courses.slug,
+      courseThumbnail: courses.thumbnail,
+    })
+    .from(contentCollections)
+    .innerJoin(contentCollectionItems, eq(contentCollectionItems.collectionId, contentCollections.id))
+    .innerJoin(lessons, eq(lessons.id, contentCollectionItems.lessonId))
+    .innerJoin(courses, eq(courses.id, lessons.courseId))
+    .where(and(eq(contentCollections.isActive, 1), eligibleLesson))
+    .orderBy(contentCollections.order, contentCollections.id, contentCollectionItems.order, contentCollectionItems.id);
+
+  const byProgram = new Map<number, typeof programRows>();
+  for (const row of programRows) {
+    const list = byProgram.get(row.programId) ?? [];
+    list.push(row);
+    byProgram.set(row.programId, list);
+  }
+  byProgram.forEach((list) => {
+    const free = list.filter((l) => !usedLessons.has(l.lessonId));
+    if (free.length === 0) return;
+    const picked = free.find((l) => l.lessonId === chosen.get(l.courseId));
+    const row = picked ?? free[0];
+    usedLessons.add(row.lessonId);
+    result.push({
+      courseId: row.courseId,
+      courseTitle: row.programTitle,
+      courseSlug: row.courseSlug,
+      courseThumbnail: row.programCover || row.courseThumbnail,
+      lessonId: row.lessonId,
+      lessonTitle: row.lessonTitle,
+      duration: row.duration,
+      source: picked ? "admin" : "auto",
+      programId: row.programId,
+    });
+  });
+
+  // 2) Cursos publicados (vitrine própria), ainda sem aula de entrada
+  const sellable = await d
+    .select({
+      lessonId: lessons.id,
+      courseId: lessons.courseId,
+      lessonTitle: lessons.title,
+      duration: lessons.duration,
+      courseTitle: courses.title,
+      courseSlug: courses.slug,
+      courseThumbnail: courses.thumbnail,
+    })
+    .from(lessons)
+    .innerJoin(courses, eq(courses.id, lessons.courseId))
+    .where(and(eq(courses.isPublished, 1), eligibleLesson))
+    .orderBy(courses.order, courses.id, lessons.order, lessons.id);
+
   const byCourse = new Map<number, typeof sellable>();
   for (const row of sellable) {
+    if (usedLessons.has(row.lessonId)) continue;
     const list = byCourse.get(row.courseId) ?? [];
     list.push(row);
     byCourse.set(row.courseId, list);
   }
-
-  const result: EntryLesson[] = [];
   byCourse.forEach((list, courseId) => {
     const picked = list.find((l) => l.lessonId === chosen.get(courseId));
     const row = picked ?? list[0];
+    usedLessons.add(row.lessonId);
     result.push({
       courseId,
       courseTitle: row.courseTitle,
@@ -166,15 +220,18 @@ export async function getEntryLessons(): Promise<EntryLesson[]> {
       lessonTitle: row.lessonTitle,
       duration: row.duration,
       source: picked ? "admin" : "auto",
+      programId: null,
     });
   });
   return result;
 }
 
 export type EntryDiagnosticsRow = {
-  courseId: number;
-  courseTitle: string;
-  coursePublished: boolean;
+  kind: "programa" | "curso";
+  id: number;
+  title: string;
+  /** Programa ativo ou curso publicado: só estes entram na vitrine. */
+  visible: boolean;
   lessonsTotal: number;
   lessonsPublished: number;
   /** publicadas e restritas (exigem plano ou compra) */
@@ -183,36 +240,58 @@ export type EntryDiagnosticsRow = {
   lessonsEligible: number;
 };
 
-/** Admin: por que cada curso tem (ou não) aula de entrada. Só leitura. */
+/** Admin: por que cada vitrine (Programa ou curso publicado) tem ou não aula de entrada. Só leitura. */
 export async function getEntryDiagnostics(): Promise<EntryDiagnosticsRow[]> {
   const d = await db.getDb();
   if (!d) return [];
-  const courseRows = await d
-    .select({ id: courses.id, title: courses.title, isPublished: courses.isPublished, order: courses.order })
-    .from(courses)
-    .orderBy(courses.order, courses.id);
   const lessonRows = await d
     .select({
+      id: lessons.id,
       courseId: lessons.courseId,
       isPublished: lessons.isPublished,
       isAccessRestricted: lessons.isAccessRestricted,
       hasVideo: sql<boolean>`(${lessons.videoAssetId} IS NOT NULL OR ${lessons.videoPlaybackUrl} IS NOT NULL)`,
     })
     .from(lessons);
-  return courseRows.map((c) => {
-    const own = lessonRows.filter((l) => l.courseId === c.id);
-    const published = own.filter((l) => l.isPublished === 1);
+  const byId = new Map(lessonRows.map((l) => [l.id, l]));
+  const summarize = (list: typeof lessonRows, visible: boolean) => {
+    const published = list.filter((l) => l.isPublished === 1);
     const restricted = published.filter((l) => l.isAccessRestricted === 1);
     return {
-      courseId: c.id,
-      courseTitle: c.title,
-      coursePublished: c.isPublished === 1,
-      lessonsTotal: own.length,
+      visible,
+      lessonsTotal: list.length,
       lessonsPublished: published.length,
       lessonsRestricted: restricted.length,
-      lessonsEligible: c.isPublished === 1 ? restricted.filter((l) => !!l.hasVideo).length : 0,
+      lessonsEligible: visible ? restricted.filter((l) => !!l.hasVideo).length : 0,
     };
-  });
+  };
+
+  const rows: EntryDiagnosticsRow[] = [];
+
+  const programs = await d
+    .select({ id: contentCollections.id, title: contentCollections.title, isActive: contentCollections.isActive })
+    .from(contentCollections)
+    .orderBy(contentCollections.order, contentCollections.id);
+  const items = await d
+    .select({ collectionId: contentCollectionItems.collectionId, lessonId: contentCollectionItems.lessonId })
+    .from(contentCollectionItems);
+  for (const p of programs) {
+    const own = items
+      .filter((i) => i.collectionId === p.id)
+      .map((i) => byId.get(i.lessonId))
+      .filter((l): l is (typeof lessonRows)[number] => !!l);
+    rows.push({ kind: "programa", id: p.id, title: p.title, ...summarize(own, p.isActive === 1) });
+  }
+
+  const courseRows = await d
+    .select({ id: courses.id, title: courses.title, isPublished: courses.isPublished, order: courses.order })
+    .from(courses)
+    .where(eq(courses.isPublished, 1))
+    .orderBy(courses.order, courses.id);
+  for (const c of courseRows) {
+    rows.push({ kind: "curso", id: c.id, title: c.title, ...summarize(lessonRows.filter((l) => l.courseId === c.id), true) });
+  }
+  return rows;
 }
 
 export async function isEntryLesson(lessonId: number): Promise<boolean> {

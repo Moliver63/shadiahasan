@@ -26,7 +26,7 @@ export default function TrialOfferSection() {
 
   const missing: string[] = [];
   if (!info.enabled) missing.push("o Asaas não está configurado (falta ASAAS_API_KEY no servidor)");
-  if (entries.length === 0) missing.push("nenhum curso publicado tem aula paga, publicada e com vídeo para ser a aula de entrada");
+  if (entries.length === 0) missing.push("nenhum Programa ativo (nem curso publicado) tem aula paga, publicada e com vídeo para ser a aula de entrada");
   // A faixa aparece para todos. O aviso do que falta é só para administradores.
   const showAdminNotice = missing.length > 0 && isAdmin;
   // Só dá para comprar com Asaas configurado e ao menos uma aula de entrada.
@@ -62,13 +62,13 @@ export default function TrialOfferSection() {
                 <span className="mt-2 block text-xs text-[#d8cabd]">
                   {diagnostics.length === 0 && "Nenhum curso encontrado."}
                   {diagnostics.map((c) => (
-                    <span key={c.courseId} className="block">
-                      {c.courseTitle}: {c.coursePublished ? "curso publicado" : "curso NÃO publicado"}, {c.lessonsTotal} aulas,{" "}
+                    <span key={`${c.kind}-${c.id}`} className="block">
+                      {c.kind === "programa" ? "Programa" : "Curso"} {c.title}: {c.visible ? (c.kind === "programa" ? "ativo" : "publicado") : (c.kind === "programa" ? "INATIVO" : "NÃO publicado")}, {c.lessonsTotal} aulas,{" "}
                       {c.lessonsPublished} publicadas, {c.lessonsRestricted} restritas, {c.lessonsEligible} elegíveis
                     </span>
                   ))}
                   <span className="mt-1 block">
-                    Uma aula só vira entrada se o curso e a aula estiverem publicados, a aula estiver marcada como restrita (exige plano) e tiver vídeo.
+                    Uma aula só vira entrada se estiver num Programa ativo (ou num curso publicado), publicada, marcada como restrita (exige plano) e com vídeo.
                   </span>
                 </span>
               )}

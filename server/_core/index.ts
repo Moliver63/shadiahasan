@@ -45,6 +45,11 @@ async function startServer() {
     console.log('[Express] Trust proxy enabled for production');
   }
 
+  // Stripe webhook: precisa do corpo CRU para validar a assinatura, então
+  // tem que ser montado ANTES do express.json() (a rota aplica express.raw sozinha).
+  const stripeWebhook = await import('../routes/stripe-webhook');
+  app.use('/api', stripeWebhook.default);
+
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.use(cookieParser());
@@ -55,10 +60,6 @@ async function startServer() {
 
   // Rotas Google/Apple OAuth (/api/auth/google, /api/auth/apple)
   app.use('/api/auth', oauthRoutes);
-
-  // Stripe webhook
-  const stripeWebhook = await import('../routes/stripe-webhook');
-  app.use('/api', stripeWebhook.default);
 
   // Asaas webhook (PIX/boleto/cartão)
   const asaasWebhook = await import('../routes/asaas-webhook');

@@ -97,7 +97,7 @@ Detalhes (eventos, decisões, cadastro do webhook): seção 7 do `memory_system.
 
 ## 6. Problemas conhecidos e pendências
 
-- [ ] **Webhook do Stripe provavelmente nunca valida**: `express.json()` roda antes da rota que precisa do corpo cru (reproduzido em teste local). Montar a rota do Stripe antes do `express.json()`.
+- [x] Webhook do Stripe corrigido em 2026-10-23: a rota `/api/stripe/webhook` é montada **antes** do `express.json()` (precisa do corpo cru). Não mover de volta.
 - [ ] Webhook do Stripe grava `amount: 0` na ativação e divide por 100 duas vezes na falha.
 - [ ] `pnpm check` com 17 erros de tipo no `main`.
 - [ ] Capas cinza no desktop em produção: confirmar após publicar o `Courses.tsx` atualizado.

@@ -42,12 +42,21 @@ export default function TrialPassDialog({ open, onOpenChange, lessonId, priceCen
       toast.error("CPF ou CNPJ inválido. Confira os números.");
       return;
     }
+    // Abre a aba no gesto do clique; navegadores podem bloquear window.open após o await.
+    const paymentWindow = window.open("about:blank", "_blank");
     try {
       const result = await createCheckout.mutateAsync({ lessonId, cpfCnpj: onlyDigits(cpfCnpj) });
       onOpenChange(false);
-      window.open(result.url, "_blank");
+      if (paymentWindow) {
+        paymentWindow.opener = null;
+        paymentWindow.location.href = result.url;
+      } else {
+        // Fallback para navegadores que bloquearam a aba: continua o checkout na aba atual.
+        window.location.assign(result.url);
+      }
       toast.success("Abrindo página de pagamento...");
     } catch (error: any) {
+      paymentWindow?.close();
       toast.error(error?.message || "Erro ao criar pagamento. Tente novamente.");
     }
   };

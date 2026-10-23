@@ -52,7 +52,7 @@ export class AsaasError extends Error {
   }
 }
 
-async function asaasRequest<T = any>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+export async function asaasRequest<T = any>(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<T> {
   if (!isAsaasConfigured()) {
     throw new AsaasError("Asaas não está configurado (ASAAS_API_KEY ausente).", 412);
   }
@@ -129,7 +129,7 @@ export function ensureAsaasSchema(): Promise<boolean> {
 
 // ─── Checkout ────────────────────────────────────────────────────────────────
 
-function todayInSaoPaulo(): string {
+export function todayInSaoPaulo(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }); // YYYY-MM-DD
 }
 
@@ -415,6 +415,17 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
   if (!d) throw new Error("db indisponível");
 
   try {
+    // Pagamento avulso do teste de 1 aula (externalReference "trial:..."): não passa pela assinatura
+    const { isTrialEvent, processTrialEvent } = await import("./trial");
+    if (isTrialEvent(body)) {
+      await processTrialEvent(body);
+      await d
+        .update(asaasWebhookEvents)
+        .set({ status: "done", processedAt: new Date(), error: null })
+        .where(eq(asaasWebhookEvents.eventId, String(body.id)));
+      return;
+    }
+
     const account = await resolveAccount(body);
 
     switch (event) {

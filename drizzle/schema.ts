@@ -983,3 +983,24 @@ export const asaasWebhookEvents = pgTable("asaasWebhookEvents", {
   receivedAt: timestamp("receivedAt").defaultNow().notNull(),
   processedAt: timestamp("processedAt"),
 });
+
+/**
+ * Teste pago (Asaas): o aluno paga um valor único e assiste 1 aula completa por alguns dias.
+ * Não é assinatura: ao expirar, o caminho natural é assinar um plano.
+ */
+export const trialPasses = pgTable("trialPasses", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  lessonId: integer("lessonId").notNull(),
+  courseId: integer("courseId").notNull(),
+  asaasCustomerId: varchar("asaasCustomerId", { length: 64 }).notNull(),
+  asaasPaymentId: varchar("asaasPaymentId", { length: 64 }).notNull().unique(),
+  invoiceUrl: text("invoiceUrl"),
+  dueDate: varchar("dueDate", { length: 10 }), // YYYY-MM-DD (São Paulo) da cobrança
+  amountCents: integer("amountCents").notNull(),
+  status: varchar("status", { length: 16 }).default("pending").notNull(), // pending | active | cancelled | refunded
+  paidAt: timestamp("paidAt"),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});

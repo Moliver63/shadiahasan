@@ -10,11 +10,49 @@ export default function CheckoutSuccess() {
   const sessionId = searchParams.get('session_id');
   // PIX/boleto (Asaas) só confirmam depois; o acesso é liberado automaticamente quando o pagamento cair
   const isAsaas = searchParams.get('provider') === 'asaas';
+  // Teste pago de 1 aula: libera só aquela aula, e o caminho natural depois é assinar
+  const isTrial = searchParams.get('trial') === '1';
+  const trialLessonId = Number(searchParams.get('lesson')) || 0;
 
   useEffect(() => {
     // You could verify the session with Stripe here if needed
     console.log('Checkout session ID:', sessionId);
   }, [sessionId]);
+
+  if (isTrial) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <Card className="max-w-xl w-full">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckCircle className="h-12 w-12 text-green-600" />
+            </div>
+            <CardTitle className="text-3xl">Pagamento em processamento</CardTitle>
+            <CardDescription className="text-lg">
+              Assim que o pagamento for confirmado, sua aula é liberada automaticamente (PIX em minutos, boleto em até 3 dias úteis, cartão na hora).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              {trialLessonId > 0 && (
+                <Link href={`/lesson/${trialLessonId}`} className="flex-1">
+                  <Button className="w-full" size="lg">Ir para a aula</Button>
+                </Link>
+              )}
+              <Link href="/pricing" className="flex-1">
+                <Button variant="outline" className="w-full" size="lg">Ver planos de assinatura</Button>
+              </Link>
+            </div>
+            <p className="text-center text-sm text-gray-500">
+              Se a aula ainda aparecer bloqueada, aguarde a confirmação do pagamento e atualize a página.
+              Dúvidas? Fale pelo{" "}
+              <a href="https://wa.me/5547991665536" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">WhatsApp</a>.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center p-4">

@@ -41,6 +41,7 @@ import {
   updateAudioTrack,
 } from "../cloudflare-stream";
 import { getLearningPathLessonAccess } from "../learning-path";
+import { hasActiveTrialPass } from "../trial";
 
 // ─── Admin procedure ──────────────────────────────────────────────────────────
 
@@ -81,13 +82,16 @@ async function ensureEnrollment(db: any, userId: number, courseId: number) {
 
 export async function checkUserHasAccess(
   userId: number,
-  lesson: { isAccessRestricted: number; courseId: number }
+  lesson: { isAccessRestricted: number; courseId: number; id?: number }
 ): Promise<boolean> {
   // Aula gratuita — todos acessam
   if (!lesson.isAccessRestricted) return true;
 
   const db = await getDb();
   if (!db) return false;
+
+  // Teste pago de 1 aula (R$ 19,90): libera SÓ aquela aula, dentro da validade
+  if (lesson.id && (await hasActiveTrialPass(userId, lesson.id))) return true;
   const purchase = await db
     .select()
     .from(coursePurchases)
@@ -697,6 +701,7 @@ export const videosRouter = router({
         (await checkUserHasAccess(ctx.user.id, {
           isAccessRestricted: lesson.isAccessRestricted ?? 0,
           courseId: lesson.courseId,
+          id: input.lessonId,
         }));
 
       if (!hasCommercialAccess) {
@@ -707,7 +712,10 @@ export const videosRouter = router({
         });
       }
 
-      if (!isAdmin) {
+      // Quem pagou o teste de 1 aula assiste direto, sem esperar a liberação da trilha
+      const hasTrial = !isAdmin && (await hasActiveTrialPass(ctx.user.id, lesson.id));
+
+      if (!isAdmin && !hasTrial) {
         const pathAccess = await getLearningPathLessonAccess(
           ctx.user.id,
           lesson.courseId,
@@ -767,6 +775,7 @@ export const videosRouter = router({
         (await checkUserHasAccess(ctx.user.id, {
           isAccessRestricted: lesson.isAccessRestricted ?? 0,
           courseId: lesson.courseId,
+          id: input.lessonId,
         }));
 
       if (!hasCommercialAccess) {
@@ -775,6 +784,10 @@ export const videosRouter = router({
 
       if (isAdmin) {
         return { hasAccess: true, reason: "admin" as const };
+      }
+
+      if (await hasActiveTrialPass(ctx.user.id, input.lessonId)) {
+        return { hasAccess: true, reason: "trial" as const };
       }
 
       const pathAccess = await getLearningPathLessonAccess(

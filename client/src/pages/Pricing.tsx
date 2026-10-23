@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, X, Sparkles, CreditCard, QrCode } from "lucide-react";
 import { useState } from "react";
+import { Link } from "wouter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ export default function Pricing() {
   const createCheckout = trpc.subscriptions.createCheckout.useMutation();
   const createAsaasCheckout = trpc.subscriptions.createAsaasCheckout.useMutation();
   const { data: providers } = trpc.subscriptions.paymentProviders.useQuery();
+  const { data: trialInfo } = trpc.trial.info.useQuery();
 
   // Escolha do método de pagamento (só aparece quando o Asaas está configurado)
   type PaidSlug = "basic" | "premium" | "vip";
@@ -193,6 +195,26 @@ export default function Pricing() {
           </p>
         </div>
       </section>
+
+      {/* Teste de 1 aula (Asaas) */}
+      {providers?.asaas && trialInfo && (
+        <section className="px-4 pb-10">
+          <div className="container mx-auto max-w-3xl">
+            <div className="flex flex-col gap-4 rounded-xl border border-purple-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-lg">Quer sentir antes de assinar?</p>
+                <p className="text-sm text-muted-foreground">
+                  Assista a 1 aula completa por {(trialInfo.priceCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}, pagamento único.
+                  Se gostar, é só assinar um plano mensal.
+                </p>
+              </div>
+              <Link href="/courses">
+                <Button variant="outline" className="shrink-0">Escolher minha aula</Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Pricing Cards */}
       <section className="pb-20 px-4">

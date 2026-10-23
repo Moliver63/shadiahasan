@@ -15,6 +15,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { Link, useLocation, useParams } from "wouter";
 import LessonMaterials from "@/components/LessonMaterials";
+import TrialPassDialog, { formatBRL } from "@/components/TrialPassDialog";
 
 // Detecta se a URL é do YouTube
 function isYouTubeUrl(url: string): boolean {
@@ -84,6 +85,13 @@ export default function LessonView() {
       { lessonId },
       { enabled: !!lesson && isAuthenticated }
     );
+
+  // Teste pago de 1 aula (Asaas): preço, validade e situação do aluno
+  const { data: trialStatus } = trpc.trial.status.useQuery(
+    { lessonId },
+    { enabled: lessonId > 0 && isAuthenticated }
+  );
+  const [showTrialDialog, setShowTrialDialog] = useState(false);
 
   const { data: allLessons } = trpc.lessons.listByCourse.useQuery(
     { courseId: lesson?.courseId || 0 },
@@ -489,9 +497,24 @@ export default function LessonView() {
                 : "Esta aula é exclusiva para assinantes ou para quem adquiriu este curso individualmente. Assine um plano ou compre o curso para continuar."}
             </p>
             <div className="flex flex-col gap-2">
+              {!isLearningPathLocked && trialStatus?.enabled && trialStatus.lessonEligible && !trialStatus.alreadyUsed && (
+                <>
+                  <Button className="w-full" onClick={() => setShowTrialDialog(true)}>
+                    Assistir esta aula por {formatBRL(trialStatus.priceCents)}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Pagamento único, aula completa por {trialStatus.validDays} dias. Gostou? Assine depois.
+                  </p>
+                </>
+              )}
+              {!isLearningPathLocked && trialStatus?.alreadyUsed && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  Você já usou o teste de 1 aula. Para continuar assistindo, assine um plano.
+                </p>
+              )}
               {course && (
                 <Link href={`/courses/${course.slug}`}>
-                  <Button className="w-full">
+                  <Button className="w-full" variant={trialStatus?.enabled && trialStatus.lessonEligible && !trialStatus.alreadyUsed ? "outline" : "default"}>
                     {isLearningPathLocked ? "Voltar para a trilha" : "Ver opções do curso"}
                   </Button>
                 </Link>
@@ -506,6 +529,15 @@ export default function LessonView() {
             </div>
           </CardContent>
         </Card>
+        {trialStatus?.enabled && (
+          <TrialPassDialog
+            open={showTrialDialog}
+            onOpenChange={setShowTrialDialog}
+            lessonId={lessonId}
+            priceCents={trialStatus.priceCents}
+            validDays={trialStatus.validDays}
+          />
+        )}
       </div>
     );
   }
@@ -548,6 +580,19 @@ export default function LessonView() {
             Voltar para o Curso
           </Button>
         </Link>
+
+        {accessData?.reason === "trial" && trialStatus?.activePass && (
+          <div className="mb-6 flex flex-col gap-3 rounded-lg border border-purple-200 bg-purple-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-purple-900">
+              Você está no teste de 1 aula. Esta aula fica liberada até{" "}
+              <strong>{new Date(trialStatus.activePass.expiresAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</strong>.
+              Gostou? Assine para continuar com todos os cursos.
+            </p>
+            <Link href="/pricing">
+              <Button size="sm">Ver planos</Button>
+            </Link>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}

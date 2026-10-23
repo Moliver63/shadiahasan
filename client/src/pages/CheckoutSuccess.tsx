@@ -8,6 +8,8 @@ export default function CheckoutSuccess() {
   const [location] = useLocation();
   const searchParams = new URLSearchParams(location.split('?')[1]);
   const sessionId = searchParams.get('session_id');
+  // PIX/boleto (Asaas) só confirmam depois; o acesso é liberado automaticamente quando o pagamento cair
+  const isAsaas = searchParams.get('provider') === 'asaas';
 
   useEffect(() => {
     // You could verify the session with Stripe here if needed
@@ -21,9 +23,11 @@ export default function CheckoutSuccess() {
           <div className="mx-auto mb-4 h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">
             <CheckCircle className="h-12 w-12 text-green-600" />
           </div>
-          <CardTitle className="text-3xl">Pagamento Confirmado!</CardTitle>
+          <CardTitle className="text-3xl">{isAsaas ? "Pagamento em processamento" : "Pagamento Confirmado!"}</CardTitle>
           <CardDescription className="text-lg">
-            Sua assinatura foi ativada com sucesso
+            {isAsaas
+              ? "Assim que o pagamento for confirmado, sua assinatura é ativada automaticamente (PIX em minutos, boleto em até 3 dias úteis)"
+              : "Sua assinatura foi ativada com sucesso"}
           </CardDescription>
         </CardHeader>
 

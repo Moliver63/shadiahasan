@@ -1,10 +1,10 @@
 # Shadia Hasan — Memória do Sistema (Manutenção)
 
-> Documento de referência para manutenções futuras (humanas ou IA).  
-> Última atualização: 2026-06-13.  
-> Arquivo canônico atual: `docs/memoria-do-sistema/memory_system.md`.
+> Resumo para manutenções futuras (humanas ou IA).
+> Última atualização: 2026-10-23.
+> **Arquivo canônico: [`memory_system.md`](./memory_system.md)** (detalhes, tabelas e decisões). Em caso de divergência, vale ele.
 
------
+---
 
 ## 1. Stack e arquitetura
 
@@ -14,110 +14,103 @@
 - **Deploy**: Render.com (Web Service), build via `pnpm run build`
 - **Repo**: <https://github.com/Moliver63/shadiahasan>
 - **URL produção**: <https://shadiahasan-2ngl.onrender.com>
-
-### Estrutura relevante
-
-```text
-drizzle/schema.ts           -- schema do banco (Drizzle)
-server/routers.ts           -- router tRPC principal (appRouter)
-server/routers/videos.ts    -- vídeos (Cloudflare/YouTube) + controle de acesso
-server/routers/subscriptions.ts
-server/cloudflare-stream.ts -- integração Cloudflare Stream
-server/db.ts                -- getDb() async, helpers de query
-client/src/pages/AdminCourseLessons.tsx -- admin: aulas + upload de vídeo
-client/src/pages/AdminCourses.tsx       -- admin: cursos + capa
-client/src/pages/LessonView.tsx         -- página da aula (player)
-VIDEO_UPLOAD_TROUBLESHOOTING.md        -- runbook de upload de vídeo
-```
-
------
-
-## 2. Sistema de Vídeo (YouTube + Cloudflare Stream)
-
-### Campos da tabela `lessons` relevantes
-
-| Campo | Significado |
-|------|------|
-| `videoProvider` | `"youtube"` \| `"cloudflare"` \| `"hls"` \| `"other"` |
-| `videoAssetId` | UID do vídeo no Cloudflare Stream (quando `provider=cloudflare`) |
-| `videoPlaybackUrl` | URL final de reprodução (YouTube URL ou HLS `.m3u8` do Cloudflare) |
-| `duration` | duração em segundos |
-| `isAccessRestricted` | `0` = grátis, `1` = exige assinatura/compra avulsa |
-| `isPublished` | `0` = rascunho, `1` = visível no catálogo |
-
-### Fluxo de upload (Cloudflare)
-
-1. Admin seleciona arquivo → `videos.admin.createUploadUrl` gera URL de upload direto (sem passar pelo servidor).
-2. Upload via `XMLHttpRequest` (`multipart/form-data`) direto para o Cloudflare.
-3. Polling a cada 5s (`videos.admin.checkUploadStatus`) até `readyToStream=true`, preenchendo `videoPlaybackUrl`/`duration`.
-4. **Self-healing**: ao abrir `/admin/courses/:id/lessons`, `videos.admin.syncPendingVideos` roda automaticamente e corrige qualquer aula com `videoAssetId` preenchido mas `videoPlaybackUrl` vazio (vídeos que ficaram “pendentes”).
-5. Botão **“Sincronizar vídeos pendentes”** força isso manualmente.
-
-Ver `VIDEO_UPLOAD_TROUBLESHOOTING.md` para diagnóstico SQL/curl.
-
-### Variáveis de ambiente (Render)
-
-```env
-CLOUDFLARE_ACCOUNT_ID=<account_id>
-CLOUDFLARE_API_TOKEN=<token com permissão "Edit Cloudflare Stream">
-```
-
-Cloudflare Stream precisa estar **ativado** na conta (Stream → Plans → “Images & Stream”, $0/mês base).
-
-> ⚠️ **Segurança:** nunca registrar IDs sensíveis, emails operacionais, tokens ou segredos reais neste documento. Se qualquer token for exposto durante o desenvolvimento, revogue e gere outro imediatamente.
-
------
-
-## 3. Sistema de Assinaturas e Controle de Acesso
-
-### Planos (`subscription_plans`, já populados)
-
-| Slug | Preço/mês | maxCourses | hasVRAccess | Stripe Price ID (env) |
-|------|------:|------:|------|------|
-| `free` | R$0 | 1 | não | — |
-| `basic` | R$49,90 | 3 | sim | `STRIPE_PRICE_BASICO` |
-| `premium` | R$99,90 | ilimitado | sim | `STRIPE_PRICE_PREMIUM` |
-| `vip` | R$299,90 | ilimitado | sim | `STRIPE_PRICE_VIP` |
-
-### Regra de acesso (`server/routers/videos.ts` → `checkUserHasAccess`)
+- `pnpm check` roda o `tsc`; o build usa Vite + esbuild, então erro de tipo não barra o deploy.
 
 ```text
-isAccessRestricted = 0  → todos acessam (grátis)
-isAccessRestricted = 1  → verifica em ordem:
-  1. coursePurchases (compra avulsa, status=completed) → libera SEMPRE
-  2. Plano ativo (subscriptions OU userSubscriptions+subscription_plans):
-     - premium/vip → libera TUDO (cria enrollment automaticamente)
-     - basic       → libera até `maxCourses` cursos PAGOS simultâneos
-                      (matrícula automática via `enrollments`;
-                       cursos gratuitos NÃO contam na cota)
-     - free/sem plano → sem acesso (só avulso)
+drizzle/schema.ts                    -- schema do banco
+server/routers.ts                    -- appRouter
+server/db.ts                         -- helpers de query
+server/routers/videos.ts             -- vídeo + checkUserHasAccess
+server/routers/groups.ts             -- Grupos (módulos dentro de um curso)
+server/routers/collections.ts        -- Programas (entre cursos)
+server/asaas.ts + routes/asaas-webhook.ts   -- pagamento Asaas
+server/routes/stripe-webhook.ts      -- webhook Stripe
+shared/stripe-config.ts, shared/br-document.ts
+client/src/pages/AdminCourses.tsx / AdminCourseLessons.tsx / AdminCourseGroups.tsx / AdminCollections.tsx
+client/src/pages/Pricing.tsx / LessonView.tsx / CourseDetail.tsx
+VIDEO_UPLOAD_TROUBLESHOOTING.md      -- runbook de upload de vídeo
 ```
 
-### Preço de compra avulsa (campo `courses.price`, em centavos)
+---
 
-Fórmula padrão sugerida: `Avulso = round(plano Básico × 0.6)` → R$29,90.  
-Admin pode sobrescrever por curso. Campo `courses.allowIndividualPurchase` (0/1) liga/desliga a opção de compra avulsa por curso — **ainda sem UI no admin** (pendente).
+## 2. Vídeo (YouTube + Cloudflare Stream)
+
+Campos de `lessons`: `videoProvider`, `videoAssetId`, `videoPlaybackUrl`, `duration` (segundos), `isAccessRestricted` (0 grátis, 1 exige plano ou compra avulsa), `isPublished` (0 rascunho, 1 visível).
+
+Upload: `videos.admin.createUploadUrl` → upload direto ao Cloudflare (TUS para arquivos grandes) → polling em `checkUploadStatus` até `readyToStream` → grava `videoPlaybackUrl`/`duration`. Ao abrir `/admin/courses/:id/lessons`, `syncPendingVideos` corrige aulas com `videoAssetId` e sem URL. Diagnóstico em `VIDEO_UPLOAD_TROUBLESHOOTING.md`.
+
+Variáveis: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` (permissão "Edit Cloudflare Stream"). Opcionais para signed URLs: `CLOUDFLARE_SIGNING_KEY_ID`, `CLOUDFLARE_SIGNING_KEY_PEM`.
+
+---
+
+## 3. Cursos, aulas e agrupamento
+
+- **Ordem**: `courses.order` e `lessons.order`. Admin reordena por arrastar (Sortable.js) ou pelos botões ↑↓; o aluno vê a mesma ordem.
+- **Duplicar** curso (copia aulas e grupos, nasce rascunho, reaproveita os vídeos) e aula (vai para o fim, rascunho, entra nos mesmos grupos). **Ações em lote** para cursos e aulas.
+- **Excluir** curso ou aula limpa também os vínculos de grupos e programas.
+- **Grupos** (`courseGroups`): módulos dentro de **um** curso. Só aceitam aulas do próprio curso.
+- **Programas** (`contentCollections`): trilhas com aulas de **cursos diferentes** (`/collections/:id`, aba "Programas" em `/courses`).
+- `course_modules` / `lessons.moduleId`: legado, sem uso.
+- `collections.getById` é público e **nunca** devolve `videoPlaybackUrl`.
+
+---
+
+## 4. Assinaturas e controle de acesso
+
+| Slug | Preço/mês | maxCourses | Stripe Price ID (env) |
+|------|------:|------:|------|
+| `free` | R$0 | 1 | — |
+| `basic` | R$49,90 | 3 | `STRIPE_PRICE_BASICO` |
+| `premium` | R$99,90 | ilimitado | `STRIPE_PRICE_PREMIUM` |
+| `vip` | R$299,90 | ilimitado | `STRIPE_PRICE_VIP` |
+
+```text
+isAccessRestricted = 0  → todos acessam
+isAccessRestricted = 1  → em ordem:
+  1. coursePurchases (compra avulsa, completed) → libera sempre
+  2. subscriptions com status 'active':
+     premium/vip → tudo | basic → até maxCourses cursos pagos | free/sem plano → nada
+```
+
+Só `status = 'active'` libera.
 
 ### ⚠️ Segurança — NUNCA reverter
 
-`lessons.listByCourse` e `lessons.getById` (rotas **públicas**) verificam `checkUserHasAccess` no servidor e **removem** `videoPlaybackUrl`/`videoAssetId` da resposta se o usuário não tiver acesso. Isso evita que a URL real do vídeo seja exposta via API antes da verificação de pagamento. Não usar mais `enrollments.checkEnrollment` como gate de acesso — usar `videos.hasAccess`.
+`lessons.listByCourse` e `lessons.getById` (públicas) removem `videoPlaybackUrl`/`videoAssetId` de quem não tem acesso. Vale também para qualquer rota nova que liste aulas. Usar `videos.hasAccess` como porta de acesso, não `enrollments.checkEnrollment`.
 
------
+---
 
-## 4. Pendências conhecidas / próximos passos
+## 5. Pagamentos
 
-- [ ] UI no admin para `courses.allowIndividualPurchase` + `price` avulso
-- [ ] Checkout Stripe one-time payment para compra avulsa de curso
-- [ ] Corrigir `videoProvider` da aula 1 (está `cloudflare` mas URL é YouTube)
-- [ ] Limpar scripts de debug na raiz do repo (`*.py`, `*.mjs` soltos)
-- [ ] Verificar/remover `chaveJWT.txt` e `SENHA_RENDER-ARQUIVOS.txt` do git
-- [ ] README desatualizado (menciona MySQL/Manus OAuth; real = Postgres/Google OAuth)
+- **Stripe (cartão)**: `subscriptions.createCheckout` + webhook `POST /api/stripe/webhook`.
+- **Asaas (PIX, boleto, cartão)**: `subscriptions.createAsaasCheckout` + webhook `POST /api/webhooks/asaas`. Só aparece em `/pricing` se `ASAAS_API_KEY` estiver configurada. O acesso é liberado **só pelo webhook** (`PAYMENT_CONFIRMED`/`RECEIVED`), pausado em `PAYMENT_OVERDUE` e revogado em estorno, chargeback e cancelamento da assinatura. Eventos são idempotentes pelo `id`.
 
------
+```env
+ASAAS_API_KEY=<chave>               # só no Render, nunca no código
+ASAAS_WEBHOOK_TOKEN=<aleatório>     # igual ao token do webhook no Asaas
+ASAAS_BASE_URL=https://api.asaas.com/v3   # sandbox: https://api-sandbox.asaas.com/v3
+```
 
-## 5. Credenciais e segurança — regras gerais
+Detalhes (eventos, decisões, cadastro do webhook): seção 7 do `memory_system.md`.
 
-- **Nunca** colar tokens/senhas reais em conversas; se isso acontecer, revogar e gerar novos.
-- Conexão direta ao banco (`psql`) usa a **External Database URL** do Render com `?sslmode=require`.
-- `drizzle.config.ts` precisa do `.env` local com `DATABASE_URL` para rodar `pnpm db:push`.
-- Evitar versionar arquivos com credenciais, chaves JWT, senhas operacionais ou dumps sensíveis.
+---
+
+## 6. Problemas conhecidos e pendências
+
+- [ ] **Webhook do Stripe provavelmente nunca valida**: `express.json()` roda antes da rota que precisa do corpo cru (reproduzido em teste local). Montar a rota do Stripe antes do `express.json()`.
+- [ ] Webhook do Stripe grava `amount: 0` na ativação e divide por 100 duas vezes na falha.
+- [ ] `pnpm check` com 17 erros de tipo no `main`.
+- [ ] Capas cinza no desktop em produção: confirmar após publicar o `Courses.tsx` atualizado.
+- [ ] Quedas do Render ~60s após a subida: falta o stack trace.
+- [ ] UI no admin para `courses.allowIndividualPurchase` + preço avulso; checkout de pagamento único.
+- [ ] Corrigir `videoProvider` da aula 1 (`cloudflare` mas URL é YouTube).
+- [ ] Limpar scripts de debug na raiz (`*.py`, `*.mjs`) e remover do git `chaveJWT.txt` e `SENHA_RENDER-ARQUIVOS.txt`.
+- [ ] README principal desatualizado (cita MySQL/Manus OAuth; real = Postgres/Google OAuth).
+
+---
+
+## 7. Segurança e operação
+
+- Nunca colar nem commitar tokens, senhas, JWTs ou chaves neste repositório ou em documentos.
+- Conexão ao banco (`psql`, `pnpm db:push`) usa a **External Database URL** do Render com `?sslmode=require`, em `.env` local.
+- Evitar versionar arquivos com credenciais, dumps ou chaves.

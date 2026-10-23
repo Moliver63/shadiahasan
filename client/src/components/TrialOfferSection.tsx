@@ -1,18 +1,29 @@
 import { Link } from "wouter";
-import { Lock, PlayCircle, ShieldCheck, RefreshCcwDot, Clock } from "lucide-react";
+import { Lock, PlayCircle, ShieldCheck, RefreshCcwDot, Clock, Eye } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { formatDuration } from "@/lib/formatDuration";
 import { formatBRL } from "@/components/TrialPassDialog";
 
 /**
  * Oferta de degustação: 1 aula completa por um valor único (Asaas).
- * Só aparece quando o Asaas está configurado e há ao menos uma aula de entrada.
+ * Para os alunos, só aparece quando o Asaas está configurado e há ao menos uma aula de entrada.
+ * Administradores veem a faixa sempre, com um aviso de pré-visualização dizendo o que falta.
  */
 export default function TrialOfferSection() {
   const { data: info } = trpc.trial.info.useQuery();
   const { data: entries } = trpc.trial.entryLessons.useQuery();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
-  if (!info?.enabled || !entries || entries.length === 0) return null;
+  if (!info || !entries) return null;
+
+  const missing: string[] = [];
+  if (!info.enabled) missing.push("o Asaas não está configurado (falta ASAAS_API_KEY no servidor)");
+  if (entries.length === 0) missing.push("nenhum curso publicado tem aula paga, publicada e com vídeo para ser a aula de entrada");
+  const isPreview = missing.length > 0;
+
+  if (isPreview && !isAdmin) return null;
 
   const price = formatBRL(info.priceCents);
 
@@ -22,6 +33,17 @@ export default function TrialOfferSection() {
       className="relative overflow-hidden text-[#f4ece4]"
       style={{ background: "linear-gradient(135deg, #1d1410 0%, #2b1d16 55%, #3a2619 100%)" }}
     >
+      {isPreview && (
+        <div className="border-b border-[#d9b27c]/30 bg-[#d9b27c]/15 text-[#f4ece4]">
+          <div className="container flex items-start gap-3 py-3 text-sm">
+            <Eye className="mt-0.5 h-4 w-4 shrink-0 text-[#e8c48f]" />
+            <p>
+              <strong className="font-semibold text-[#e8c48f]">Pré-visualização para administradores.</strong>{" "}
+              Os alunos ainda não veem esta faixa porque {missing.join(" e ")}.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="container py-14 md:py-20">
         {/* Oferta */}
         <div className="grid items-center gap-10 lg:grid-cols-[1.2fr_1fr_1fr]">
@@ -66,6 +88,7 @@ export default function TrialOfferSection() {
         </div>
 
         {/* Uma aula de entrada por curso */}
+        {entries.length > 0 && (
         <div id="aulas-de-entrada" className="mt-12 scroll-mt-24">
           <p className="mb-5 text-[11px] font-medium uppercase tracking-[0.3em] text-[#d9b27c]">Escolha por onde começar</p>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -104,6 +127,7 @@ export default function TrialOfferSection() {
             ))}
           </div>
         </div>
+        )}
       </div>
     </section>
   );

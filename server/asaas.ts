@@ -664,7 +664,7 @@ export async function cancelAsaasSubscription(userId: number): Promise<{ accessU
 const SP_TODAY = () => todayInSaoPaulo();
 
 /**
- * Lembretes de pagamento não concluído (e-mail): 1 hora e 6 horas depois de gerar a cobrança.
+ * Lembretes de pagamento não concluído (e-mail): 1 hora e cerca de 6 horas depois do primeiro.
  * Só enquanto a cobrança vale (vencimento hoje) e ainda está pendente. Cada lembrete é
  * "reservado" no banco antes de enviar, então nunca sai em duplicidade.
  */
@@ -679,7 +679,8 @@ export async function sendPaymentReminders(): Promise<number> {
     const [u] = await d.select({ email: users.email, name: users.name }).from(users).where(eq(users.id, userId)).limit(1);
     return u && u.email ? u : null;
   };
-  const window = (n: number) => (n === 0 ? sql`interval '1 hour'` : sql`interval '6 hours'`);
+  // O segundo envio fica elegível 7h após a criação (1h até o primeiro + 6h).
+  const window = (n: number) => (n === 0 ? sql`interval '1 hour'` : sql`interval '7 hours'`);
 
   // Teste de 1 aula
   if (await ensureTrialSchema()) {
@@ -703,13 +704,25 @@ export async function sendPaymentReminders(): Promise<number> {
         .returning({ id: trialPasses.id });
       if (!claimed.length) continue;
       const u = await person(p.userId);
-      if (!u) continue;
+      if (!u) {
+        await d.update(trialPasses)
+          .set({ remindersSent: n })
+          .where(and(eq(trialPasses.id, p.id), eq(trialPasses.remindersSent, n + 1), eq(trialPasses.status, "pending")));
+        continue;
+      }
       const r = await sendPaymentReminderEmail(u.email, u.name || "", {
         invoiceUrl: p.invoiceUrl!,
         what: "o teste de 1 aula",
         note: "O link vale até o fim de hoje. Depois disso, é só gerar um novo na página da aula.",
       });
-      if (r.success) sent++;
+      if (r.success) {
+        sent++;
+      } else {
+        // Reabre a tentativa para permitir novo envio após falha transitória do provedor.
+        await d.update(trialPasses)
+          .set({ remindersSent: n })
+          .where(and(eq(trialPasses.id, p.id), eq(trialPasses.remindersSent, n + 1), eq(trialPasses.status, "pending")));
+      }
     }
   }
 
@@ -736,12 +749,24 @@ export async function sendPaymentReminders(): Promise<number> {
       .returning({ id: asaasAccounts.id });
     if (!claimed.length) continue;
     const u = await person(a.userId);
-    if (!u) continue;
+    if (!u) {
+      await d.update(asaasAccounts)
+        .set({ remindersSent: n })
+        .where(and(eq(asaasAccounts.id, a.id), eq(asaasAccounts.remindersSent, n + 1), eq(asaasAccounts.status, "pending")));
+      continue;
+    }
     const r = await sendPaymentReminderEmail(u.email, u.name || "", {
       invoiceUrl: link,
       what: `a assinatura ${getPlanDisplayName(a.planSlug as PlanSlug)}`,
     });
-    if (r.success) sent++;
+    if (r.success) {
+      sent++;
+    } else {
+      // Reabre a tentativa para permitir novo envio após falha transitória do provedor.
+      await d.update(asaasAccounts)
+        .set({ remindersSent: n })
+        .where(and(eq(asaasAccounts.id, a.id), eq(asaasAccounts.remindersSent, n + 1), eq(asaasAccounts.status, "pending")));
+    }
   }
   return sent;
 }

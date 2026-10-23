@@ -60,6 +60,10 @@ async function startServer() {
   const stripeWebhook = await import('../routes/stripe-webhook');
   app.use('/api', stripeWebhook.default);
 
+  // Asaas webhook (PIX/boleto/cartão)
+  const asaasWebhook = await import('../routes/asaas-webhook');
+  app.use('/api', asaasWebhook.default);
+
   // tRPC API com rate limiting
   app.use(
     "/api/trpc",
@@ -87,6 +91,11 @@ async function startServer() {
     console.log(`\nServidor rodando em http://localhost:${port}/`);
     console.log(`Google OAuth: http://localhost:${port}/api/auth/google`);
     console.log(`Auth status:  http://localhost:${port}/api/auth/me\n`);
+
+    // Reprocessa eventos do Asaas que ficaram pendentes (não bloqueia a subida)
+    setTimeout(() => {
+      import('../asaas').then((m) => m.recoverAsaasEvents()).catch(() => undefined);
+    }, 20_000);
   });
 }
 

@@ -85,7 +85,7 @@ async function handleSubscriptionActivated(
 /**
  * Processa pontos de indicação quando uma assinatura é paga
  */
-async function processReferralOnSubscription(userId: number, planName: string) {
+export async function processReferralOnSubscription(userId: number, planName: string) {
   try {
     const user = await db.getUserById(userId);
     if (!user?.referredBy) return;

@@ -1008,6 +1008,53 @@ export const appRouter = router({
         };
       }),
     
+    // Métodos de pagamento disponíveis (para a tela de preços esconder o que não está configurado)
+    paymentProviders: publicProcedure.query(async () => {
+      const { isStripeConfigured } = await import('./stripe');
+      const { isAsaasConfigured } = await import('./asaas');
+      return { stripe: isStripeConfigured(), asaas: isAsaasConfigured() };
+    }),
+
+    // Asaas: PIX, boleto ou cartão (cliente escolhe na fatura do Asaas)
+    createAsaasCheckout: protectedProcedure
+      .input(z.object({
+        planSlug: z.enum(["basic", "premium", "vip"]),
+        cpfCnpj: z.string().min(11).max(18),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { createAsaasCheckout, isAsaasConfigured, AsaasError } = await import('./asaas');
+        const { isValidCpfCnpj } = await import('../shared/br-document');
+
+        if (!isAsaasConfigured()) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Pagamento via Asaas não está disponível no momento." });
+        }
+        if (!isValidCpfCnpj(input.cpfCnpj)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "CPF/CNPJ inválido. Confira os números e tente de novo." });
+        }
+
+        const origin = ctx.req.headers.origin || 'https://shadiahasan.club';
+        try {
+          const result = await createAsaasCheckout({
+            userId: ctx.user.id,
+            userEmail: ctx.user.email,
+            userName: ctx.user.name,
+            planSlug: input.planSlug,
+            cpfCnpj: input.cpfCnpj,
+            origin,
+          });
+          return { url: result.url };
+        } catch (e) {
+          if (e instanceof AsaasError) {
+            console.error("[Asaas] checkout falhou:", e.status, e.message);
+            throw new TRPCError({
+              code: e.status === 400 ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
+              message: e.status === 400 ? e.message : "Não foi possível iniciar o pagamento. Tente novamente em instantes.",
+            });
+          }
+          throw e;
+        }
+      }),
+
     getPortalUrl: protectedProcedure.mutation(async ({ ctx }) => {
       const { createCustomerPortalSession, isStripeConfigured } = await import('./stripe');
       

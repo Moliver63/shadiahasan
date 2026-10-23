@@ -1,6 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, X, Sparkles } from "lucide-react";
+import { Check, X, Sparkles, CreditCard, QrCode } from "lucide-react";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { isValidCpfCnpj, onlyDigits } from "@shared/br-document";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -11,6 +16,22 @@ import { trackCheckoutStart } from "@/components/Analytics";
 export default function Pricing() {
   const { user, isAuthenticated } = useAuth();
   const createCheckout = trpc.subscriptions.createCheckout.useMutation();
+  const createAsaasCheckout = trpc.subscriptions.createAsaasCheckout.useMutation();
+  const { data: providers } = trpc.subscriptions.paymentProviders.useQuery();
+
+  // Escolha do método de pagamento (só aparece quando o Asaas está configurado)
+  type PaidSlug = "basic" | "premium" | "vip";
+  const [chosenPlan, setChosenPlan] = useState<PaidSlug | null>(null);
+  const [method, setMethod] = useState<"stripe" | "asaas">("asaas");
+  const [cpfCnpj, setCpfCnpj] = useState("");
+
+  const formatCpfCnpj = (value: string) => {
+    const d = onlyDigits(value).slice(0, 14);
+    if (d.length <= 11) {
+      return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+    }
+    return d.replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
+  };
 
   const plans = [
     {
@@ -97,6 +118,17 @@ export default function Pricing() {
       return;
     }
 
+    // Com Asaas disponível, o aluno escolhe como pagar
+    if (providers?.asaas) {
+      setMethod(providers.stripe ? "stripe" : "asaas");
+      setChosenPlan(planSlug);
+      return;
+    }
+
+    await startStripeCheckout(planSlug);
+  };
+
+  const startStripeCheckout = async (planSlug: PaidSlug) => {
     try {
       toast.loading("Redirecionando para o checkout...");
       trackCheckoutStart(planSlug, 0);
@@ -109,6 +141,29 @@ export default function Pricing() {
     } catch (error) {
       toast.error("Erro ao criar checkout. Tente novamente.");
       console.error(error);
+    }
+  };
+
+  const confirmPayment = async () => {
+    if (!chosenPlan) return;
+    if (method === "stripe") {
+      const plan = chosenPlan;
+      setChosenPlan(null);
+      await startStripeCheckout(plan);
+      return;
+    }
+    if (!isValidCpfCnpj(cpfCnpj)) {
+      toast.error("CPF ou CNPJ inválido. Confira os números.");
+      return;
+    }
+    try {
+      trackCheckoutStart(chosenPlan, 0);
+      const result = await createAsaasCheckout.mutateAsync({ planSlug: chosenPlan, cpfCnpj: onlyDigits(cpfCnpj) });
+      setChosenPlan(null);
+      window.open(result.url, "_blank");
+      toast.success("Abrindo página de pagamento...");
+    } catch (error: any) {
+      toast.error(error?.message || "Erro ao criar pagamento. Tente novamente.");
     }
   };
 
@@ -198,6 +253,66 @@ export default function Pricing() {
               </Card>
             ))}
           </div>
+
+          <Dialog open={chosenPlan !== null} onOpenChange={(open) => { if (!open) setChosenPlan(null); }}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Como você prefere pagar?</DialogTitle>
+                <DialogDescription>
+                  A assinatura é mensal e o acesso é liberado assim que o pagamento é confirmado.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3">
+                {providers?.stripe && (
+                  <button
+                    type="button"
+                    onClick={() => setMethod("stripe")}
+                    className={`w-full flex items-start gap-3 rounded-lg border p-4 text-left transition ${method === "stripe" ? "border-purple-600 bg-purple-50" : "hover:bg-muted/50"}`}
+                  >
+                    <CreditCard className="h-5 w-5 mt-0.5 shrink-0 text-purple-600" />
+                    <span>
+                      <span className="block font-medium">Cartão de crédito</span>
+                      <span className="block text-sm text-muted-foreground">Renovação automática todo mês</span>
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setMethod("asaas")}
+                  className={`w-full flex items-start gap-3 rounded-lg border p-4 text-left transition ${method === "asaas" ? "border-purple-600 bg-purple-50" : "hover:bg-muted/50"}`}
+                >
+                  <QrCode className="h-5 w-5 mt-0.5 shrink-0 text-purple-600" />
+                  <span>
+                    <span className="block font-medium">PIX, boleto ou cartão</span>
+                    <span className="block text-sm text-muted-foreground">Você escolhe na próxima tela</span>
+                  </span>
+                </button>
+
+                {method === "asaas" && (
+                  <div className="space-y-2 pt-1">
+                    <Label htmlFor="cpfCnpj">CPF ou CNPJ</Label>
+                    <Input
+                      id="cpfCnpj"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="000.000.000-00"
+                      value={cpfCnpj}
+                      onChange={(e) => setCpfCnpj(formatCpfCnpj(e.target.value))}
+                    />
+                    <p className="text-xs text-muted-foreground">Exigido para emitir PIX e boleto.</p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setChosenPlan(null)}>Cancelar</Button>
+                <Button onClick={confirmPayment} disabled={createAsaasCheckout.isPending || createCheckout.isPending}>
+                  {createAsaasCheckout.isPending ? "Gerando pagamento..." : "Continuar"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* FAQ Section */}
           <div className="mt-20 max-w-3xl mx-auto">

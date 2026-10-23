@@ -953,3 +953,33 @@ export const contentCollectionHistory = pgTable("contentCollectionHistory", {
   performedBy: integer("performedBy"),
   performedAt: timestamp("performedAt").defaultNow().notNull(),
 });
+
+/**
+ * Asaas — vínculo entre usuário e assinatura criada no Asaas
+ * (tabela própria para não alterar a tabela `subscriptions` existente)
+ */
+export const asaasAccounts = pgTable("asaasAccounts", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  asaasCustomerId: varchar("asaasCustomerId", { length: 64 }).notNull(),
+  asaasSubscriptionId: varchar("asaasSubscriptionId", { length: 64 }).notNull().unique(),
+  planSlug: varchar("planSlug", { length: 32 }).notNull(),
+  status: varchar("status", { length: 16 }).default("pending").notNull(), // pending | active | cancelled
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+/**
+ * Asaas — eventos de webhook recebidos (idempotência + reprocessamento)
+ */
+export const asaasWebhookEvents = pgTable("asaasWebhookEvents", {
+  eventId: varchar("eventId", { length: 100 }).primaryKey(),
+  event: varchar("event", { length: 64 }).notNull(),
+  paymentId: varchar("paymentId", { length: 64 }),
+  subscriptionId: varchar("subscriptionId", { length: 64 }),
+  status: varchar("status", { length: 16 }).default("processing").notNull(), // processing | done | error
+  error: text("error"),
+  payload: text("payload").notNull(),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+});

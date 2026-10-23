@@ -10,6 +10,7 @@ import PublicHeader from "@/components/PublicHeader";
 import AIChatWidget from "@/components/AIChatWidget";
 
 import StatsSection from "@/components/StatsSection";
+import TrialOfferSection from "@/components/TrialOfferSection";
 import HowItWorks from "@/components/HowItWorks";
 import Testimonials from "@/components/Testimonials";
 import FAQSection from "@/components/FAQSection";
@@ -74,6 +75,8 @@ export default function Home() {
           <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500 rounded-full blur-3xl"></div>
         </div>
       </section>
+
+      <TrialOfferSection />
 
       <StatsSection />
 

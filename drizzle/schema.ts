@@ -964,7 +964,9 @@ export const asaasAccounts = pgTable("asaasAccounts", {
   asaasCustomerId: varchar("asaasCustomerId", { length: 64 }).notNull(),
   asaasSubscriptionId: varchar("asaasSubscriptionId", { length: 64 }).notNull().unique(),
   planSlug: varchar("planSlug", { length: 32 }).notNull(),
-  status: varchar("status", { length: 16 }).default("pending").notNull(), // pending | active | cancelled
+  status: varchar("status", { length: 16 }).default("pending").notNull(), // pending | active | paused | cancelled
+  overdueSince: timestamp("overdueSince"), // início do atraso (carência antes de pausar o acesso)
+  remindersSent: integer("remindersSent").default(0).notNull(), // lembretes da 1ª cobrança já enviados
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
@@ -988,6 +990,16 @@ export const asaasWebhookEvents = pgTable("asaasWebhookEvents", {
  * Teste pago (Asaas): o aluno paga um valor único e assiste 1 aula completa por alguns dias.
  * Não é assinatura: ao expirar, o caminho natural é assinar um plano.
  */
+/**
+ * Aula de entrada de cada curso: a única que vende no teste pago. Sem registro aqui,
+ * vale a primeira aula paga publicada (com vídeo) do curso.
+ */
+export const trialEntryLessons = pgTable("trialEntryLessons", {
+  courseId: integer("courseId").primaryKey(),
+  lessonId: integer("lessonId").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
 export const trialPasses = pgTable("trialPasses", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
@@ -999,6 +1011,7 @@ export const trialPasses = pgTable("trialPasses", {
   dueDate: varchar("dueDate", { length: 10 }), // YYYY-MM-DD (São Paulo) da cobrança
   amountCents: integer("amountCents").notNull(),
   status: varchar("status", { length: 16 }).default("pending").notNull(), // pending | active | cancelled | refunded
+  remindersSent: integer("remindersSent").default(0).notNull(), // lembretes de pagamento já enviados
   paidAt: timestamp("paidAt"),
   expiresAt: timestamp("expiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -97,6 +97,13 @@ async function startServer() {
     setTimeout(() => {
       import('../asaas').then((m) => m.recoverAsaasEvents()).catch(() => undefined);
     }, 20_000);
+
+    // Rotina de cobrança: carência no atraso, fim do período cancelado e lembretes de pagamento
+    setTimeout(() => {
+      const run = () => { import('../asaas').then((m) => m.runBillingMaintenance()).catch(() => undefined); };
+      run();
+      setInterval(run, 10 * 60_000).unref();
+    }, 60_000);
   });
 }
 

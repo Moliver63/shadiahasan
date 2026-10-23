@@ -24,7 +24,7 @@ export default function Pricing() {
   // Escolha do método de pagamento (só aparece quando o Asaas está configurado)
   type PaidSlug = "basic" | "premium" | "vip";
   const [chosenPlan, setChosenPlan] = useState<PaidSlug | null>(null);
-  const [method, setMethod] = useState<"stripe" | "asaas">("asaas");
+  const [method, setMethod] = useState<"stripe" | "asaas-card" | "asaas">("asaas-card");
   const [cpfCnpj, setCpfCnpj] = useState("");
 
   const formatCpfCnpj = (value: string) => {
@@ -122,7 +122,7 @@ export default function Pricing() {
 
     // Com Asaas disponível, o aluno escolhe como pagar
     if (providers?.asaas) {
-      setMethod(providers.stripe ? "stripe" : "asaas");
+      setMethod(providers.stripe ? "stripe" : "asaas-card");
       setChosenPlan(planSlug);
       return;
     }
@@ -160,7 +160,11 @@ export default function Pricing() {
     }
     try {
       trackCheckoutStart(chosenPlan, 0);
-      const result = await createAsaasCheckout.mutateAsync({ planSlug: chosenPlan, cpfCnpj: onlyDigits(cpfCnpj) });
+      const result = await createAsaasCheckout.mutateAsync({
+        planSlug: chosenPlan,
+        cpfCnpj: onlyDigits(cpfCnpj),
+        billingType: method === "asaas-card" ? "CREDIT_CARD" : "UNDEFINED",
+      });
       setChosenPlan(null);
       window.open(result.url, "_blank");
       toast.success("Abrindo página de pagamento...");
@@ -301,17 +305,28 @@ export default function Pricing() {
                 )}
                 <button
                   type="button"
+                  onClick={() => setMethod("asaas-card")}
+                  className={`w-full flex items-start gap-3 rounded-lg border p-4 text-left transition ${method === "asaas-card" ? "border-purple-600 bg-purple-50" : "hover:bg-muted/50"}`}
+                >
+                  <CreditCard className="h-5 w-5 mt-0.5 shrink-0 text-purple-600" />
+                  <span>
+                    <span className="block font-medium">Cartão de crédito <span className="ml-1 rounded bg-purple-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white">Mais prático</span></span>
+                    <span className="block text-sm text-muted-foreground">Renova sozinho todo mês, sem precisar lembrar</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setMethod("asaas")}
                   className={`w-full flex items-start gap-3 rounded-lg border p-4 text-left transition ${method === "asaas" ? "border-purple-600 bg-purple-50" : "hover:bg-muted/50"}`}
                 >
                   <QrCode className="h-5 w-5 mt-0.5 shrink-0 text-purple-600" />
                   <span>
-                    <span className="block font-medium">PIX, boleto ou cartão</span>
-                    <span className="block text-sm text-muted-foreground">Você escolhe na próxima tela</span>
+                    <span className="block font-medium">PIX ou boleto</span>
+                    <span className="block text-sm text-muted-foreground">Você paga todo mês pelo link que enviamos</span>
                   </span>
                 </button>
 
-                {method === "asaas" && (
+                {(method === "asaas" || method === "asaas-card") && (
                   <div className="space-y-2 pt-1">
                     <Label htmlFor="cpfCnpj">CPF ou CNPJ</Label>
                     <Input

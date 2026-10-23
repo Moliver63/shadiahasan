@@ -18,7 +18,7 @@
 
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import * as db from "./db";
-import { asaasAccounts, asaasWebhookEvents, paymentHistory, subscriptionPlans } from "../drizzle/schema";
+import { asaasAccounts, asaasWebhookEvents, paymentHistory, subscriptionPlans, subscriptions, trialPasses, users } from "../drizzle/schema";
 import { getPlanDisplayName, type PlanSlug } from "../shared/stripe-config";
 import { isValidCpfCnpj, onlyDigits } from "../shared/br-document";
 
@@ -115,6 +115,8 @@ export function ensureAsaasSchema(): Promise<boolean> {
             "processedAt" timestamp
           )
         `);
+        await d.execute(sql`ALTER TABLE "asaasAccounts" ADD COLUMN IF NOT EXISTS "overdueSince" timestamp`);
+        await d.execute(sql`ALTER TABLE "asaasAccounts" ADD COLUMN IF NOT EXISTS "remindersSent" integer NOT NULL DEFAULT 0`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "asaasAccounts_user_idx" ON "asaasAccounts" ("userId")`);
         return true;
       } catch (e) {
@@ -148,7 +150,7 @@ async function getPlanPriceCents(planSlug: PlanSlug): Promise<number> {
   return DEFAULT_PRICES_CENTS[planSlug];
 }
 
-async function firstPaymentLink(asaasSubscriptionId: string): Promise<string | null> {
+export async function firstPaymentLink(asaasSubscriptionId: string): Promise<string | null> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const list = await asaasRequest<{ data?: Array<{ invoiceUrl?: string; status?: string }> }>(
       "GET",
@@ -168,6 +170,8 @@ export async function createAsaasCheckout(params: {
   planSlug: PlanSlug;
   cpfCnpj: string;
   origin: string;
+  /** CREDIT_CARD força cartão (renovação automática); UNDEFINED deixa o aluno escolher na fatura. */
+  billingType?: "UNDEFINED" | "CREDIT_CARD";
 }): Promise<{ url: string; asaasSubscriptionId: string }> {
   if (!isAsaasConfigured()) throw new AsaasError("Asaas não está configurado.", 412);
   if (!(await ensureAsaasSchema())) throw new AsaasError("Banco indisponível para o Asaas.", 503);
@@ -216,7 +220,7 @@ export async function createAsaasCheckout(params: {
   const valueCents = await getPlanPriceCents(params.planSlug);
   const subscriptionBody: Record<string, unknown> = {
     customer: customerId,
-    billingType: "UNDEFINED", // o cliente escolhe PIX, boleto ou cartão na fatura
+    billingType: params.billingType ?? "UNDEFINED", // padrão: o cliente escolhe PIX, boleto ou cartão na fatura
     value: Number((valueCents / 100).toFixed(2)),
     nextDueDate: todayInSaoPaulo(),
     cycle: "MONTHLY",
@@ -339,7 +343,8 @@ async function activate(account: typeof asaasAccounts.$inferSelect, body: AsaasW
   const d = await db.getDb();
   if (!d) throw new Error("db indisponível");
   const payment = body.payment!;
-  const firstActivation = account.status !== "active";
+  // Só a primeira ativação conta para indicação; voltar de uma pausa por atraso não
+  const firstActivation = account.status === "pending";
   const planSlug = account.planSlug as PlanSlug;
 
   await db.upsertSubscription({
@@ -351,7 +356,10 @@ async function activate(account: typeof asaasAccounts.$inferSelect, body: AsaasW
     notes: "Assinatura via Asaas",
   });
 
-  await d.update(asaasAccounts).set({ status: "active", updatedAt: new Date() }).where(eq(asaasAccounts.id, account.id));
+  await d
+    .update(asaasAccounts)
+    .set({ status: "active", overdueSince: null, updatedAt: new Date() })
+    .where(eq(asaasAccounts.id, account.id));
 
   // Um registro por cobrança (CONFIRMED e RECEIVED chegam para a mesma cobrança no cartão)
   if (payment.id) {
@@ -386,12 +394,18 @@ async function activate(account: typeof asaasAccounts.$inferSelect, body: AsaasW
 
 async function setAccountState(
   account: typeof asaasAccounts.$inferSelect,
-  state: { subStatus: "paused" | "cancelled"; plan?: "free"; accountStatus?: string },
+  state: { subStatus: "paused" | "cancelled"; plan?: "free"; accountStatus?: string; respectEndDate?: boolean },
 ) {
   const d = await db.getDb();
   if (!d) throw new Error("db indisponível");
 
   const current = await db.getSubscriptionByUserId(account.userId);
+  // Aluno que cancelou a própria assinatura mantém o acesso até o fim do período já pago:
+  // o aviso de assinatura removida do Asaas não pode derrubar isso na hora.
+  if (state.respectEndDate && account.status === "cancelled" && current?.endDate && current.status === "active") {
+    const [{ future }] = (await d.execute(sql`select ("endDate" > now()) as future from subscriptions where id = ${current.id}`)).rows as Array<{ future: boolean }>;
+    if (future) return;
+  }
   // Não derruba um plano gerenciado pelo Stripe
   const stripeManaged = !!current?.stripeSubscriptionId;
   if (!stripeManaged) {
@@ -437,8 +451,14 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
       }
 
       case "PAYMENT_OVERDUE": {
-        // Sem agendador, a "carência" é o próprio intervalo até o Asaas marcar a cobrança como vencida.
-        if (account) await setAccountState(account, { subStatus: "paused" });
+        // Carência: só registra o início do atraso. A rotina periódica (runBillingMaintenance)
+        // pausa o acesso se o pagamento não chegar em ASAAS_GRACE_DAYS dias.
+        if (account && account.status === "active") {
+          await d
+            .update(asaasAccounts)
+            .set({ overdueSince: sql`coalesce(${asaasAccounts.overdueSince}, now())`, updatedAt: new Date() })
+            .where(eq(asaasAccounts.id, account.id));
+        }
         break;
       }
 
@@ -453,10 +473,14 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
         break;
       }
 
-      case "PAYMENT_CHARGEBACK_REQUESTED":
+      case "PAYMENT_CHARGEBACK_REQUESTED": {
+        if (account) await setAccountState(account, { subStatus: "cancelled", plan: "free", accountStatus: "cancelled" });
+        break;
+      }
+
       case "SUBSCRIPTION_DELETED":
       case "SUBSCRIPTION_INACTIVATED": {
-        if (account) await setAccountState(account, { subStatus: "cancelled", plan: "free", accountStatus: "cancelled" });
+        if (account) await setAccountState(account, { subStatus: "cancelled", plan: "free", accountStatus: "cancelled", respectEndDate: true });
         break;
       }
 
@@ -511,5 +535,231 @@ export async function recoverAsaasEvents(): Promise<number> {
   } catch (e) {
     console.warn("[Asaas] recuperação de eventos falhou:", e instanceof Error ? e.message : e);
     return 0;
+  }
+}
+
+
+// ─── Rotina periódica: carência, fim do período cancelado e lembretes ───────
+
+function intFromEnv(name: string, fallback: number, min: number, max: number): number {
+  const n = Number(process.env[name]);
+  return Number.isInteger(n) && n >= min && n <= max ? n : fallback;
+}
+
+/** Dias de carência depois do vencimento antes de pausar o acesso (padrão 3). */
+export function getGraceDays(): number {
+  return intFromEnv("ASAAS_GRACE_DAYS", 3, 0, 30);
+}
+
+/** Pausa quem passou da carência sem pagar. Quem paga depois volta sozinho pelo webhook. */
+export async function pauseOverdueAccounts(): Promise<number> {
+  const d = await db.getDb();
+  if (!d) return 0;
+  const days = getGraceDays();
+  const due = await d
+    .select()
+    .from(asaasAccounts)
+    .where(and(
+      eq(asaasAccounts.status, "active"),
+      sql`${asaasAccounts.overdueSince} IS NOT NULL`,
+      sql`${asaasAccounts.overdueSince} < now() - (${days} * interval '1 day')`,
+    ));
+  for (const account of due) {
+    try {
+      await setAccountState(account, { subStatus: "paused", accountStatus: "paused" });
+      console.log(`[Asaas] acesso pausado por atraso: user ${account.userId}`);
+    } catch (e) {
+      console.warn("[Asaas] falha ao pausar por atraso:", e instanceof Error ? e.message : e);
+    }
+  }
+  return due.length;
+}
+
+/** Encerra o acesso de quem cancelou a própria assinatura e chegou ao fim do período pago. */
+export async function endCancelledSubscriptions(): Promise<number> {
+  const d = await db.getDb();
+  if (!d) return 0;
+  const expired = await d
+    .select()
+    .from(subscriptions)
+    .where(and(
+      eq(subscriptions.status, "active"),
+      eq(subscriptions.notes, "Assinatura via Asaas"),
+      sql`${subscriptions.stripeSubscriptionId} IS NULL`,
+      sql`${subscriptions.endDate} IS NOT NULL`,
+      sql`${subscriptions.endDate} < now()`,
+    ));
+  for (const sub of expired) {
+    try {
+      await db.upsertSubscription({
+        userId: sub.userId,
+        plan: "free",
+        status: "cancelled",
+        autoRenew: 0,
+        endDate: null,
+        notes: "Assinatura via Asaas",
+      });
+      console.log(`[Asaas] período pago encerrado: user ${sub.userId}`);
+    } catch (e) {
+      console.warn("[Asaas] falha ao encerrar assinatura cancelada:", e instanceof Error ? e.message : e);
+    }
+  }
+  return expired.length;
+}
+
+/**
+ * Cancelamento feito pelo próprio aluno: para as próximas cobranças no Asaas e mantém o acesso
+ * até o fim do período já pago (30 dias contados do último pagamento confirmado).
+ */
+export async function cancelAsaasSubscription(userId: number): Promise<{ accessUntil: Date | null }> {
+  if (!isAsaasConfigured()) throw new AsaasError("Asaas não está configurado.", 412);
+  if (!(await ensureAsaasSchema())) throw new AsaasError("Banco indisponível.", 503);
+  const d = await db.getDb();
+  if (!d) throw new AsaasError("Banco indisponível.", 503);
+
+  const [account] = await d
+    .select()
+    .from(asaasAccounts)
+    .where(and(eq(asaasAccounts.userId, userId), inArray(asaasAccounts.status, ["active", "paused"])))
+    .orderBy(desc(asaasAccounts.createdAt))
+    .limit(1);
+  if (!account) throw new AsaasError("Você não tem uma assinatura ativa por PIX, boleto ou cartão (Asaas).", 404);
+
+  try {
+    await asaasRequest("DELETE", `/subscriptions/${encodeURIComponent(account.asaasSubscriptionId)}`);
+  } catch (e) {
+    // Já removida do lado do Asaas: segue o cancelamento local
+    if (!(e instanceof AsaasError && e.status === 404)) throw e;
+  }
+
+  // Fim do período pago: último pagamento da assinatura + 30 dias
+  const rows = (await d.execute(sql`
+    select (max("createdAt") + interval '30 days') > now() as active
+    from payment_history
+    where "userId" = ${userId} and status = 'completed'
+      and "stripeInvoiceId" like 'asaas:%' and description like 'Assinatura%'
+  `)).rows as Array<{ active: boolean | null }>;
+  const stillPaid = account.status === "active" && rows[0]?.active === true;
+
+  if (stillPaid) {
+    await d.execute(sql`
+      update subscriptions
+      set "endDate" = (select max("createdAt") + interval '30 days' from payment_history
+                       where "userId" = ${userId} and status = 'completed'
+                         and "stripeInvoiceId" like 'asaas:%' and description like 'Assinatura%'),
+          "autoRenew" = 0, "updatedAt" = now()
+      where "userId" = ${userId} and status = 'active'
+    `);
+    await d.update(asaasAccounts).set({ status: "cancelled", updatedAt: new Date() }).where(eq(asaasAccounts.id, account.id));
+    const current = await db.getSubscriptionByUserId(userId);
+    console.log(`[Asaas] assinatura cancelada pelo aluno (acesso até o fim do período): user ${userId}`);
+    return { accessUntil: current?.endDate ?? null };
+  }
+
+  await setAccountState(account, { subStatus: "cancelled", plan: "free", accountStatus: "cancelled" });
+  console.log(`[Asaas] assinatura cancelada pelo aluno (sem período a cumprir): user ${userId}`);
+  return { accessUntil: null };
+}
+
+const SP_TODAY = () => todayInSaoPaulo();
+
+/**
+ * Lembretes de pagamento não concluído (e-mail): 1 hora e 6 horas depois de gerar a cobrança.
+ * Só enquanto a cobrança vale (vencimento hoje) e ainda está pendente. Cada lembrete é
+ * "reservado" no banco antes de enviar, então nunca sai em duplicidade.
+ */
+export async function sendPaymentReminders(): Promise<number> {
+  const d = await db.getDb();
+  if (!d) return 0;
+  const { sendPaymentReminderEmail } = await import("./_core/email");
+  const { ensureTrialSchema } = await import("./trial");
+  let sent = 0;
+
+  const person = async (userId: number) => {
+    const [u] = await d.select({ email: users.email, name: users.name }).from(users).where(eq(users.id, userId)).limit(1);
+    return u && u.email ? u : null;
+  };
+  const window = (n: number) => (n === 0 ? sql`interval '1 hour'` : sql`interval '6 hours'`);
+
+  // Teste de 1 aula
+  if (await ensureTrialSchema()) {
+    const pending = await d
+      .select()
+      .from(trialPasses)
+      .where(and(
+        eq(trialPasses.status, "pending"),
+        sql`${trialPasses.remindersSent} < 2`,
+        sql`${trialPasses.invoiceUrl} IS NOT NULL`,
+        eq(trialPasses.dueDate, SP_TODAY()),
+      ));
+    for (const p of pending) {
+      const n = p.remindersSent;
+      const [{ ready }] = (await d.execute(sql`select ("createdAt" < now() - ${window(n)}) as ready from "trialPasses" where id = ${p.id}`)).rows as Array<{ ready: boolean }>;
+      if (!ready) continue;
+      const claimed = await d
+        .update(trialPasses)
+        .set({ remindersSent: n + 1 })
+        .where(and(eq(trialPasses.id, p.id), eq(trialPasses.remindersSent, n), eq(trialPasses.status, "pending")))
+        .returning({ id: trialPasses.id });
+      if (!claimed.length) continue;
+      const u = await person(p.userId);
+      if (!u) continue;
+      const r = await sendPaymentReminderEmail(u.email, u.name || "", {
+        invoiceUrl: p.invoiceUrl!,
+        what: "o teste de 1 aula",
+        note: "O link vale até o fim de hoje. Depois disso, é só gerar um novo na página da aula.",
+      });
+      if (r.success) sent++;
+    }
+  }
+
+  // Primeira cobrança da assinatura
+  const accounts = await d
+    .select()
+    .from(asaasAccounts)
+    .where(and(
+      eq(asaasAccounts.status, "pending"),
+      sql`${asaasAccounts.remindersSent} < 2`,
+      sql`${asaasAccounts.createdAt} > now() - interval '24 hours'`,
+    ));
+  for (const a of accounts) {
+    const n = a.remindersSent;
+    const [{ ready }] = (await d.execute(sql`select ("createdAt" < now() - ${window(n)}) as ready from "asaasAccounts" where id = ${a.id}`)).rows as Array<{ ready: boolean }>;
+    if (!ready) continue;
+    let link: string | null = null;
+    try { link = await firstPaymentLink(a.asaasSubscriptionId); } catch { link = null; }
+    if (!link) continue;
+    const claimed = await d
+      .update(asaasAccounts)
+      .set({ remindersSent: n + 1 })
+      .where(and(eq(asaasAccounts.id, a.id), eq(asaasAccounts.remindersSent, n), eq(asaasAccounts.status, "pending")))
+      .returning({ id: asaasAccounts.id });
+    if (!claimed.length) continue;
+    const u = await person(a.userId);
+    if (!u) continue;
+    const r = await sendPaymentReminderEmail(u.email, u.name || "", {
+      invoiceUrl: link,
+      what: `a assinatura ${getPlanDisplayName(a.planSlug as PlanSlug)}`,
+    });
+    if (r.success) sent++;
+  }
+  return sent;
+}
+
+let maintenanceRunning = false;
+
+/** Roda a rotina inteira; nunca lança e nunca roda duas vezes ao mesmo tempo. */
+export async function runBillingMaintenance(): Promise<void> {
+  if (maintenanceRunning || !isAsaasConfigured()) return;
+  maintenanceRunning = true;
+  try {
+    if (!(await ensureAsaasSchema())) return;
+    await pauseOverdueAccounts();
+    await endCancelledSubscriptions();
+    await sendPaymentReminders();
+  } catch (e) {
+    console.warn("[Asaas] rotina de cobrança falhou:", e instanceof Error ? e.message : e);
+  } finally {
+    maintenanceRunning = false;
   }
 }

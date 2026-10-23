@@ -9,11 +9,47 @@ import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { lessons } from "../../drizzle/schema";
 import { AsaasError } from "../asaas";
-import { createTrialCheckout, getTrialPriceCents, getTrialStatus, getTrialValidDays, TrialError } from "../trial";
+import {
+  createTrialCheckout, getEntryLessonForCourse, getEntryLessons, getTrialPriceCents, getTrialStatus,
+  getTrialValidDays, setEntryLesson, TrialError,
+} from "../trial";
 import { isAsaasConfigured } from "../asaas";
 import { checkUserHasAccess } from "./videos";
 
+const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== "admin" && ctx.user.role !== "superadmin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+  }
+  return next({ ctx });
+});
+
 export const trialRouter = router({
+  /** Aula de entrada de cada curso (a home usa para montar os cards). Não expõe URL de vídeo. */
+  entryLessons: publicProcedure.query(async () => {
+    const entries = await getEntryLessons();
+    return entries.map(({ source, ...rest }) => rest);
+  }),
+
+  /** Admin: aula de entrada do curso (escolhida ou automática). */
+  adminEntryForCourse: adminProcedure
+    .input(z.object({ courseId: z.number().int().positive() }))
+    .query(async ({ input }) => getEntryLessonForCourse(input.courseId)),
+
+  /** Admin: escolhe a aula de entrada do curso; lessonId null volta ao automático. */
+  adminSetEntry: adminProcedure
+    .input(z.object({ courseId: z.number().int().positive(), lessonId: z.number().int().positive().nullable() }))
+    .mutation(async ({ input }) => {
+      try {
+        await setEntryLesson(input.courseId, input.lessonId);
+        return { success: true };
+      } catch (e) {
+        if (e instanceof TrialError) {
+          throw new TRPCError({ code: e.code === "UNAVAILABLE" ? "INTERNAL_SERVER_ERROR" : e.code, message: e.message });
+        }
+        throw e;
+      }
+    }),
+
   /** Preço e validade do teste (a tela de planos usa isto para divulgar a opção). */
   info: publicProcedure.query(() => ({
     enabled: isAsaasConfigured(),

@@ -1023,6 +1023,8 @@ export const appRouter = router({
       .input(z.object({
         planSlug: z.enum(["basic", "premium", "vip"]),
         cpfCnpj: z.string().min(11).max(18),
+        // CREDIT_CARD: a fatura só aceita cartão e as próximas cobranças saem sozinhas
+        billingType: z.enum(["UNDEFINED", "CREDIT_CARD"]).default("UNDEFINED"),
       }))
       .mutation(async ({ input, ctx }) => {
         const { createAsaasCheckout, isAsaasConfigured, AsaasError } = await import('./asaas');
@@ -1043,6 +1045,7 @@ export const appRouter = router({
             userName: ctx.user.name,
             planSlug: input.planSlug,
             cpfCnpj: input.cpfCnpj,
+            billingType: input.billingType,
             origin,
           });
           return { url: result.url };
@@ -1057,6 +1060,24 @@ export const appRouter = router({
           throw e;
         }
       }),
+
+    // Asaas: o próprio aluno cancela. Para as próximas cobranças e mantém o acesso até o fim do período pago.
+    cancelAsaas: protectedProcedure.mutation(async ({ ctx }) => {
+      const { cancelAsaasSubscription, AsaasError } = await import('./asaas');
+      try {
+        const result = await cancelAsaasSubscription(ctx.user.id);
+        return { accessUntil: result.accessUntil ? result.accessUntil.toISOString() : null };
+      } catch (e) {
+        if (e instanceof AsaasError) {
+          console.error("[Asaas] cancelamento falhou:", e.status, e.message);
+          throw new TRPCError({
+            code: e.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: e.status === 404 ? e.message : "Não foi possível cancelar agora. Tente novamente em instantes ou fale com o suporte.",
+          });
+        }
+        throw e;
+      }
+    }),
 
     getPortalUrl: protectedProcedure.mutation(async ({ ctx }) => {
       const { createCustomerPortalSession, isStripeConfigured } = await import('./stripe');

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Card,
   CardContent,
@@ -66,6 +68,22 @@ export default function MySubscription() {
     },
   });
 
+  // Assinatura paga por PIX, boleto ou cartão via Asaas: o aluno cancela aqui mesmo
+  const utils = trpc.useUtils();
+  const [showCancel, setShowCancel] = useState(false);
+  const cancelAsaas = trpc.subscriptions.cancelAsaas.useMutation({
+    onSuccess: async (result) => {
+      setShowCancel(false);
+      await utils.subscriptions.getByUserId.invalidate();
+      toast.success(
+        result.accessUntil
+          ? `Assinatura cancelada. Seu acesso continua até ${new Date(result.accessUntil).toLocaleDateString("pt-BR")}.`
+          : "Assinatura cancelada."
+      );
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   // Aguarda resolução do estado de autenticação
   if (loading) {
     return (
@@ -85,6 +103,11 @@ export default function MySubscription() {
   const planLabel = PLAN_LABELS[plan] ?? plan;
   const planPrice = PLAN_PRICES[plan] ?? "—";
   const isActive = subscription?.status === "active";
+
+  const isAsaasManaged =
+    !!subscription && !subscription.stripeSubscriptionId && subscription.notes === "Assinatura via Asaas";
+  // Já cancelada: sem renovação, acesso vai até a data final
+  const isEndingSoon = isAsaasManaged && isActive && subscription?.autoRenew === 0 && !!subscription?.endDate;
 
   const handleUpgrade = () => navigate("/pricing");
 
@@ -191,7 +214,7 @@ export default function MySubscription() {
                     {isPaid && subscription?.endDate && (
                       <div className="space-y-2">
                         <p className="text-sm text-muted-foreground">
-                          Próxima Cobrança
+                          {isEndingSoon ? "Acesso até" : "Próxima Cobrança"}
                         </p>
                         <p className="text-lg font-semibold flex items-center gap-2">
                           <Calendar className="h-4 w-4" />
@@ -283,17 +306,34 @@ export default function MySubscription() {
                       <TrendingDown className="mr-2 h-4 w-4" />
                       Mudar de Plano
                     </Button>
-                    <Button
-                      onClick={handleManagePortal}
-                      variant="outline"
-                      className="w-full"
-                      disabled={getPortalUrl.isPending}
-                    >
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      {getPortalUrl.isPending
-                        ? "Abrindo..."
-                        : "Gerenciar no Stripe (cancelar, trocar cartão)"}
-                    </Button>
+                    {isAsaasManaged ? (
+                      isEndingSoon ? (
+                        <p className="text-sm text-muted-foreground text-center">
+                          Assinatura cancelada. Seu acesso continua até {formatDate(subscription?.endDate)}.
+                        </p>
+                      ) : (
+                        <Button
+                          onClick={() => setShowCancel(true)}
+                          variant="outline"
+                          className="w-full text-red-600 hover:text-red-700"
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Cancelar assinatura
+                        </Button>
+                      )
+                    ) : (
+                      <Button
+                        onClick={handleManagePortal}
+                        variant="outline"
+                        className="w-full"
+                        disabled={getPortalUrl.isPending}
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        {getPortalUrl.isPending
+                          ? "Abrindo..."
+                          : "Gerenciar no Stripe (cancelar, trocar cartão)"}
+                      </Button>
+                    )}
                   </>
                 )}
 
@@ -302,11 +342,12 @@ export default function MySubscription() {
                     <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-yellow-800">
                       <p className="font-medium">
-                        Para cancelar ou trocar cartão:
+                        {isAsaasManaged ? "Para cancelar:" : "Para cancelar ou trocar cartão:"}
                       </p>
                       <p className="mt-1">
-                        Use o botão "Gerenciar no Stripe" acima. Seu acesso
-                        continua até o fim do período pago.
+                        {isAsaasManaged
+                          ? 'Use o botão "Cancelar assinatura" acima. Seu acesso continua até o fim do período pago.'
+                          : 'Use o botão "Gerenciar no Stripe" acima. Seu acesso continua até o fim do período pago.'}
                       </p>
                     </div>
                   </div>
@@ -382,6 +423,27 @@ export default function MySubscription() {
           </div>
         </div>
       </div>
+
+      <Dialog open={showCancel} onOpenChange={setShowCancel}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancelar assinatura?</DialogTitle>
+            <DialogDescription>
+              As próximas cobranças serão interrompidas. Você continua com acesso até o fim do período que já pagou.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancel(false)}>Manter assinatura</Button>
+            <Button
+              variant="destructive"
+              disabled={cancelAsaas.isPending}
+              onClick={() => cancelAsaas.mutate()}
+            >
+              {cancelAsaas.isPending ? "Cancelando..." : "Cancelar assinatura"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

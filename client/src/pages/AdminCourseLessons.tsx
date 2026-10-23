@@ -190,6 +190,16 @@ export default function AdminCourseLessons() {
   const { data: course } = trpc.courses.getById.useQuery({ id: courseId });
   const { data: lessons, isLoading } = trpc.lessons.listByCourse.useQuery({ courseId });
   const { data: cfStatus } = trpc.videos.admin.cfStatus.useQuery();
+  // Aula de entrada do teste pago (R$ 19,90): a única que vende nesse teste
+  const { data: entryLesson } = trpc.trial.adminEntryForCourse.useQuery({ courseId });
+  const setEntryMutation = trpc.trial.adminSetEntry.useMutation({
+    onSuccess: async () => {
+      await utils.trial.adminEntryForCourse.invalidate({ courseId });
+      await utils.trial.entryLessons.invalidate();
+      toast.success("Aula de entrada atualizada");
+    },
+    onError: (err) => toast.error(err.message),
+  });
   const { data: audioTracks, isLoading: audioTracksLoading, refetch: refetchAudioTracks } =
     trpc.videos.admin.listAudioTracks.useQuery(
       { videoUid: formData.videoAssetId },
@@ -820,6 +830,14 @@ export default function AdminCourseLessons() {
                         </Badge>
                       )}
 
+                      {/* Aula de entrada do teste de R$ 19,90 */}
+                      {entryLesson?.lessonId === lesson.id && (
+                        <Badge className="shrink-0 text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">
+                          <Star className="h-3 w-3 mr-1" />
+                          Entrada R$ 19,90{entryLesson?.source === "auto" ? " (automática)" : ""}
+                        </Badge>
+                      )}
+
                       {/* Publicado */}
                       {lesson.isPublished ? (
                         <Eye className="h-4 w-4 text-green-600 shrink-0" />
@@ -829,6 +847,28 @@ export default function AdminCourseLessons() {
                     </div>
 
                     <div className="flex gap-2 shrink-0">
+                      {(lesson as any).isAccessRestricted === 1 && lesson.isPublished ? (
+                        entryLesson?.lessonId === lesson.id && entryLesson?.source === "admin" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={setEntryMutation.isPending}
+                            onClick={() => setEntryMutation.mutate({ courseId, lessonId: null })}
+                          >
+                            Voltar ao automático
+                          </Button>
+                        ) : entryLesson?.lessonId !== lesson.id ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={setEntryMutation.isPending}
+                            onClick={() => setEntryMutation.mutate({ courseId, lessonId: lesson.id })}
+                          >
+                            <Star className="h-3 w-3 mr-1" />
+                            Definir como entrada
+                          </Button>
+                        ) : null
+                      ) : null}
                       <Link href={`/admin/lessons/${lesson.id}/materials`}>
                         <Button variant="outline" size="sm">
                           <BookOpen className="h-3 w-3 mr-1" />

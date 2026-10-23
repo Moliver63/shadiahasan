@@ -22,7 +22,7 @@
 
 import { and, desc, eq, sql } from "drizzle-orm";
 import * as db from "./db";
-import { lessons, paymentHistory, trialPasses, asaasAccounts } from "../drizzle/schema";
+import { courses, lessons, paymentHistory, trialPasses, trialEntryLessons, asaasAccounts } from "../drizzle/schema";
 import {
   AsaasError,
   asaasRequest,
@@ -70,6 +70,7 @@ export function ensureTrialSchema(): Promise<boolean> {
             "dueDate" varchar(10),
             "amountCents" integer NOT NULL,
             "status" varchar(16) NOT NULL DEFAULT 'pending',
+            "remindersSent" integer NOT NULL DEFAULT 0,
             "paidAt" timestamp,
             "expiresAt" timestamp,
             "createdAt" timestamp NOT NULL DEFAULT now(),
@@ -77,6 +78,13 @@ export function ensureTrialSchema(): Promise<boolean> {
           )
         `);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "trialPasses_user_idx" ON "trialPasses" ("userId")`);
+        await d.execute(sql`
+          CREATE TABLE IF NOT EXISTS "trialEntryLessons" (
+            "courseId" integer PRIMARY KEY,
+            "lessonId" integer NOT NULL,
+            "updatedAt" timestamp NOT NULL DEFAULT now()
+          )
+        `);
         return true;
       } catch (e) {
         console.error("[Trial] schema init failed:", e instanceof Error ? e.message : e);
@@ -86,6 +94,113 @@ export function ensureTrialSchema(): Promise<boolean> {
     })();
   }
   return schemaReady;
+}
+
+// ─── Aula de entrada por curso ───────────────────────────────────────────────
+
+export type EntryLesson = {
+  courseId: number;
+  courseTitle: string;
+  courseSlug: string;
+  courseThumbnail: string | null;
+  lessonId: number;
+  lessonTitle: string;
+  duration: number | null;
+  source: "admin" | "auto";
+};
+
+/**
+ * Uma aula de entrada por curso publicado. Vale a escolhida no painel; sem escolha (ou se a
+ * escolhida deixou de servir), a primeira aula paga publicada e com vídeo do curso.
+ */
+export async function getEntryLessons(): Promise<EntryLesson[]> {
+  const d = await db.getDb();
+  if (!d) return [];
+  await ensureTrialSchema();
+
+  const sellable = await d
+    .select({
+      lessonId: lessons.id,
+      courseId: lessons.courseId,
+      lessonTitle: lessons.title,
+      duration: lessons.duration,
+      order: lessons.order,
+      courseTitle: courses.title,
+      courseSlug: courses.slug,
+      courseThumbnail: courses.thumbnail,
+      courseOrder: courses.order,
+    })
+    .from(lessons)
+    .innerJoin(courses, eq(courses.id, lessons.courseId))
+    .where(and(
+      eq(courses.isPublished, 1),
+      eq(lessons.isPublished, 1),
+      eq(lessons.isAccessRestricted, 1),
+      sql`(${lessons.videoAssetId} IS NOT NULL OR ${lessons.videoPlaybackUrl} IS NOT NULL)`,
+    ))
+    .orderBy(courses.order, courses.id, lessons.order, lessons.id);
+
+  let chosen = new Map<number, number>();
+  try {
+    const rows = await d.select().from(trialEntryLessons);
+    chosen = new Map(rows.map((r) => [r.courseId, r.lessonId]));
+  } catch { /* tabela ainda não existe: só o automático */ }
+
+  const byCourse = new Map<number, typeof sellable>();
+  for (const row of sellable) {
+    const list = byCourse.get(row.courseId) ?? [];
+    list.push(row);
+    byCourse.set(row.courseId, list);
+  }
+
+  const result: EntryLesson[] = [];
+  byCourse.forEach((list, courseId) => {
+    const picked = list.find((l) => l.lessonId === chosen.get(courseId));
+    const row = picked ?? list[0];
+    result.push({
+      courseId,
+      courseTitle: row.courseTitle,
+      courseSlug: row.courseSlug,
+      courseThumbnail: row.courseThumbnail,
+      lessonId: row.lessonId,
+      lessonTitle: row.lessonTitle,
+      duration: row.duration,
+      source: picked ? "admin" : "auto",
+    });
+  });
+  return result;
+}
+
+export async function isEntryLesson(lessonId: number): Promise<boolean> {
+  return (await getEntryLessons()).some((e) => e.lessonId === lessonId);
+}
+
+/** Admin: define (ou limpa, com null) a aula de entrada de um curso. */
+export async function setEntryLesson(courseId: number, lessonId: number | null): Promise<void> {
+  if (!(await ensureTrialSchema())) throw new TrialError("Banco indisponível.", "UNAVAILABLE");
+  const d = await db.getDb();
+  if (!d) throw new TrialError("Banco indisponível.", "UNAVAILABLE");
+
+  if (lessonId === null) {
+    await d.delete(trialEntryLessons).where(eq(trialEntryLessons.courseId, courseId));
+    return;
+  }
+  const [lesson] = await d.select().from(lessons).where(eq(lessons.id, lessonId)).limit(1);
+  if (!lesson || lesson.courseId !== courseId) throw new TrialError("A aula não pertence a este curso.", "BAD_REQUEST");
+  if (lesson.isAccessRestricted !== 1) throw new TrialError("A aula de entrada precisa ser uma aula paga (as gratuitas já abrem para todos).", "BAD_REQUEST");
+  if (lesson.isPublished !== 1) throw new TrialError("Publique a aula antes de usá-la como entrada.", "BAD_REQUEST");
+  if (!lesson.videoAssetId && !lesson.videoPlaybackUrl) throw new TrialError("A aula ainda não tem vídeo.", "BAD_REQUEST");
+
+  await d
+    .insert(trialEntryLessons)
+    .values({ courseId, lessonId })
+    .onConflictDoUpdate({ target: trialEntryLessons.courseId, set: { lessonId, updatedAt: new Date() } });
+}
+
+/** Admin: qual é a aula de entrada de cada curso (e se foi escolhida ou automática). */
+export async function getEntryLessonForCourse(courseId: number): Promise<{ lessonId: number | null; source: "admin" | "auto" | null }> {
+  const entry = (await getEntryLessons()).find((e) => e.courseId === courseId);
+  return entry ? { lessonId: entry.lessonId, source: entry.source } : { lessonId: null, source: null };
 }
 
 // ─── Acesso ──────────────────────────────────────────────────────────────────
@@ -138,7 +253,8 @@ export async function getTrialStatus(userId: number | null, lessonId: number): P
   status.lessonEligible = !!lesson
     && lesson.isPublished === 1
     && lesson.isAccessRestricted === 1
-    && !!(lesson.videoAssetId || lesson.videoPlaybackUrl);
+    && !!(lesson.videoAssetId || lesson.videoPlaybackUrl)
+    && (await isEntryLesson(lessonId)); // só a aula de entrada do curso vende no teste
 
   if (userId && (await ensureTrialSchema())) {
     const rows = await d
@@ -190,6 +306,7 @@ export async function createTrialCheckout(params: {
   if (lesson.isAccessRestricted !== 1) throw new TrialError("Esta aula já é gratuita, não precisa pagar para assistir.", "BAD_REQUEST");
   if (!lesson.videoAssetId && !lesson.videoPlaybackUrl) throw new TrialError("Esta aula ainda não tem vídeo disponível.", "BAD_REQUEST");
   if (params.alreadyHasAccess) throw new TrialError("Você já tem acesso a esta aula pelo seu plano ou compra.", "CONFLICT");
+  if (!(await isEntryLesson(lesson.id))) throw new TrialError("Esta aula não faz parte do teste de 1 aula. Escolha a aula de entrada do curso.", "BAD_REQUEST");
 
   const mine = await d.select().from(trialPasses).where(eq(trialPasses.userId, params.userId)).orderBy(desc(trialPasses.createdAt));
 

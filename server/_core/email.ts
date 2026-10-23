@@ -219,3 +219,50 @@ export async function sendWelcomeEmail(email: string, name: string) {
     html,
   });
 }
+
+
+/**
+ * Lembrete de cobrança em aberto (PIX, boleto ou cartão ainda não pago).
+ * O link é o da fatura do Asaas; o texto evita pressão e falsa urgência.
+ */
+export async function sendPaymentReminderEmail(
+  email: string,
+  name: string,
+  params: { invoiceUrl: string; what: string; note?: string },
+) {
+  const firstName = (name || "").trim().split(" ")[0] || "";
+  const greeting = firstName ? `Olá, ${firstName}.` : "Olá.";
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>${emailStyles}</style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <img src="${SITE_URL}/logo.png" alt="Shadia Hasan" class="logo" />
+          <h1>Seu pagamento está esperando</h1>
+        </div>
+        <div class="content">
+          <p>${greeting}</p>
+          <p>Você começou a contratar <strong>${params.what}</strong> e o pagamento ainda não foi concluído. Se foi só uma interrupção, é possível retomar de onde parou:</p>
+          <div style="text-align: center;">
+            <a href="${params.invoiceUrl}" class="button">Concluir pagamento</a>
+          </div>
+          ${params.note ? `<p>${params.note}</p>` : ""}
+          <p>Se você já pagou, pode ignorar esta mensagem. A liberação acontece sozinha assim que o pagamento é confirmado.</p>
+        </div>
+        <div class="footer">
+          <p>Precisa de ajuda? Escreva para <a href="mailto:contato@shadiahasan.club">contato@shadiahasan.club</a></p>
+          <p><a href="${SITE_URL}">www.shadiahasan.club</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({ to: email, subject: "Seu pagamento ainda não foi concluído", html });
+}

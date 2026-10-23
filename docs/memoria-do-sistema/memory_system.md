@@ -99,7 +99,7 @@ A listagem administrativa de assinaturas vem de **todos os usuários**, com `lef
 
 ### Tabelas criadas sob demanda
 
-`courseGroups`, `courseGroupLessons`, `contentCollections*`, `asaasAccounts` e `asaasWebhookEvents` têm `CREATE TABLE IF NOT EXISTS` no próprio router/módulo (autocorreção), além de estarem em `drizzle/schema.ts`. Funciona com ou sem `pnpm db:push`.
+`courseGroups`, `courseGroupLessons`, `contentCollections*`, `asaasAccounts` (colunas `overdueSince` e `remindersSent` entram por `ALTER TABLE ... IF NOT EXISTS`), `asaasWebhookEvents`, `trialPasses` e `trialEntryLessons` têm `CREATE TABLE IF NOT EXISTS` no próprio router/módulo (autocorreção), além de estarem em `drizzle/schema.ts`. Funciona com ou sem `pnpm db:push`.
 
 ---
 
@@ -240,12 +240,31 @@ Sem `ASAAS_API_KEY`, a opção Asaas não aparece e o webhook responde 401.
 | Evento | Efeito |
 |---|---|
 | `PAYMENT_CONFIRMED` / `PAYMENT_RECEIVED` | libera o plano (`active`), registra o pagamento uma vez por cobrança; indicação só na primeira ativação |
-| `PAYMENT_OVERDUE` | pausa o acesso (`paused`); pagamento posterior reativa |
+| `PAYMENT_OVERDUE` | só registra `overdueSince`; a rotina pausa o acesso (`paused`) depois da carência (`ASAAS_GRACE_DAYS`, padrão 3); pagamento posterior reativa |
 | `PAYMENT_REFUNDED` | marca a cobrança `refunded` e revoga (`free`/`cancelled`) |
-| `PAYMENT_CHARGEBACK_REQUESTED`, `SUBSCRIPTION_DELETED`, `SUBSCRIPTION_INACTIVATED` | revoga |
+| `PAYMENT_CHARGEBACK_REQUESTED` | revoga na hora |
+| `SUBSCRIPTION_DELETED`, `SUBSCRIPTION_INACTIVATED` | revoga, **exceto** se o aluno cancelou a própria assinatura e ainda está no período pago |
 | `PAYMENT_DELETED`, `SUBSCRIPTION_CREATED`, `SUBSCRIPTION_UPDATED` | só registra |
 
-Decisões: não há carência configurável (o Asaas marca vencida no dia seguinte ao vencimento); assinatura Asaas cancelada **não derruba** plano ativo gerenciado pelo Stripe. Tabelas: `asaasAccounts` (usuário ↔ assinatura) e `asaasWebhookEvents`.
+Decisões: assinatura Asaas cancelada **não derruba** plano ativo gerenciado pelo Stripe. Tabelas: `asaasAccounts` (usuário ↔ assinatura, com `overdueSince` e `remindersSent`) e `asaasWebhookEvents`.
+
+**Forma de pagamento da assinatura:** o diálogo de planos oferece "Cartão de crédito" (`billingType: CREDIT_CARD`, renovação automática, primeira opção) e "PIX ou boleto" (`UNDEFINED`). **Confirmar no sandbox do Asaas** que as cobranças seguintes do cartão saem sozinhas a partir do link da fatura.
+
+**Rotina periódica** (`runBillingMaintenance`, a cada 10 min a partir de 60s depois do boot, `server/_core/index.ts`): (1) pausa quem passou da carência sem pagar; (2) encerra o acesso de quem cancelou e chegou ao fim do período pago; (3) envia lembrete de pagamento não concluído por e-mail, 1 h e 6 h depois de gerar a cobrança (máx. 2, só enquanto a cobrança vale; cada envio é reservado no banco antes, sem duplicar).
+
+**Cancelamento pelo aluno** (`subscriptions.cancelAsaas`, botão em "Minha assinatura"): remove a assinatura no Asaas e mantém o acesso até 30 dias depois do último pagamento confirmado (`subscriptions.endDate`, `autoRenew = 0`); sem período a cumprir, encerra na hora. Estorno e chargeback continuam revogando na hora.
+
+### Teste pago de 1 aula (`server/trial.ts`, router `trial`)
+
+Cobrança avulsa no Asaas (padrão **R$ 19,90**, pagamento único) que libera **uma aula** por **7 dias**. Depois disso o caminho é assinar; não há crédito nem abatimento.
+
+- Opcionais no Render: `TRIAL_PRICE_CENTS` (500 a 20000, padrão 1990) e `TRIAL_VALID_DAYS` (1 a 60, padrão 7).
+- **Só a aula de entrada de cada curso vende** no teste: a escolhida em `/admin` (botão "Definir como entrada" na lista de aulas) ou, sem escolha, a primeira aula paga publicada com vídeo (tabela `trialEntryLessons`).
+- Um teste pago por aluno; quem já tem plano ou compra do curso não paga; trocar de aula antes de pagar cancela a cobrança pendente anterior.
+- Cobrança leva `externalReference = trial:<userId>:<lessonId>` e o webhook a trata à parte (`processTrialEvent`): confirmação ativa o passe (`trialPasses`), valor menor que o preço não libera, estorno/chargeback revogam, OVERDUE/DELETED cancelam um passe ainda pendente. **O checkout nunca libera acesso.**
+- `checkUserHasAccess(userId, { ..., id })` consulta o passe; o passe também dispensa a trava da trilha de aprendizado para aquela aula. Os quatro pontos que chamam `checkUserHasAccess` precisam passar `id` da aula.
+- Home: seção `TrialOfferSection` (só aparece com Asaas configurado e ao menos uma aula de entrada). Aula bloqueada: botão "Assistir esta aula por R$ 19,90"; durante o teste, faixa com link para os planos.
+
 
 **Cadastro do webhook no Asaas:** URL `https://shadiahasan-2ngl.onrender.com/api/webhooks/asaas`, API v3, envio sequencial, eventos da tabela acima. Teste antes no sandbox, com webhook separado. No plano gratuito do Render o serviço hiberna e o primeiro webhook pode dar timeout; o Asaas reenvia.
 
@@ -279,6 +298,8 @@ STRIPE_SECRET_KEY=...  STRIPE_WEBHOOK_SECRET=...  STRIPE_PRICE_*=...
 
 # Asaas
 ASAAS_API_KEY=...  ASAAS_WEBHOOK_TOKEN=...  ASAAS_BASE_URL=...
+# opcionais: carência no atraso (dias) e teste de 1 aula
+ASAAS_GRACE_DAYS=3  TRIAL_PRICE_CENTS=1990  TRIAL_VALID_DAYS=7
 ```
 
 `drizzle.config.ts` lê o `.env` local; `pnpm db:push` precisa de `DATABASE_URL`.

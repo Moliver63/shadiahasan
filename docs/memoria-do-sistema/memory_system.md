@@ -250,7 +250,7 @@ Decisões: assinatura Asaas cancelada **não derruba** plano ativo gerenciado pe
 
 **Forma de pagamento da assinatura:** o diálogo de planos oferece "Cartão de crédito" (`billingType: CREDIT_CARD`, renovação automática, primeira opção) e "PIX ou boleto" (`UNDEFINED`). **Confirmar no sandbox do Asaas** que as cobranças seguintes do cartão saem sozinhas a partir do link da fatura.
 
-**Rotina periódica** (`runBillingMaintenance`, a cada 10 min a partir de 60s depois do boot, `server/_core/index.ts`): (1) pausa quem passou da carência sem pagar; (2) encerra o acesso de quem cancelou e chegou ao fim do período pago; (3) envia lembrete de pagamento não concluído por e-mail, 1 h e 6 h depois de gerar a cobrança (máx. 2, só enquanto a cobrança vale; cada envio é reservado no banco antes, sem duplicar).
+**Rotina periódica** (`runBillingMaintenance`, a cada 10 min a partir de 60s depois do boot, `server/_core/index.ts`): (1) pausa quem passou da carência sem pagar; (2) encerra o acesso de quem cancelou e chegou ao fim do período pago; (3) envia lembrete de pagamento não concluído por e-mail: o primeiro 1 h depois de gerar a cobrança e o segundo cerca de 6 h depois do primeiro (elegível 7 h após a criação), máx. 2, só enquanto a cobrança vale. Cada envio é reservado no banco antes, sem duplicar; se o e-mail falhar ou o aluno não tiver e-mail, a reserva é devolvida e a rotina tenta de novo na próxima rodada (commit `2e93a6e`).
 
 **Cancelamento pelo aluno** (`subscriptions.cancelAsaas`, botão em "Minha assinatura"): remove a assinatura no Asaas e mantém o acesso até 30 dias depois do último pagamento confirmado (`subscriptions.endDate`, `autoRenew = 0`); sem período a cumprir, encerra na hora. Estorno e chargeback continuam revogando na hora.
 
@@ -263,7 +263,9 @@ Cobrança avulsa no Asaas (padrão **R$ 19,90**, pagamento único) que libera **
 - Um teste pago por aluno; quem já tem plano ou compra do curso não paga; trocar de aula antes de pagar cancela a cobrança pendente anterior.
 - Cobrança leva `externalReference = trial:<userId>:<lessonId>` e o webhook a trata à parte (`processTrialEvent`): confirmação ativa o passe (`trialPasses`), valor menor que o preço não libera, estorno/chargeback revogam, OVERDUE/DELETED cancelam um passe ainda pendente. **O checkout nunca libera acesso.**
 - `checkUserHasAccess(userId, { ..., id })` consulta o passe; o passe também dispensa a trava da trilha de aprendizado para aquela aula. Os quatro pontos que chamam `checkUserHasAccess` precisam passar `id` da aula.
-- Home: seção `TrialOfferSection` (só aparece com Asaas configurado e ao menos uma aula de entrada). Aula bloqueada: botão "Assistir esta aula por R$ 19,90"; durante o teste, faixa com link para os planos.
+- Home: seção `TrialOfferSection`, logo abaixo do bloco dos cursos. Para os alunos só aparece com Asaas configurado (`ASAAS_API_KEY`) e ao menos uma aula de entrada. **Administradores veem a faixa sempre**, com uma barra dourada "Pré-visualização para administradores" que diz o que falta (Asaas ausente e/ou nenhuma aula de entrada válida); sem aula de entrada, os cards por curso ficam ocultos (commit `b791b17`).
+- Aula bloqueada: botão "Assistir esta aula por R$ 19,90"; durante o teste, faixa com link para os planos.
+- `TrialPassDialog`: a aba de pagamento é aberta no próprio clique (`window.open("about:blank")`) e só depois recebe o link da fatura, porque navegadores bloqueiam `window.open` depois de um `await`. Se a aba for bloqueada, o checkout segue na aba atual; em erro, a aba em branco é fechada (commit `1cc8480`).
 
 
 **Cadastro do webhook no Asaas:** URL `https://shadiahasan-2ngl.onrender.com/api/webhooks/asaas`, API v3, envio sequencial, eventos da tabela acima. Teste antes no sandbox, com webhook separado. No plano gratuito do Render o serviço hiberna e o primeiro webhook pode dar timeout; o Asaas reenvia.
@@ -328,6 +330,18 @@ ASAAS_GRACE_DAYS=3  TRIAL_PRICE_CENTS=1990  TRIAL_VALID_DAYS=7
 
 ## 12. Pendências
 
+### Publicado em 2026-10-23 (`main`)
+
+| Commit | O que entrou |
+|---|---|
+| `6d46f8e` | teste pago de 1 aula via Asaas (R$ 19,90), `server/trial.ts`, router `trial` |
+| `d07bcd3` | aula de entrada por curso, seção na home, carência no atraso, lembretes, cancelamento pelo aluno |
+| `b791b17` | pré-visualização da faixa de oferta para administradores |
+| `2e93a6e` | lembretes de pagamento com nova tentativa em falha de envio |
+| `1cc8480` | janela de pagamento do teste não é mais bloqueada pelo navegador |
+
+Estado em produção: `ASAAS_API_KEY` já está no Render. **Ainda conferir:** `ASAAS_WEBHOOK_TOKEN`, cadastro do webhook no Asaas e se a chave é de sandbox ou produção (`ASAAS_BASE_URL`). Uma compra de teste de R$ 19,90 de ponta a ponta (fatura, webhook, aula liberada) ainda não foi validada.
+
 ### Já concluído
 
 - [x] ativar/desativar assinatura para qualquer usuário no admin
@@ -356,7 +370,7 @@ ASAAS_GRACE_DAYS=3  TRIAL_PRICE_CENTS=1990  TRIAL_VALID_DAYS=7
 ## 13. Ordem recomendada para próximas manutenções
 
 1. corrigir os valores gravados pelo webhook do Stripe (11.2) e validar uma assinatura real de ponta a ponta (o webhook só passou a validar em 2026-10-23, então pode haver assinaturas pagas antes disso sem ativação: conferir no painel do Stripe e ativar no admin);
-2. cadastrar as variáveis do Asaas, testar no sandbox e só então usar a chave de produção;
+2. definir `ASAAS_WEBHOOK_TOKEN`, cadastrar o webhook no Asaas, testar uma compra de R$ 19,90 no sandbox (incluindo se o cartão renova sozinho) e só então usar a chave de produção;
 3. publicar o `Courses.tsx` com `OptimizedImage` (`motion`/`priority`) e conferir as capas no desktop;
 4. fechar os erros de `pnpm check` e deixar o comando em zero;
 5. compra avulsa (UI + checkout);

@@ -24,6 +24,7 @@ server/routers/videos.ts             -- vídeo + checkUserHasAccess
 server/routers/groups.ts             -- Grupos (módulos dentro de um curso)
 server/routers/collections.ts        -- Programas (entre cursos)
 server/asaas.ts + routes/asaas-webhook.ts   -- pagamento Asaas
+server/trial.ts + routers/trial.ts       -- teste pago de 1 aula (R$ 19,90)
 server/routes/stripe-webhook.ts      -- webhook Stripe
 shared/stripe-config.ts, shared/br-document.ts
 client/src/pages/AdminCourses.tsx / AdminCourseLessons.tsx / AdminCourseGroups.tsx / AdminCollections.tsx
@@ -84,11 +85,15 @@ Só `status = 'active'` libera.
 
 - **Stripe (cartão)**: `subscriptions.createCheckout` + webhook `POST /api/stripe/webhook`.
 - **Asaas (PIX, boleto, cartão)**: `subscriptions.createAsaasCheckout` + webhook `POST /api/webhooks/asaas`. Só aparece em `/pricing` se `ASAAS_API_KEY` estiver configurada. O acesso é liberado **só pelo webhook** (`PAYMENT_CONFIRMED`/`RECEIVED`), pausado em `PAYMENT_OVERDUE` e revogado em estorno, chargeback e cancelamento da assinatura. Eventos são idempotentes pelo `id`.
+- **Teste de 1 aula (R$ 19,90, pagamento único no Asaas)**: libera só a aula de entrada de cada curso por 7 dias (`TRIAL_PRICE_CENTS`, `TRIAL_VALID_DAYS`). Cobrança com `externalReference = trial:<userId>:<lessonId>`, liberada só pelo webhook. A faixa `TrialOfferSection` fica na home; os alunos só a veem com `ASAAS_API_KEY` e ao menos uma aula de entrada, e **administradores sempre a veem**, com aviso do que falta. Rotina de carência, lembretes por e-mail e cancelamento pelo aluno: seção 7 do `memory_system.md`.
 
 ```env
 ASAAS_API_KEY=<chave>               # só no Render, nunca no código
 ASAAS_WEBHOOK_TOKEN=<aleatório>     # igual ao token do webhook no Asaas
 ASAAS_BASE_URL=https://api.asaas.com/v3   # sandbox: https://api-sandbox.asaas.com/v3
+ASAAS_GRACE_DAYS=3                  # opcional: dias de carência no atraso
+TRIAL_PRICE_CENTS=1990              # opcional: preço do teste (500 a 20000)
+TRIAL_VALID_DAYS=7                  # opcional: validade do teste (1 a 60)
 ```
 
 Detalhes (eventos, decisões, cadastro do webhook): seção 7 do `memory_system.md`.

@@ -7,8 +7,8 @@ import { formatBRL } from "@/components/TrialPassDialog";
 
 /**
  * Oferta de degustação: 1 aula completa por um valor único (Asaas).
- * Para os alunos, só aparece quando o Asaas está configurado e há ao menos uma aula de entrada.
- * Administradores veem a faixa sempre, com um aviso de pré-visualização dizendo o que falta.
+ * A faixa aparece para todos os visitantes. Sem Asaas configurado ou sem aula de entrada, o botão leva
+ * para a lista de cursos em vez de abrir a compra, e só administradores veem um aviso do que falta.
  */
 export default function TrialOfferSection() {
   const { data: info } = trpc.trial.info.useQuery();
@@ -21,9 +21,10 @@ export default function TrialOfferSection() {
   const missing: string[] = [];
   if (!info.enabled) missing.push("o Asaas não está configurado (falta ASAAS_API_KEY no servidor)");
   if (entries.length === 0) missing.push("nenhum curso publicado tem aula paga, publicada e com vídeo para ser a aula de entrada");
-  const isPreview = missing.length > 0;
-
-  if (isPreview && !isAdmin) return null;
+  // A faixa aparece para todos. O aviso do que falta é só para administradores.
+  const showAdminNotice = missing.length > 0 && isAdmin;
+  // Só dá para comprar com Asaas configurado e ao menos uma aula de entrada.
+  const canBuy = info.enabled && entries.length > 0;
 
   const price = formatBRL(info.priceCents);
 
@@ -33,13 +34,13 @@ export default function TrialOfferSection() {
       className="relative overflow-hidden text-[#f4ece4]"
       style={{ background: "linear-gradient(135deg, #1d1410 0%, #2b1d16 55%, #3a2619 100%)" }}
     >
-      {isPreview && (
+      {showAdminNotice && (
         <div className="border-b border-[#d9b27c]/30 bg-[#d9b27c]/15 text-[#f4ece4]">
           <div className="container flex items-start gap-3 py-3 text-sm">
             <Eye className="mt-0.5 h-4 w-4 shrink-0 text-[#e8c48f]" />
             <p>
-              <strong className="font-semibold text-[#e8c48f]">Pré-visualização para administradores.</strong>{" "}
-              Os alunos ainda não veem esta faixa porque {missing.join(" e ")}.
+              <strong className="font-semibold text-[#e8c48f]">Aviso para administradores.</strong>{" "}
+              A compra ainda não funciona para os alunos porque {missing.join(" e ")}. O botão leva para a lista de cursos.
             </p>
           </div>
         </div>
@@ -63,12 +64,12 @@ export default function TrialOfferSection() {
             <p className="text-sm text-[#d8cabd]">
               Pagamento único. Você assiste em até {info.validDays} dias.
             </p>
-            <a
-              href="#aulas-de-entrada"
-              className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-[#d9b27c] to-[#f0d3a4] px-8 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-[#2b1d16] shadow-lg transition hover:brightness-105 sm:w-auto"
-            >
-              Quero experimentar
-            </a>
+            {(() => {
+              const cls = "inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-[#d9b27c] to-[#f0d3a4] px-8 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-[#2b1d16] shadow-lg transition hover:brightness-105 sm:w-auto";
+              return canBuy
+                ? <a href="#aulas-de-entrada" className={cls}>Quero experimentar</a>
+                : <Link href="/courses" className={cls}>Quero experimentar</Link>;
+            })()}
           </div>
 
           <ul className="space-y-4 text-sm">
@@ -88,7 +89,7 @@ export default function TrialOfferSection() {
         </div>
 
         {/* Uma aula de entrada por curso */}
-        {entries.length > 0 && (
+        {canBuy && (
         <div id="aulas-de-entrada" className="mt-12 scroll-mt-24">
           <p className="mb-5 text-[11px] font-medium uppercase tracking-[0.3em] text-[#d9b27c]">Escolha por onde começar</p>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">

@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
+import { lazy, Suspense } from "react";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import InstallAppButton from "./components/InstallAppButton";
@@ -10,56 +11,56 @@ import Analytics from "./components/Analytics";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
-import AdminDashboard from "./pages/AdminDashboard";
-import AdminUsers from "./pages/AdminUsers";
-import AdminAppointments from "./pages/AdminAppointments";
-import AdminFinanceiro from "./pages/AdminFinanceiro";
-import AdminPrograms from "./pages/AdminPrograms";
-import AdminCourses from "./pages/AdminCourses";
-import AdminPlans from "./pages/AdminPlans";
-import AdminTestimonials from "./pages/AdminTestimonials";
-import AdminCourseLessons from "./pages/AdminCourseLessons";
-import AdminLessonMaterials from "./pages/AdminLessonMaterials";
-import AdminCourseGroups from "./pages/AdminCourseGroups";
-import AdminCollections from "./pages/AdminCollections";
-import CollectionDetail from "./pages/CollectionDetail";
-import AdminSettings from "./pages/AdminSettings";
-import AdminAnalytics from "./pages/AdminAnalytics";
-import AdminLessons from "./pages/AdminLessons";
-import AdminStudents from "./pages/AdminStudents";
-import Courses from "./pages/Courses";
-import CourseDetail from "./pages/CourseDetail";
-import LessonView from "./pages/LessonView";
-import MyCourses from "./pages/MyCourses";
-import Pricing from "./pages/Pricing";
-import CheckoutSuccess from "./pages/CheckoutSuccess";
-import Ebooks from "./pages/Ebooks";
-import EbookReader from "./pages/EbookReader";
-import MyCertificates from "./pages/MyCertificates";
-import About from "./pages/About";
-import Contact from "./pages/Contact";
-import FAQ from "./pages/FAQ";
-import Profile from "./pages/Profile";
-import CommunityExplore from "./pages/CommunityExplore";
-import CommunityConnections from "./pages/CommunityConnections";
-import AdminModeration from "./pages/AdminModeration";
-import AdminManageAdmins from "./pages/AdminManageAdmins";
-import AdminAccountSettings from "./pages/AdminAccountSettings";
-import AdminManageSubscriptions from "./pages/AdminManageSubscriptions";
-import Messages from "./pages/Messages";
-import EditProfile from "./pages/EditProfile";
-import MySubscription from "./pages/MySubscription";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import VerifyEmail from "./pages/VerifyEmail";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import Terms from "./pages/Terms";
-import Privacy from "./pages/Privacy";
-import UserReferrals from "./pages/UserReferrals";
-import AdminCashbackRequests from "./pages/AdminCashbackRequests";
-import AdminManagement from "./pages/admin/AdminManagement";
-import AcceptAdminInvite from "./pages/AcceptAdminInvite";
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminUsers = lazy(() => import("./pages/AdminUsers"));
+const AdminAppointments = lazy(() => import("./pages/AdminAppointments"));
+const AdminFinanceiro = lazy(() => import("./pages/AdminFinanceiro"));
+const AdminPrograms = lazy(() => import("./pages/AdminPrograms"));
+const AdminCourses = lazy(() => import("./pages/AdminCourses"));
+const AdminPlans = lazy(() => import("./pages/AdminPlans"));
+const AdminTestimonials = lazy(() => import("./pages/AdminTestimonials"));
+const AdminCourseLessons = lazy(() => import("./pages/AdminCourseLessons"));
+const AdminLessonMaterials = lazy(() => import("./pages/AdminLessonMaterials"));
+const AdminCourseGroups = lazy(() => import("./pages/AdminCourseGroups"));
+const AdminCollections = lazy(() => import("./pages/AdminCollections"));
+const CollectionDetail = lazy(() => import("./pages/CollectionDetail"));
+const AdminSettings = lazy(() => import("./pages/AdminSettings"));
+const AdminAnalytics = lazy(() => import("./pages/AdminAnalytics"));
+const AdminLessons = lazy(() => import("./pages/AdminLessons"));
+const AdminStudents = lazy(() => import("./pages/AdminStudents"));
+const Courses = lazy(() => import("./pages/Courses"));
+const CourseDetail = lazy(() => import("./pages/CourseDetail"));
+const LessonView = lazy(() => import("./pages/LessonView"));
+const MyCourses = lazy(() => import("./pages/MyCourses"));
+const Pricing = lazy(() => import("./pages/Pricing"));
+const CheckoutSuccess = lazy(() => import("./pages/CheckoutSuccess"));
+const Ebooks = lazy(() => import("./pages/Ebooks"));
+const EbookReader = lazy(() => import("./pages/EbookReader"));
+const MyCertificates = lazy(() => import("./pages/MyCertificates"));
+const About = lazy(() => import("./pages/About"));
+const Contact = lazy(() => import("./pages/Contact"));
+const FAQ = lazy(() => import("./pages/FAQ"));
+const Profile = lazy(() => import("./pages/Profile"));
+const CommunityExplore = lazy(() => import("./pages/CommunityExplore"));
+const CommunityConnections = lazy(() => import("./pages/CommunityConnections"));
+const AdminModeration = lazy(() => import("./pages/AdminModeration"));
+const AdminManageAdmins = lazy(() => import("./pages/AdminManageAdmins"));
+const AdminAccountSettings = lazy(() => import("./pages/AdminAccountSettings"));
+const AdminManageSubscriptions = lazy(() => import("./pages/AdminManageSubscriptions"));
+const Messages = lazy(() => import("./pages/Messages"));
+const EditProfile = lazy(() => import("./pages/EditProfile"));
+const MySubscription = lazy(() => import("./pages/MySubscription"));
+const Login = lazy(() => import("./pages/Login"));
+const Signup = lazy(() => import("./pages/Signup"));
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const UserReferrals = lazy(() => import("./pages/UserReferrals"));
+const AdminCashbackRequests = lazy(() => import("./pages/AdminCashbackRequests"));
+const AdminManagement = lazy(() => import("./pages/admin/AdminManagement"));
+const AcceptAdminInvite = lazy(() => import("./pages/AcceptAdminInvite"));
 
 // Temporary stub to prevent runtime crash if Admin page/component is missing or not imported.
 // Replace with a real import when the page exists.
@@ -91,9 +92,27 @@ const Explore = () => (
 );
 
 
+/**
+ * Tela neutra enquanto o pedaco de codigo da rota chega.
+ *
+ * De proposito sem texto, logo ou cor nova: a identidade visual nao muda, e
+ * uma mensagem de "carregando" piscando entre paginas seria uma regressao
+ * visual. Fundo herdado do tema, so pra nao haver salto de cor.
+ */
+function RotaCarregando() {
+  return <div className="min-h-screen bg-background" aria-busy="true" />;
+}
+
 function Router() {
   // make sure to consider if you need authentication for certain routes
+  //
+  // Paginas carregadas sob demanda (24/10). Eram 52 importadas de uma vez,
+  // incluindo ~20 telas de admin, entao quem chegava pelo anuncio baixava o
+  // painel administrativo inteiro antes de ver a home. `Home` e `NotFound`
+  // ficam no pedaco inicial: a primeira e o destino do anuncio, a segunda e o
+  // fallback e nao pode depender de outro download.
   return (
+    <Suspense fallback={<RotaCarregando />}>
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/pricing"} component={Pricing} />
@@ -153,6 +172,7 @@ function Router() {
 
 <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 

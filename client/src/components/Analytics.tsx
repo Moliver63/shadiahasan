@@ -54,6 +54,11 @@ function loadGA4(id: string) {
 }
 
 function loadMetaPixel(id: string) {
+  // O pixel normalmente já nasceu no `<head>` do index.html, que é onde ele
+  // precisa estar para disparar antes do bundle (ver o comentário lá). Então
+  // este caminho é a rede de segurança: só roda se, por algum motivo, o
+  // snippet do head não executou. `window.fbq` presente = já iniciado, e
+  // chamar `init` de novo contaria a visita duas vezes.
   if (window.fbq) return;
   const fbq: any = function (...args: unknown[]) {
     if (fbq.callMethod) {
@@ -107,8 +112,10 @@ export default function Analytics() {
   }, []);
 
   useEffect(() => {
-    // O PageView da primeira tela sai no `init`; repetir aqui contaria duas
-    // vezes a mesma visita.
+    // O PageView da primeira tela já saiu junto do `init` — no `<head>` do
+    // index.html, no caso normal, ou em `loadMetaPixel` na rede de segurança.
+    // Repetir aqui contaria duas vezes a mesma visita, então a primeira rota
+    // é sempre ignorada e este efeito cuida só das navegações seguintes.
     if (primeiraRota.current) {
       primeiraRota.current = false;
       return;

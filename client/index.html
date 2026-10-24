@@ -20,6 +20,56 @@
     <meta name="twitter:description" content="Experiência imersiva em realidade virtual para sua evolução consciente e expansão emocional." />
     <title>Shadia Hasan - Jornada de Transformação Interior</title>
     
+    <!--
+      Meta Pixel — carregado aqui, antes de tudo.
+
+      Achado real (auditoria de 24/10, campanha 804): 19 cliques no link e 1
+      visualização de página de destino. O pixel não estava quebrado; ele era
+      injetado por um `useEffect` do React, então só nascia depois de o
+      navegador baixar ~890 kB comprimidos e o React montar. Com 470 das 471
+      impressões em `mobile_app` (navegador interno do app do Facebook) e 71%
+      do público em 55+, a maioria saía antes disso. Aqui o pixel dispara
+      independente do bundle, do React e do tempo de boot.
+
+      O ID vem de VITE_META_PIXEL_ID, substituído pelo Vite no build. Sem a
+      variável definida o bloco não faz nada: medir errado com um ID inventado
+      é pior que não medir.
+
+      `Analytics.tsx` continua responsável pelos eventos de conversão e pelo
+      PageView das navegações internas. Ele checa `window.fbq` antes de
+      inicializar, então não há init duplicado.
+    -->
+    <script>
+      (function () {
+        var id = "%VITE_META_PIXEL_ID%";
+        // Variável ausente no build: o Vite deixa a string vazia ou o próprio
+        // marcador. Nos dois casos não há pixel para iniciar.
+        if (!id || id.charAt(0) === "%") return;
+        if (window.fbq) return;
+        !(function (f, b, e, v, n, t, s) {
+          if (f.fbq) return;
+          n = f.fbq = function () {
+            n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+          };
+          if (!f._fbq) f._fbq = n;
+          n.push = n;
+          n.loaded = !0;
+          n.version = "2.0";
+          n.queue = [];
+          t = b.createElement(e);
+          t.async = !0;
+          t.src = v;
+          s = b.getElementsByTagName(e)[0];
+          s.parentNode.insertBefore(t, s);
+        })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+        fbq("init", id);
+        fbq("track", "PageView");
+        // Marca que o PageView de entrada já saiu, para o Analytics.tsx não
+        // contar a mesma visita duas vezes.
+        window.__metaPixelBooted = true;
+      })();
+    </script>
+
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />

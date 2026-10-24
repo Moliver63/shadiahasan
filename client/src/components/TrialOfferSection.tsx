@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { Lock, PlayCircle, ShieldCheck, RefreshCcwDot, Clock, Eye } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { formatDuration } from "@/lib/formatDuration";
 import TrialPassDialog, { formatBRL } from "@/components/TrialPassDialog";
+import { trackViewContent } from "@/components/Analytics";
 import { getLoginUrl } from "@/const";
 
 /**
@@ -21,6 +22,27 @@ export default function TrialOfferSection() {
     enabled: isAdmin && !!entries && entries.length === 0,
   });
   const [payLessonId, setPayLessonId] = useState<number | null>(null);
+
+  /**
+   * ViewContent da oferta anunciada.
+   *
+   * Esta faixa é onde o produto de R$ 19,90 fica, e é onde o anúncio da
+   * campanha 804 cai. Dispara uma vez, quando a oferta carrega e existe aula
+   * de entrada de verdade: sem aula, não há produto visto. Se um dia a oferta
+   * ganhar página própria, o evento vai com ela.
+   */
+  const viewContentEnviado = useRef(false);
+  const primeiraEntrada = entries?.[0];
+  useEffect(() => {
+    if (viewContentEnviado.current) return;
+    if (!info?.enabled || !primeiraEntrada) return;
+    viewContentEnviado.current = true;
+    trackViewContent({
+      contentId: `lesson:${primeiraEntrada.lessonId}`,
+      contentName: primeiraEntrada.lessonTitle,
+      value: info.priceCents / 100,
+    });
+  }, [info?.enabled, info?.priceCents, primeiraEntrada]);
 
   if (!info || !entries) return null;
 

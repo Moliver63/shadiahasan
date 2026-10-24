@@ -16,6 +16,18 @@ import {
 import { isAsaasConfigured } from "../asaas";
 import { checkUserHasAccess } from "./videos";
 
+/**
+ * IP real do visitante. No Render a aplicação fica atrás de proxy, então
+ * `req.ip` traz o IP do proxy; o primeiro endereço de `x-forwarded-for` é o
+ * do cliente. Só o primeiro: os seguintes são os proxies do caminho.
+ */
+function ipDoRequest(req: { headers: Record<string, unknown>; ip?: string }): string | null {
+  const encaminhado = req.headers["x-forwarded-for"];
+  const bruto = Array.isArray(encaminhado) ? encaminhado[0] : encaminhado;
+  const primeiro = typeof bruto === "string" ? bruto.split(",")[0]?.trim() : "";
+  return primeiro || req.ip || null;
+}
+
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== "admin" && ctx.user.role !== "superadmin") {
     throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
@@ -72,6 +84,25 @@ export const trialRouter = router({
     .input(z.object({
       lessonId: z.number().int().positive(),
       cpfCnpj: z.string().min(11).max(18),
+      /**
+       * Origem do visitante, capturada pelo navegador. Opcional de propósito:
+       * bloqueador de rastreamento, navegação privada ou visita direta chegam
+       * sem isso, e a compra não pode depender de rastreamento para acontecer.
+       * Limites de tamanho para não virar campo livre de texto no banco.
+       */
+      atribuicao: z
+        .object({
+          fbp: z.string().max(128).optional(),
+          fbc: z.string().max(255).optional(),
+          utmSource: z.string().max(128).optional(),
+          utmMedium: z.string().max(128).optional(),
+          utmCampaign: z.string().max(191).optional(),
+          utmContent: z.string().max(191).optional(),
+          utmTerm: z.string().max(191).optional(),
+          landingUrl: z.string().max(2048).optional(),
+        })
+        .partial()
+        .optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const d = await getDb();
@@ -96,6 +127,14 @@ export const trialRouter = router({
           cpfCnpj: input.cpfCnpj,
           origin,
           alreadyHasAccess,
+          // IP e user-agent vêm do request, não do cliente: a Meta usa os dois
+          // para correspondência, e dado que o navegador declara sobre si
+          // mesmo não vale como evidência de origem.
+          atribuicao: {
+            ...(input.atribuicao || {}),
+            clientIp: ipDoRequest(ctx.req),
+            clientUserAgent: (ctx.req.headers["user-agent"] as string | undefined) ?? null,
+          },
         });
         return { url: result.url };
       } catch (e) {

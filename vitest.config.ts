@@ -14,6 +14,15 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    // `client/` entrou em 24/10: a captura de atribuição do pixel é lógica
+    // pura (cookie, querystring, sessionStorage) e dava para testar sem DOM
+    // de verdade, mas o include só olhava `server/`, então o arquivo era
+    // ignorado em silêncio. Teste que não roda não protege nada.
+    include: [
+      "server/**/*.test.ts",
+      "server/**/*.spec.ts",
+      "client/src/**/*.test.ts",
+      "client/src/**/*.spec.ts",
+    ],
   },
 });

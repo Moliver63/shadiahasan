@@ -78,6 +78,29 @@ export function ensureTrialSchema(): Promise<boolean> {
           )
         `);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "trialPasses_user_idx" ON "trialPasses" ("userId")`);
+        /**
+         * Origem do visitante, guardada na criação da cobrança.
+         *
+         * O pagamento acontece na fatura do Asaas, fora do site, e o
+         * `Purchase` sai do servidor quando o webhook confirma. Nessa hora não
+         * existe navegador na jogada: sem `_fbp`/`_fbc` gravados aqui, a Meta
+         * recebe a compra e não consegue atribuí-la a campanha nenhuma.
+         *
+         * ADD COLUMN IF NOT EXISTS mantém a função idempotente, como o resto.
+         */
+        await d.execute(sql`
+          ALTER TABLE "trialPasses"
+            ADD COLUMN IF NOT EXISTS "fbp" varchar(128),
+            ADD COLUMN IF NOT EXISTS "fbc" varchar(255),
+            ADD COLUMN IF NOT EXISTS "utmSource" varchar(128),
+            ADD COLUMN IF NOT EXISTS "utmMedium" varchar(128),
+            ADD COLUMN IF NOT EXISTS "utmCampaign" varchar(191),
+            ADD COLUMN IF NOT EXISTS "utmContent" varchar(191),
+            ADD COLUMN IF NOT EXISTS "landingUrl" text,
+            ADD COLUMN IF NOT EXISTS "clientIp" varchar(64),
+            ADD COLUMN IF NOT EXISTS "clientUserAgent" text,
+            ADD COLUMN IF NOT EXISTS "capiPurchaseSentAt" timestamp
+        `);
         await d.execute(sql`
           CREATE TABLE IF NOT EXISTS "trialEntryLessons" (
             "courseId" integer PRIMARY KEY,
@@ -416,6 +439,18 @@ export async function createTrialCheckout(params: {
   origin: string;
   /** Já tem acesso por plano/compra? Injetado pelo router para evitar import circular. */
   alreadyHasAccess: boolean;
+  /** Origem do visitante, para o Purchase do servidor ser atribuível. Opcional. */
+  atribuicao?: {
+    fbp?: string | null;
+    fbc?: string | null;
+    utmSource?: string | null;
+    utmMedium?: string | null;
+    utmCampaign?: string | null;
+    utmContent?: string | null;
+    landingUrl?: string | null;
+    clientIp?: string | null;
+    clientUserAgent?: string | null;
+  } | null;
 }): Promise<{ url: string; paymentId: string }> {
   if (!isAsaasConfigured()) throw new TrialError("Pagamento via Asaas não está disponível no momento.", "PRECONDITION_FAILED");
   if (!(await ensureAsaasSchema()) || !(await ensureTrialSchema())) throw new TrialError("Banco indisponível. Tente novamente em instantes.", "UNAVAILABLE");
@@ -500,7 +535,32 @@ export async function createTrialCheckout(params: {
     dueDate: today,
     amountCents,
     status: "pending",
+    // Campos de atribuição: gravados por SQL cru logo abaixo, porque não estão
+    // no schema do Drizzle (a tabela nasce por DDL em ensureTrialSchema).
   });
+
+  // Origem do visitante. Falha aqui não pode impedir o pagamento: o aluno já
+  // tem a fatura, e rastreamento vale menos que a venda.
+  if (params.atribuicao) {
+    const a = params.atribuicao;
+    try {
+      await d.execute(sql`
+        UPDATE "trialPasses" SET
+          "fbp" = ${a.fbp ?? null},
+          "fbc" = ${a.fbc ?? null},
+          "utmSource" = ${a.utmSource ?? null},
+          "utmMedium" = ${a.utmMedium ?? null},
+          "utmCampaign" = ${a.utmCampaign ?? null},
+          "utmContent" = ${a.utmContent ?? null},
+          "landingUrl" = ${a.landingUrl ?? null},
+          "clientIp" = ${a.clientIp ?? null},
+          "clientUserAgent" = ${a.clientUserAgent ?? null}
+        WHERE "asaasPaymentId" = ${payment.id}
+      `);
+    } catch (e) {
+      console.warn("[Trial] atribuição não gravada:", e instanceof Error ? e.message : e);
+    }
+  }
 
   console.log(`[Trial] cobrança criada: ${payment.id} user ${params.userId} aula ${lesson.id}`);
   return { url: payment.invoiceUrl, paymentId: payment.id };
@@ -585,6 +645,9 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
         });
       }
       console.log(`[Trial] passe ativo: user ${pass.userId} aula ${pass.lessonId}`);
+      // Só na primeira ativação: PAYMENT_CONFIRMED e PAYMENT_RECEIVED chegam
+      // os dois pra mesma cobrança, e a Meta não pode contar duas compras.
+      if (firstActivation) await enviarCompraParaMeta(pass.id, paymentId);
       return;
     }
 
@@ -607,5 +670,77 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
 
     default:
       console.log(`[Trial] evento sem ação: ${body.event}`);
+  }
+}
+
+/**
+ * Manda o `Purchase` para a Meta depois de o pagamento ser confirmado.
+ *
+ * Três garantias, nesta ordem de importância:
+ *
+ *  1. **Nunca atrapalha a venda.** Tudo dentro de try/catch e sem relançar. O
+ *     aluno já tem o acesso liberado quando esta função roda; se a Meta estiver
+ *     fora do ar, o que se perde é a métrica.
+ *  2. **Uma compra por cobrança.** `event_id` é o id da cobrança no Asaas, e a
+ *     coluna `capiPurchaseSentAt` marca o envio. Se o mesmo evento voltar a ser
+ *     processado (reprocessamento na subida do servidor), não manda de novo.
+ *  3. **Atribuível.** Usa o `_fbp`/`_fbc` guardados na criação da cobrança.
+ *     Sem eles o evento ainda é enviado, porque compra confirmada é dado real,
+ *     mas a Meta pode não ligar à campanha — e é melhor ter o número do que não.
+ */
+async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<void> {
+  try {
+    const { capiConfigurado, enviarCompra } = await import("./metaCapi");
+    if (!capiConfigurado()) return;
+
+    const d = await db.getDb();
+    if (!d) return;
+
+    const { rows } = (await d.execute(sql`
+      SELECT p."lessonId", p."userId", p."amountCents", p."fbp", p."fbc",
+             p."landingUrl", p."clientIp", p."clientUserAgent", p."capiPurchaseSentAt",
+             l."title" AS "lessonTitle", u."email" AS "userEmail"
+        FROM "trialPasses" p
+        LEFT JOIN "lessons" l ON l."id" = p."lessonId"
+        LEFT JOIN "users" u ON u."id" = p."userId"
+       WHERE p."id" = ${passId}
+       LIMIT 1
+    `)) as unknown as { rows: Record<string, any>[] };
+    const linha = rows?.[0];
+    if (!linha) return;
+    if (linha.capiPurchaseSentAt) {
+      console.log(`[Trial→Meta] Purchase já enviado para ${paymentId}; ignorado`);
+      return;
+    }
+
+    const resultado = await enviarCompra({
+      eventId: paymentId,
+      value: Number(linha.amountCents || 0) / 100,
+      currency: "BRL",
+      contentIds: [`lesson:${linha.lessonId}`],
+      contentName: linha.lessonTitle || "Teste de 1 aula",
+      email: linha.userEmail,
+      externalId: String(linha.userId),
+      atribuicao: {
+        fbp: linha.fbp,
+        fbc: linha.fbc,
+        eventSourceUrl: linha.landingUrl,
+        clientIpAddress: linha.clientIp,
+        clientUserAgent: linha.clientUserAgent,
+      },
+    });
+
+    if (resultado.ok) {
+      await d.execute(sql`UPDATE "trialPasses" SET "capiPurchaseSentAt" = now() WHERE "id" = ${passId}`);
+      console.log(
+        `[Trial→Meta] Purchase aceito: cobrança ${paymentId}, eventos recebidos ${resultado.eventsReceived ?? "?"}` +
+          `${linha.fbp || linha.fbc ? "" : " (sem _fbp/_fbc: pode não ser atribuído à campanha)"}`,
+      );
+    } else {
+      // Sem marcar como enviado: o reprocessamento na subida tenta de novo.
+      console.warn(`[Trial→Meta] Purchase recusado (${resultado.status ?? "sem status"}): ${resultado.erro}`);
+    }
+  } catch (e) {
+    console.warn("[Trial→Meta] falha ao enviar Purchase:", e instanceof Error ? e.message : e);
   }
 }

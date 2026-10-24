@@ -130,10 +130,24 @@ export default function Pricing() {
     await startStripeCheckout(planSlug);
   };
 
+  /**
+   * Valor do plano em reais, lido da MESMA lista que a tela mostra.
+   *
+   * As duas chamadas de `trackCheckoutStart` passavam `0` fixo, e era isso que
+   * fazia o InitiateCheckout chegar na Meta com valor zero. Não criei uma
+   * segunda tabela de preços para não divergir da exibida: converte
+   * "R$ 49,90" no número.
+   */
+  const valorDoPlano = (slug: string): number => {
+    const bruto = plans.find((p) => p.slug === slug)?.price ?? "";
+    const numero = Number(bruto.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(numero) ? numero : 0;
+  };
+
   const startStripeCheckout = async (planSlug: PaidSlug) => {
     try {
       toast.loading("Redirecionando para o checkout...");
-      trackCheckoutStart(planSlug, 0);
+      trackCheckoutStart(planSlug, valorDoPlano(planSlug));
       const result = await createCheckout.mutateAsync({ planSlug });
       
       if (result.url) {
@@ -159,7 +173,7 @@ export default function Pricing() {
       return;
     }
     try {
-      trackCheckoutStart(chosenPlan, 0);
+      trackCheckoutStart(chosenPlan, valorDoPlano(chosenPlan));
       const result = await createAsaasCheckout.mutateAsync({
         planSlug: chosenPlan,
         cpfCnpj: onlyDigits(cpfCnpj),

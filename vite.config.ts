@@ -155,7 +155,24 @@ const plugins = [
   react(),
   tailwindcss(),
   jsxLocPlugin(),
-  vitePluginManusRuntime(),
+  /**
+   * Runtime da Manus só no servidor de desenvolvimento.
+   *
+   * Lido no fonte do plugin (`node_modules/vite-plugin-manus-runtime`): o
+   * `transformIndexHtml` injeta sempre, em dev e em build, mudando apenas a
+   * flag `window.__MANUS_HOST_DEV__`. No build de produção isso colocava 367
+   * kB de JavaScript inline dentro do `index.html` (107 kB comprimidos), com
+   * um runtime do React empacotado à parte do bundle da aplicação.
+   *
+   * O próprio runtime só se ativa quando a flag é verdadeira ou o hostname é
+   * localhost, então em shadiahasan.com ele nunca mostra nada — mas é baixado
+   * e interpretado antes de a página existir, e isso atrasa o pixel.
+   *
+   * `apply: "serve"` mantém a ferramenta em desenvolvimento e a tira do
+   * artefato publicado. O `manus-debug-collector` já se protegia sozinho por
+   * `NODE_ENV`, e fica como está.
+   */
+  { ...vitePluginManusRuntime(), apply: "serve" } as Plugin,
   vitePluginManusDebugCollector(),
   VitePWA({
     registerType: "autoUpdate",

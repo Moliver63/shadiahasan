@@ -47,6 +47,11 @@ async function startServer() {
 
   // Stripe webhook: precisa do corpo CRU para validar a assinatura, então
   // tem que ser montado ANTES do express.json() (a rota aplica express.raw sozinha).
+  // Domínio técnico do Render → shadiahasan.com (páginas), e desinstala o
+  // service worker velho que servia versão antiga lá. Ver canonicalHost.ts.
+  const { middlewareDominioCanonico } = await import('./canonicalHost');
+  app.use(middlewareDominioCanonico());
+
   const stripeWebhook = await import('../routes/stripe-webhook');
   app.use('/api', stripeWebhook.default);
 

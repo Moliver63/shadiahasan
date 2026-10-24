@@ -11,6 +11,7 @@ import passport from './passport.js';
 import { COOKIE_NAME, ONE_YEAR_MS } from '@shared/const';
 import { getSessionCookieOptions } from '../_core/cookies.js';
 import { assinarSessao, lerSessao } from '../_core/sessionCookie.js';
+import { ehHostTecnico, emitirPasseDeLogin, hostCanonico, lerPasseDeLogin } from '../_core/canonicalHost.js';
 import { getUserById } from '../db.js';
 
 const router = Router();
@@ -86,6 +87,18 @@ router.get(
         role: user.role,
       };
 
+      const redirectUrl = user.role === 'admin' ? '/admin' : '/courses';
+
+      // Google devolve no domínio técnico do Render (GOOGLE_CALLBACK_URL). A
+      // sessão tem que nascer no domínio do site, senão o aluno fica logado
+      // num endereço e deslogado no outro. Ver _core/canonicalHost.ts.
+      const canonico = hostCanonico();
+      if (ehHostTecnico(req.headers.host, canonico)) {
+        const passe = await emitirPasseDeLogin(user.id, redirectUrl);
+        console.log('[Google OAuth] Step 4: passe de login emitido para o domínio', canonico);
+        return res.redirect(`https://${canonico}/api/auth/handoff?t=${encodeURIComponent(passe)}`);
+      }
+
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, await assinarSessao({ id: user.id, email: user.email }), {
         ...cookieOptions,
@@ -94,7 +107,6 @@ router.get(
 
       console.log('[Google OAuth] Step 4: Cookie definido para:', userData.email);
 
-      const redirectUrl = user.role === 'admin' ? '/admin' : '/courses';
       console.log('[Google OAuth] Step 5: Redirecionando para:', redirectUrl);
       res.redirect(redirectUrl);
     } catch (error) {
@@ -118,6 +130,27 @@ router.get('/apple', (_req: Request, res: Response) => {
 router.post('/apple/callback', (_req: Request, res: Response) => {
   console.log('[Apple OAuth] Callback recebido — Apple Sign In ainda nao disponivel');
   res.redirect('/login?error=apple_coming_soon');
+});
+
+// ============ PASSE DE LOGIN ENTRE DOMÍNIOS ============
+// Recebe o passe de 2 minutos emitido no callback do Google (domínio técnico)
+// e cria a sessão aqui, no domínio do site. Cada passe vale uma vez.
+const passesUsados = new Map<string, number>();
+router.get('/handoff', async (req: Request, res: Response) => {
+  const token = typeof req.query.t === 'string' ? req.query.t : undefined;
+  const passe = await lerPasseDeLogin(token);
+  const agora = Date.now();
+  passesUsados.forEach((exp, k) => { if (exp < agora) passesUsados.delete(k); });
+  if (!passe || !token || passesUsados.has(token)) return res.redirect('/login?error=google_auth_failed');
+  passesUsados.set(token, agora + 5 * 60_000);
+  const user = await getUserById(passe.userId);
+  if (!user?.email) return res.redirect('/login?error=no_user');
+  res.cookie(COOKIE_NAME, await assinarSessao({ id: user.id, email: user.email }), {
+    ...getSessionCookieOptions(req),
+    maxAge: ONE_YEAR_MS,
+  });
+  res.setHeader('Cache-Control', 'no-store');
+  res.redirect(passe.destino);
 });
 
 // ============ STATUS E LOGOUT ============

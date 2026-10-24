@@ -303,6 +303,17 @@ O painel `/admin/financeiro` lê só `payment_history`, que só recebe o que os 
 
 **Falha corrigida:** o cookie de sessão do login próprio (e-mail/senha, Google, convite de admin) era JSON puro, sem assinatura, e `sdk.authenticateRequest` aceitava qualquer cookie cujo `id` e `email` batessem com um usuário. Quem soubesse id e e-mail de um admin entrava como admin, sem senha. Agora é JWT HS256 (`server/_core/sessionCookie.ts`), assinado com `SESSION_SIGNING_SECRET` (criada no Render em 24/10; sem ela usa `JWT_SECRET`; chave com menos de 32 caracteres desativa o login em vez de aceitar sessão forjável). Cookies antigos deixaram de valer: todos fizeram login de novo uma vez. A rota REST `/api/auth/me` também passou a validar a assinatura. **Nunca voltar a aceitar cookie JSON.**
 
+## 8.2 Domínio único: shadiahasan.com (24/10/2026)
+
+O Google devolve o login em `shadiahasan-2ngl.onrender.com` (`GOOGLE_CALLBACK_URL`). A sessão nascia lá: o aluno ficava logado no endereço do Render e deslogado em shadiahasan.com, a compra guardada antes do login sumia (o navegador guarda por domínio), e no domínio do Render um service worker antigo servia versão velha do site, sem a faixa da promoção. Correção em `server/_core/canonicalHost.ts`:
+
+- O callback do Google, no domínio técnico, emite um passe de 2 min (uso único) e redireciona para `https://shadiahasan.com/api/auth/handoff`, que cria a sessão no domínio do site.
+- Páginas pedidas em `*.onrender.com` recebem 301 para o mesmo caminho em shadiahasan.com (com UTM). `/api/*` e POSTs continuam respondendo nos dois.
+- `/sw.js` no domínio técnico é um service worker que limpa o cache, se desinstala e recarrega as abas.
+- `CANONICAL_HOST` (opcional, padrão `shadiahasan.com`).
+
+Melhor ainda: cadastrar `https://shadiahasan.com/api/auth/google/callback` no Google Cloud e trocar `GOOGLE_CALLBACK_URL` para ele; o passe continua funcionando como rede.
+
 ## 9. Variáveis de ambiente críticas
 
 ```env

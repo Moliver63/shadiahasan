@@ -2604,6 +2604,8 @@ type ProviderPaymentInput = {
   checkoutSessionId?: string | null;
   planSlug?: string | null;
   description?: string | null;
+  /** Só na criação: data real da cobrança no provedor (sincronização retroativa). */
+  createdAt?: Date;
 };
 
 /** Upsert por cobrança do provedor; lock transacional evita duplicatas em webhooks concorrentes. */
@@ -2680,7 +2682,7 @@ export async function upsertProviderPayment(data: ProviderPaymentInput) {
         .where(eq(paymentHistory.id, existing.id)).returning({ id: paymentHistory.id });
       return updated;
     }
-    const [created] = await tx.insert(paymentHistory).values({ ...values, amount: data.amount ?? 0 }).returning({ id: paymentHistory.id });
+    const [created] = await tx.insert(paymentHistory).values({ ...values, amount: data.amount ?? 0, ...(data.createdAt ? { createdAt: data.createdAt } : {}) }).returning({ id: paymentHistory.id });
     return created;
   });
 }

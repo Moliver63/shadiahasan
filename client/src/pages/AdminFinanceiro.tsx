@@ -1,6 +1,6 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, TrendingUp, CreditCard, Users, Calendar, Download, ExternalLink } from "lucide-react";
+import { DollarSign, TrendingUp, CreditCard, Users, Calendar, Download, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,9 +8,10 @@ import { trpc } from "@/lib/trpc";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-type Period = "week" | "month" | "quarter" | "year";
+type Period = "week" | "month" | "quarter" | "year" | "all";
 
 function periodStart(period: Period): Date {
+  if (period === "all") return new Date(0);
   const start = new Date();
   const days = period === "week" ? 7 : period === "month" ? 30 : period === "quarter" ? 90 : 365;
   start.setDate(start.getDate() - days);
@@ -32,7 +33,23 @@ function statusLabel(status: string, providerStatus?: string | null): string {
 
 export default function AdminFinanceiro() {
   const [period, setPeriod] = useState<Period>("month");
+  const [visible, setVisible] = useState(50);
+  const utils = trpc.useUtils();
   const { data: allPayments, isLoading } = trpc.subscriptions.getAllPaymentHistory.useQuery();
+  // Traz do Asaas e do Stripe o que os webhooks nunca gravaram (ver server/financeSync.ts).
+  const syncPayments = trpc.subscriptions.syncPayments.useMutation({
+    onSuccess: async (r) => {
+      await utils.subscriptions.getAllPaymentHistory.invalidate();
+      const partes = [
+        r.asaas.configurado ? `Asaas: ${r.asaas.lidas} lidas, ${r.asaas.gravadas} no painel${r.asaas.semUsuario ? `, ${r.asaas.semUsuario} sem aluno vinculado` : ""}` : "Asaas não configurado",
+        r.stripe.configurado ? `Stripe: ${r.stripe.lidas} lidas, ${r.stripe.gravadas} no painel${r.stripe.semUsuario ? `, ${r.stripe.semUsuario} sem aluno vinculado` : ""}` : "Stripe não configurado",
+      ];
+      const erros = [r.asaas.erro && `Asaas: ${r.asaas.erro}`, r.stripe.erro && `Stripe: ${r.stripe.erro}`].filter(Boolean);
+      if (erros.length) toast.error(`Sincronização parcial. ${erros.join(" · ")}`, { duration: 12000 });
+      toast.success(partes.join(" · "), { duration: 10000 });
+    },
+    onError: (e) => toast.error(`Não foi possível sincronizar: ${e.message}`),
+  });
   const { data: allSubscriptions } = trpc.subscriptions.getAll.useQuery();
 
   const payments = allPayments ?? [];
@@ -105,15 +122,19 @@ export default function AdminFinanceiro() {
             <p className="text-muted-foreground">Recebimentos, cobranças, estornos e assinaturas</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Select value={period} onValueChange={(value) => setPeriod(value as Period)}>
+            <Select value={period} onValueChange={(value) => { setPeriod(value as Period); setVisible(50); }}>
               <SelectTrigger className="w-full sm:w-[180px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="week">Últimos 7 dias</SelectItem>
                 <SelectItem value="month">Últimos 30 dias</SelectItem>
                 <SelectItem value="quarter">Últimos 90 dias</SelectItem>
                 <SelectItem value="year">Últimos 365 dias</SelectItem>
+                <SelectItem value="all">Todo o período</SelectItem>
               </SelectContent>
             </Select>
+            <Button variant="outline" onClick={() => syncPayments.mutate()} disabled={syncPayments.isPending} className="w-full sm:w-auto" title="Busca no Asaas e no Stripe as cobranças que ainda não estão no painel">
+              <RefreshCw className={`mr-2 h-4 w-4 ${syncPayments.isPending ? "animate-spin" : ""}`} />{syncPayments.isPending ? "Sincronizando..." : "Sincronizar com Asaas e Stripe"}
+            </Button>
             <Button onClick={handleExport} className="w-full sm:w-auto"><Download className="mr-2 h-4 w-4" />Exportar CSV</Button>
           </div>
         </div>
@@ -142,7 +163,7 @@ export default function AdminFinanceiro() {
           <CardContent>
             {isLoading ? <div className="space-y-3">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-16 w-full" />)}</div> : !filteredPayments.length ? (
               <p className="py-8 text-center text-muted-foreground">Nenhuma cobrança registrada neste período.</p>
-            ) : <div className="space-y-4">{filteredPayments.slice(0, 100).map((payment) => {
+            ) : <div className="space-y-4">{filteredPayments.slice(0, visible).map((payment) => {
               const net = Math.max(0, (payment.amount || 0) - (payment.refundedAmount || 0));
               const status = statusLabel(payment.status, payment.providerStatus);
               return <div key={payment.id} className="flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -165,7 +186,11 @@ export default function AdminFinanceiro() {
                   </div>
                 </div>
               </div>;
-            })}</div>}
+            })}
+            {filteredPayments.length > visible && <div className="flex flex-col items-center gap-1 pt-2">
+              <Button variant="outline" onClick={() => setVisible((v) => v + 50)}>Mostrar mais</Button>
+              <p className="text-xs text-muted-foreground">Mostrando {visible} de {filteredPayments.length}. O CSV exporta todas.</p>
+            </div>}</div>}
           </CardContent>
         </Card>
 

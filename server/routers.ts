@@ -968,6 +968,13 @@ export const appRouter = router({
     getAllPaymentHistory: adminProcedure.query(async () => {
       return await db.getAllPayments();
     }),
+
+    // Admin: traz do Asaas e do Stripe as cobranças que nenhum webhook gravou.
+    // Só mexe no financeiro; acesso continua decidido pelos webhooks.
+    syncPayments: adminProcedure.mutation(async () => {
+      const { sincronizarFinanceiro } = await import("./financeSync");
+      return await sincronizarFinanceiro();
+    }),
     
     createCheckout: protectedProcedure
       .input(z.object({ planSlug: z.enum(["basic", "premium", "vip"]) }))

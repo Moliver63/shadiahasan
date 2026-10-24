@@ -268,6 +268,15 @@ Cobrança avulsa no Asaas (padrão **R$ 19,90**, pagamento único) que libera **
 - `TrialPassDialog`: a aba de pagamento é aberta no próprio clique (`window.open("about:blank")`) e só depois recebe o link da fatura, porque navegadores bloqueiam `window.open` depois de um `await`. Se a aba for bloqueada, o checkout segue na aba atual; em erro, a aba em branco é fechada (commit `1cc8480`).
 
 
+### Sincronização do financeiro (`server/financeSync.ts`, 24/10/2026)
+
+O painel `/admin/financeiro` lê só `payment_history`, que só recebe o que os webhooks gravaram. Cobranças anteriores a cada fluxo gravar, webhooks que não chegaram (Render dormindo, token errado, Stripe sem corpo cru até 23/10) e eventos sem usuário vinculado ficavam fora. O botão **"Sincronizar com Asaas e Stripe"** (`subscriptions.syncPayments`, admin) lê `GET /payments` do Asaas e `invoices.list` do Stripe e faz upsert pela mesma chave dos webhooks (`asaas:<id>` e id da fatura), com a data real da cobrança.
+
+- Dono da cobrança Asaas: `trial:<user>:<aula>` → `user:<id>` → assinatura em `asaasAccounts` → cliente em `asaasAccounts`. Stripe: assinatura em `subscriptions` → `metadata.user_id` → `stripeCustomerId` → e-mail. Sem dono, não grava e aparece como "sem aluno vinculado" no aviso.
+- **Só mexe no financeiro.** Não libera nem revoga acesso; isso continua com os webhooks.
+- Não rebaixa pagamento confirmado (regra de `upsertProviderPayment`). Rodar de novo é seguro.
+- O painel ganhou o período "Todo o período" e "Mostrar mais" (antes cortava em 100 linhas).
+
 **Cadastro do webhook no Asaas:** URL `https://shadiahasan-2ngl.onrender.com/api/webhooks/asaas`, API v3, envio sequencial, eventos da tabela acima. Teste antes no sandbox, com webhook separado. No plano gratuito do Render o serviço hiberna e o primeiro webhook pode dar timeout; o Asaas reenvia.
 
 ---

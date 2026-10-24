@@ -1,7 +1,7 @@
-import { eq, ne, or, and, gte, desc, asc, isNull, gt, inArray } from "drizzle-orm";
+import { eq, ne, or, and, gte, desc, asc, isNull, gt, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { InsertUser, users, subscriptions, paymentHistory, referrals, pointsTransactions, cashbackRequests, adminAuditLogs, adminInvites } from "../drizzle/schema";
+import { InsertUser, users, subscriptions, paymentHistory, stripeWebhookEvents, referrals, pointsTransactions, cashbackRequests, adminAuditLogs, adminInvites } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -2444,6 +2444,8 @@ export async function getPaymentHistoryByUserId(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
+  await ensureFinancialSchema();
+
   const payments = await db
     .select()
     .from(paymentHistory)
@@ -2453,12 +2455,58 @@ export async function getPaymentHistoryByUserId(userId: number) {
   return payments;
 }
 
+let financialSchemaReady: Promise<boolean> | null = null;
+
+/** Additive migration for provider lifecycle and webhook idempotency. */
+async function ensureFinancialSchema(): Promise<boolean> {
+  if (!financialSchemaReady) {
+    financialSchemaReady = (async () => {
+      try {
+        const db = await getDb();
+        if (!db) return false;
+        await db.execute(sql`
+          ALTER TABLE "payment_history"
+            ADD COLUMN IF NOT EXISTS "providerStatus" varchar(64),
+            ADD COLUMN IF NOT EXISTS "paymentUrl" text,
+            ADD COLUMN IF NOT EXISTS "dueDate" varchar(10),
+            ADD COLUMN IF NOT EXISTS "paidAt" timestamp,
+            ADD COLUMN IF NOT EXISTS "refundedAmount" integer NOT NULL DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS "providerSubscriptionId" varchar(255),
+            ADD COLUMN IF NOT EXISTS "checkoutSessionId" varchar(255),
+            ADD COLUMN IF NOT EXISTS "planSlug" varchar(32)
+        `);
+        await db.execute(sql`CREATE INDEX IF NOT EXISTS "payment_history_provider_subscription_idx" ON "payment_history" ("providerSubscriptionId")`);
+        await db.execute(sql`CREATE INDEX IF NOT EXISTS "payment_history_checkout_session_idx" ON "payment_history" ("checkoutSessionId")`);
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS "stripeWebhookEvents" (
+            "eventId" varchar(255) PRIMARY KEY,
+            "event" varchar(100) NOT NULL,
+            "status" varchar(16) NOT NULL DEFAULT 'processing',
+            "error" text,
+            "payload" text NOT NULL,
+            "receivedAt" timestamp NOT NULL DEFAULT now(),
+            "processedAt" timestamp
+          )
+        `);
+        return true;
+      } catch (e) {
+        console.error("[Financeiro] falha ao preparar schema:", e instanceof Error ? e.message : e);
+        financialSchemaReady = null;
+        return false;
+      }
+    })();
+  }
+  return financialSchemaReady;
+}
+
 /**
  * Get all payment history
  */
 export async function getAllPaymentHistory() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+
+  await ensureFinancialSchema();
 
   const result = await db
     .select({
@@ -2488,10 +2536,19 @@ export async function createPaymentRecord(data: {
   paymentMethod?: string | null;
   stripePaymentIntentId?: string | null;
   stripeInvoiceId?: string | null;
+  providerStatus?: string | null;
+  paymentUrl?: string | null;
+  dueDate?: string | null;
+  paidAt?: Date | null;
+  refundedAmount?: number;
+  providerSubscriptionId?: string | null;
+  checkoutSessionId?: string | null;
+  planSlug?: string | null;
   description?: string | null;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  if (!(await ensureFinancialSchema())) throw new Error("Financial database schema unavailable");
 
   const result = await db.insert(paymentHistory).values({
     userId: data.userId,
@@ -2502,6 +2559,14 @@ export async function createPaymentRecord(data: {
     paymentMethod: data.paymentMethod,
     stripePaymentIntentId: data.stripePaymentIntentId,
     stripeInvoiceId: data.stripeInvoiceId,
+    providerStatus: data.providerStatus,
+    paymentUrl: data.paymentUrl,
+    dueDate: data.dueDate,
+    paidAt: data.paidAt,
+    refundedAmount: data.refundedAmount,
+    providerSubscriptionId: data.providerSubscriptionId,
+    checkoutSessionId: data.checkoutSessionId,
+    planSlug: data.planSlug,
     description: data.description,
   }).returning({ id: paymentHistory.id });
 
@@ -2513,7 +2578,156 @@ export async function getAllPayments() {
   const db = await getDb();
   if (!db) return [];
 
-  return await db.select().from(paymentHistory).orderBy(desc(paymentHistory.createdAt));
+  await ensureFinancialSchema();
+  return await db
+    .select({ ...paymentHistory, user: { id: users.id, name: users.name, email: users.email } })
+    .from(paymentHistory)
+    .leftJoin(users, eq(paymentHistory.userId, users.id))
+    .orderBy(desc(paymentHistory.createdAt));
+}
+
+type ProviderPaymentInput = {
+  userId: number;
+  subscriptionId?: number | null;
+  amount?: number; // sempre centavos; omitido em atualizações de checkout pendente
+  currency?: string;
+  status: "pending" | "completed" | "failed" | "refunded";
+  paymentMethod?: string | null;
+  stripePaymentIntentId?: string | null;
+  stripeInvoiceId: string;
+  providerStatus?: string | null;
+  paymentUrl?: string | null;
+  dueDate?: string | null;
+  paidAt?: Date | null;
+  refundedAmount?: number;
+  providerSubscriptionId?: string | null;
+  checkoutSessionId?: string | null;
+  planSlug?: string | null;
+  description?: string | null;
+};
+
+/** Upsert por cobrança do provedor; lock transacional evita duplicatas em webhooks concorrentes. */
+export async function upsertProviderPayment(data: ProviderPaymentInput) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (!(await ensureFinancialSchema())) throw new Error("Financial database schema unavailable");
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${data.stripeInvoiceId}))`);
+    let [existing] = await tx.select({ id: paymentHistory.id, status: paymentHistory.status, refundedAmount: paymentHistory.refundedAmount, providerStatus: paymentHistory.providerStatus, paidAt: paymentHistory.paidAt }).from(paymentHistory)
+      .where(eq(paymentHistory.stripeInvoiceId, data.stripeInvoiceId)).limit(1);
+
+    if (!existing && data.checkoutSessionId) {
+      [existing] = await tx.select({ id: paymentHistory.id, status: paymentHistory.status, refundedAmount: paymentHistory.refundedAmount, providerStatus: paymentHistory.providerStatus, paidAt: paymentHistory.paidAt }).from(paymentHistory)
+        .where(eq(paymentHistory.checkoutSessionId, data.checkoutSessionId)).limit(1);
+    }
+    if (!existing && data.providerSubscriptionId && data.status !== "pending") {
+      [existing] = await tx.select({ id: paymentHistory.id, status: paymentHistory.status, refundedAmount: paymentHistory.refundedAmount, providerStatus: paymentHistory.providerStatus, paidAt: paymentHistory.paidAt }).from(paymentHistory)
+        .where(and(
+          eq(paymentHistory.providerSubscriptionId, data.providerSubscriptionId),
+          eq(paymentHistory.status, "pending"),
+          inArray(paymentHistory.providerStatus, ["checkout_created", "checkout_completed", "checkout_completed_pending_payment"]),
+        ))
+        .orderBy(desc(paymentHistory.createdAt)).limit(1);
+    }
+
+    // invoice.paid pode chegar antes de checkout.session.completed. Se o
+    // webhook do checkout vier depois, não crie uma segunda linha pendente.
+    if (!existing && data.status === "pending" && data.checkoutSessionId && data.providerSubscriptionId) {
+      const [alreadyPaid] = await tx.select({ id: paymentHistory.id })
+        .from(paymentHistory)
+        .where(and(
+          eq(paymentHistory.providerSubscriptionId, data.providerSubscriptionId),
+          inArray(paymentHistory.status, ["completed", "refunded"]),
+        ))
+        .orderBy(desc(paymentHistory.createdAt)).limit(1);
+      if (alreadyPaid) return alreadyPaid;
+    }
+
+    const values = {
+      userId: data.userId,
+      subscriptionId: data.subscriptionId,
+      amount: data.amount,
+      currency: data.currency || "BRL",
+      status: data.status,
+      paymentMethod: data.paymentMethod,
+      stripePaymentIntentId: data.stripePaymentIntentId,
+      stripeInvoiceId: data.stripeInvoiceId,
+      providerStatus: data.providerStatus,
+      paymentUrl: data.paymentUrl,
+      dueDate: data.dueDate,
+      paidAt: data.paidAt,
+      refundedAmount: data.refundedAmount,
+      providerSubscriptionId: data.providerSubscriptionId,
+      checkoutSessionId: data.checkoutSessionId,
+      planSlug: data.planSlug,
+      description: data.description,
+    };
+    if (existing) {
+      // Eventos fora de ordem (ex.: PAYMENT_UPDATED depois de PAYMENT_RECEIVED)
+      // não podem rebaixar um pagamento confirmado. Um pagamento pode, porém,
+      // avançar de falha/pendente para concluído quando a fatura é paga depois.
+      if (existing.status === "refunded") values.status = "refunded";
+      else if (existing.status === "completed" && data.status !== "refunded") values.status = "completed";
+      if ((existing.status === "refunded" || existing.status === "completed") && data.status !== "refunded") {
+        values.providerStatus = existing.providerStatus;
+        values.paidAt = existing.paidAt;
+      }
+      if (existing.status === "refunded" && data.refundedAmount === undefined) {
+        values.refundedAmount = existing.refundedAmount;
+      }
+      const [updated] = await tx.update(paymentHistory).set(values)
+        .where(eq(paymentHistory.id, existing.id)).returning({ id: paymentHistory.id });
+      return updated;
+    }
+    const [created] = await tx.insert(paymentHistory).values({ ...values, amount: data.amount ?? 0 }).returning({ id: paymentHistory.id });
+    return created;
+  });
+}
+
+export async function updateStripePaymentRefund(paymentIntentId: string, refundedAmount: number, amount: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (!(await ensureFinancialSchema())) throw new Error("Financial database schema unavailable");
+  await db.update(paymentHistory).set({
+    status: refundedAmount >= amount ? "refunded" : "completed",
+    refundedAmount,
+    providerStatus: refundedAmount >= amount ? "refunded" : "partially_refunded",
+  }).where(eq(paymentHistory.stripePaymentIntentId, paymentIntentId));
+}
+
+export async function claimStripeWebhookEvent(eventId: string, event: string, payload: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (!(await ensureFinancialSchema())) throw new Error("Financial database schema unavailable");
+  const [inserted] = await db.insert(stripeWebhookEvents).values({ eventId, event, payload })
+    .onConflictDoNothing().returning({ eventId: stripeWebhookEvents.eventId });
+  if (inserted) return true;
+
+  const [row] = await db.select().from(stripeWebhookEvents)
+    .where(eq(stripeWebhookEvents.eventId, eventId)).limit(1);
+  if (!row || row.status === "done") return false;
+  if (row.status === "processing" && row.receivedAt > new Date(Date.now() - 2 * 60_000)) return false;
+
+  const [reclaimed] = await db.update(stripeWebhookEvents)
+    .set({ status: "processing", error: null, receivedAt: new Date(), processedAt: null })
+    .where(and(
+      eq(stripeWebhookEvents.eventId, eventId),
+      sql`(${stripeWebhookEvents.status} = 'error' OR ${stripeWebhookEvents.receivedAt} < now() - interval '2 minutes')`,
+    ))
+    .returning({ eventId: stripeWebhookEvents.eventId });
+  return !!reclaimed;
+}
+
+export async function finishStripeWebhookEvent(eventId: string, error?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (!(await ensureFinancialSchema())) throw new Error("Financial database schema unavailable");
+  await db.update(stripeWebhookEvents).set({
+    status: error ? "error" : "done",
+    error: error ? error.slice(0, 500) : null,
+    processedAt: new Date(),
+  }).where(eq(stripeWebhookEvents.eventId, eventId));
 }
 
 // Histórico de pagamentos de um usuário específico

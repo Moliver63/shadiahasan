@@ -609,12 +609,34 @@ export const paymentHistory = pgTable("payment_history", {
   paymentMethod: varchar("paymentMethod", { length: 64 }),
   stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
   stripeInvoiceId: varchar("stripeInvoiceId", { length: 255 }),
+  /** Estado bruto reportado pelo provedor (invoice.paid, PAYMENT_OVERDUE etc.). */
+  providerStatus: varchar("providerStatus", { length: 64 }),
+  /** URL da fatura/pagamento, quando o provedor oferece uma. */
+  paymentUrl: text("paymentUrl"),
+  /** Vencimento no fuso/data local do provedor (YYYY-MM-DD). */
+  dueDate: varchar("dueDate", { length: 10 }),
+  paidAt: timestamp("paidAt"),
+  refundedAmount: integer("refundedAmount").default(0).notNull(),
+  providerSubscriptionId: varchar("providerSubscriptionId", { length: 255 }),
+  checkoutSessionId: varchar("checkoutSessionId", { length: 255 }),
+  planSlug: varchar("planSlug", { length: 32 }),
   description: text("description"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type PaymentHistory = typeof paymentHistory.$inferSelect;
 export type InsertPaymentHistory = typeof paymentHistory.$inferInsert;
+
+/** Stripe — idempotência e recuperação de webhooks financeiros. */
+export const stripeWebhookEvents = pgTable("stripeWebhookEvents", {
+  eventId: varchar("eventId", { length: 255 }).primaryKey(),
+  event: varchar("event", { length: 100 }).notNull(),
+  status: varchar("status", { length: 16 }).default("processing").notNull(),
+  error: text("error"),
+  payload: text("payload").notNull(),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+});
 
 /**
  * Referrals

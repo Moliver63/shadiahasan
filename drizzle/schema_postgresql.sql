@@ -459,8 +459,29 @@ CREATE TABLE IF NOT EXISTS "payment_history" (
   "paymentMethod" VARCHAR(64),
   "stripePaymentIntentId" VARCHAR(255),
   "stripeInvoiceId" VARCHAR(255),
+    "providerStatus" VARCHAR(64),
+    "paymentUrl" TEXT,
+    "dueDate" VARCHAR(10),
+    "paidAt" TIMESTAMPTZ,
+    "refundedAmount" INTEGER NOT NULL DEFAULT 0,
+    "providerSubscriptionId" VARCHAR(255),
+    "checkoutSessionId" VARCHAR(255),
+    "planSlug" VARCHAR(32),
   "description" TEXT,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS "payment_history_provider_subscription_idx" ON "payment_history" ("providerSubscriptionId");
+CREATE INDEX IF NOT EXISTS "payment_history_checkout_session_idx" ON "payment_history" ("checkoutSessionId");
+
+CREATE TABLE IF NOT EXISTS "stripeWebhookEvents" (
+  "eventId" VARCHAR(255) PRIMARY KEY,
+  "event" VARCHAR(100) NOT NULL,
+  "status" VARCHAR(16) NOT NULL DEFAULT 'processing',
+  "error" TEXT,
+  "payload" TEXT NOT NULL,
+  "receivedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "processedAt" TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS "referrals" (

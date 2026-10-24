@@ -539,6 +539,22 @@ export async function createTrialCheckout(params: {
     // no schema do Drizzle (a tabela nasce por DDL em ensureTrialSchema).
   });
 
+  // Registra a cobrança pendente no financeiro antes do pagamento; o webhook
+  // atualizará esta mesma linha quando o Asaas confirmar ou cancelar.
+  await db.upsertProviderPayment({
+    userId: params.userId,
+    amount: amountCents,
+    currency: "BRL",
+    status: "pending",
+    paymentMethod: "asaas",
+    stripeInvoiceId: `asaas:${payment.id}`,
+    providerStatus: "PAYMENT_CREATED",
+    paymentUrl: payment.invoiceUrl,
+    dueDate: today,
+    planSlug: "trial",
+    description: `Teste de 1 aula (Asaas) — aula ${lesson.id}`,
+  }).catch((error) => console.error("[Trial] não foi possível registrar a cobrança pendente no financeiro:", error));
+
   // Origem do visitante. Falha aqui não pode impedir o pagamento: o aluno já
   // tem a fatura, e rastreamento vale menos que a venda.
   if (params.atribuicao) {
@@ -631,19 +647,21 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
           .where(eq(trialPasses.id, pass.id));
       }
 
-      const key = `asaas:${paymentId}`;
-      const [exists] = await d.select({ id: paymentHistory.id }).from(paymentHistory).where(eq(paymentHistory.stripeInvoiceId, key)).limit(1);
-      if (!exists) {
-        await db.createPaymentRecord({
-          userId: pass.userId,
-          amount: pass.amountCents, // centavos, como no restante do financeiro
-          currency: "BRL",
-          status: "completed",
-          paymentMethod: `asaas${payment.billingType ? `:${payment.billingType.toLowerCase()}` : ""}`,
-          stripeInvoiceId: key, // coluna reaproveitada como chave de idempotência
-          description: `Teste de 1 aula (Asaas) — aula ${pass.lessonId}`,
-        });
-      }
+      await db.upsertProviderPayment({
+        userId: pass.userId,
+        amount: Math.round(Number(payment.value || 0) * 100),
+        currency: "BRL",
+        status: "completed",
+        paymentMethod: `asaas${payment.billingType ? `:${payment.billingType.toLowerCase()}` : ""}`,
+        stripeInvoiceId: `asaas:${paymentId}`,
+        providerStatus: body.event,
+        paymentUrl: payment.invoiceUrl || pass.invoiceUrl,
+        dueDate: payment.dueDate || pass.dueDate,
+        paidAt: payment.paymentDate ? new Date(payment.paymentDate) : new Date(),
+        refundedAmount: 0,
+        planSlug: "trial",
+        description: `Teste de 1 aula (Asaas) — aula ${pass.lessonId}`,
+      });
       console.log(`[Trial] passe ativo: user ${pass.userId} aula ${pass.lessonId}`);
       // Só na primeira ativação: PAYMENT_CONFIRMED e PAYMENT_RECEIVED chegam
       // os dois pra mesma cobrança, e a Meta não pode contar duas compras.
@@ -654,7 +672,7 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
     case "PAYMENT_REFUNDED":
     case "PAYMENT_CHARGEBACK_REQUESTED": {
       await d.update(trialPasses).set({ status: "refunded", updatedAt: new Date() }).where(eq(trialPasses.id, pass.id));
-      await d.update(paymentHistory).set({ status: "refunded" }).where(eq(paymentHistory.stripeInvoiceId, `asaas:${paymentId}`));
+      await d.update(paymentHistory).set({ status: "refunded", refundedAmount: pass.amountCents, providerStatus: body.event }).where(eq(paymentHistory.stripeInvoiceId, `asaas:${paymentId}`));
       return;
     }
 
@@ -665,6 +683,19 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
         .update(trialPasses)
         .set({ status: "cancelled", updatedAt: new Date() })
         .where(and(eq(trialPasses.id, pass.id), eq(trialPasses.status, "pending")));
+      await db.upsertProviderPayment({
+        userId: pass.userId,
+        amount: pass.amountCents,
+        currency: "BRL",
+        status: body.event === "PAYMENT_DELETED" ? "failed" : "pending",
+        paymentMethod: "asaas",
+        stripeInvoiceId: `asaas:${paymentId}`,
+        providerStatus: body.event,
+        paymentUrl: payment.invoiceUrl || pass.invoiceUrl,
+        dueDate: payment.dueDate || pass.dueDate,
+        planSlug: "trial",
+        description: `Teste de 1 aula (Asaas) — aula ${pass.lessonId}`,
+      });
       return;
     }
 

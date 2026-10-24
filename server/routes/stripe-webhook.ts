@@ -35,51 +35,63 @@ const POINTS_CONFIG = {
 
 const FREE_MONTH_THRESHOLD = 2;
 
-/**
- * Atualiza a assinatura do usuário no banco após pagamento confirmado
- */
-async function handleSubscriptionActivated(
-  userEmail: string,
-  stripeSubscriptionId: string,
-  stripePriceId: string,
-  stripeCustomerId: string
-) {
-  const user = await db.getUserByEmail(userEmail);
-  if (!user) {
-    console.log(`[Stripe Webhook] Usuário não encontrado: ${userEmail}`);
-    return;
+function mapStripeSubscriptionStatus(status: Stripe.Subscription.Status): "active" | "paused" | "cancelled" | "expired" | "trial" {
+  if (status === "active") return "active";
+  if (status === "trialing") return "trial";
+  if (status === "canceled") return "cancelled";
+  if (status === "incomplete_expired") return "expired";
+  return "paused"; // incomplete, past_due, unpaid ou paused não liberam como ativo
+}
+
+/** Sincroniza apenas o estado da assinatura; lançamentos financeiros vêm de eventos de fatura. */
+async function syncStripeSubscription(subscription: Stripe.Subscription) {
+  const priceId = subscription.items.data[0]?.price.id || "";
+  const planSlug = getPlanSlugByPriceId(priceId);
+  if (!planSlug) {
+    console.warn(`[Stripe Webhook] preço sem plano mapeado: ${priceId || "ausente"}`);
+    return null;
   }
 
-  const planSlug = getPlanSlugByPriceId(stripePriceId);
-  const planName = planSlug ? getPlanDisplayName(planSlug) : "Unknown";
+  const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+  const customer = await stripe.customers.retrieve(customerId);
+  if (customer.deleted || !customer.email) return null;
+  const user = subscription.metadata?.user_id
+    ? await db.getUserById(Number(subscription.metadata.user_id))
+    : await db.getUserByEmail(customer.email);
+  if (!user) {
+    console.warn(`[Stripe Webhook] usuário não encontrado para assinatura ${subscription.id}`);
+    return null;
+  }
 
-  console.log(`[Stripe Webhook] Ativando plano ${planName} para user ${user.id} (${userEmail})`);
-
-  // Atualiza ou cria assinatura no banco
   await db.upsertSubscription({
     userId: user.id,
-    plan: planSlug || "basic",
-    status: "active",
-    stripeSubscriptionId,
-    stripePriceId,
-    stripeCustomerId,
-    autoRenew: 1,
-    endDate: null,
+    plan: planSlug,
+    status: mapStripeSubscriptionStatus(subscription.status),
+    stripeSubscriptionId: subscription.id,
+    stripePriceId: priceId,
+    stripeCustomerId: customerId,
+    autoRenew: subscription.cancel_at_period_end ? 0 : 1,
+    endDate: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
   });
+  return { user, planSlug, planName: getPlanDisplayName(planSlug), customerId };
+}
 
-  // Registra pagamento
-  await db.createPaymentRecord({
-    userId: user.id,
-    amount: 0, // valor real vem do invoice
-    currency: "brl",
-    status: "completed",
-    paymentMethod: "stripe",
-    stripePaymentIntentId: null,
-    description: `Assinatura ${planName} ativada`,
-  });
+function subscriptionIdFromInvoice(invoice: Stripe.Invoice): string | null {
+  const reference = invoice.parent?.subscription_details?.subscription;
+  return typeof reference === "string" ? reference : reference?.id ?? null;
+}
 
-  // Processa indicação se o usuário foi referido
-  await processReferralOnSubscription(user.id, planName);
+function invoicePaymentIntentId(invoice: Stripe.Invoice): string | null {
+  const raw = invoice as any;
+  const direct = raw.payment_intent;
+  if (typeof direct === "string") return direct;
+  const payments = raw.payments?.data ?? [];
+  for (const item of payments) {
+    const intent = item?.payment?.payment_intent;
+    if (typeof intent === "string") return intent;
+    if (intent?.id) return String(intent.id);
+  }
+  return null;
 }
 
 /**
@@ -117,6 +129,8 @@ export async function processReferralOnSubscription(userId: number, planName: st
 
     // Cria ou atualiza registro de indicação
     const existingReferral = referrals.find(r => r.referredUserId === user.id);
+    // Webhooks de renovação/reenvio não concedem pontos novamente.
+    if (existingReferral?.status === "confirmed") return;
     if (existingReferral) {
       await db.confirmReferral(existingReferral.id, planName);
     } else {
@@ -164,156 +178,167 @@ export async function processReferralOnSubscription(userId: number, planName: st
  * Usa express.raw() para preservar o body cru necessário
  * para validar a assinatura do Stripe (stripe.webhooks.constructEvent)
  */
-router.post(
-  "/stripe/webhook",
-  express.raw({ type: "application/json" }), // ← raw body APENAS nesta rota
-  async (req, res) => {
-    const sig = req.headers["stripe-signature"];
+router.post("/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  if (!sig) return res.status(400).send("Missing stripe-signature header");
+  if (!webhookSecret) return res.status(500).send("Webhook secret not configured");
 
-    if (!sig) {
-      console.error("[Stripe Webhook] Sem assinatura no header");
-      return res.status(400).send("Missing stripe-signature header");
-    }
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err: any) {
+    console.error(`[Stripe Webhook] Falha na verificação da assinatura: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
 
-    if (!webhookSecret) {
-      console.error("[Stripe Webhook] STRIPE_WEBHOOK_SECRET não configurado");
-      return res.status(500).send("Webhook secret not configured");
-    }
+  let claimed: boolean;
+  try {
+    claimed = await db.claimStripeWebhookEvent(event.id, event.type, JSON.stringify(event));
+  } catch (error) {
+    console.error("[Stripe Webhook] Não foi possível registrar o evento:", error);
+    return res.status(500).send("Webhook persistence error");
+  }
+  if (!claimed) return res.json({ received: true, duplicate: true });
 
-    let event: Stripe.Event;
-
-    try {
-      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-    } catch (err: any) {
-      console.error(`[Stripe Webhook] Falha na verificação da assinatura: ${err.message}`);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    console.log(`[Stripe Webhook] Evento recebido: ${event.type}`);
-
-    try {
-      switch (event.type) {
-
-        // ✅ Checkout concluído — usuário pagou
-        case "checkout.session.completed": {
-          const session = event.data.object as Stripe.Checkout.Session;
-          console.log(`[Stripe Webhook] Checkout concluído: ${session.id}`);
-
-          if (session.customer_details?.email && session.subscription) {
-            const subscription = await stripe.subscriptions.retrieve(
-              session.subscription as string
-            );
-            const priceId = subscription.items.data[0]?.price.id || "";
-            const customerId = typeof session.customer === "string" ? session.customer : "";
-
-            await handleSubscriptionActivated(
-              session.customer_details.email,
-              subscription.id,
-              priceId,
-              customerId
-            );
-          }
-          break;
-        }
-
-        // ✅ Fatura paga (renovação mensal)
-        case "invoice.paid": {
-          const invoice = event.data.object as Stripe.Invoice;
-          console.log(`[Stripe Webhook] Fatura paga: ${invoice.id}`);
-
-          const email = invoice.customer_email;
-          const subscriptionRef = invoice.parent?.subscription_details?.subscription;
-          const subscriptionId = typeof subscriptionRef === "string"
-            ? subscriptionRef
-            : subscriptionRef?.id;
-
-          if (email && subscriptionId) {
-            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-            const priceId = subscription.items.data[0]?.price.id || "";
-            const customerId = typeof invoice.customer === "string" ? invoice.customer : "";
-
-            await handleSubscriptionActivated(email, subscription.id, priceId, customerId);
-          }
-          break;
-        }
-
-        // ✅ Assinatura atualizada (upgrade/downgrade)
-        case "customer.subscription.updated": {
-          const subscription = event.data.object as Stripe.Subscription;
-          console.log(`[Stripe Webhook] Assinatura atualizada: ${subscription.id} — status: ${subscription.status}`);
-
-          if (subscription.status === "active" && subscription.customer) {
-            const customer = await stripe.customers.retrieve(subscription.customer as string);
-            if (!customer.deleted && customer.email) {
-              const priceId = subscription.items.data[0]?.price.id || "";
-              await handleSubscriptionActivated(
-                customer.email,
-                subscription.id,
-                priceId,
-                subscription.customer as string
-              );
-            }
-          }
-          break;
-        }
-
-        // ❌ Assinatura cancelada
-        case "customer.subscription.deleted": {
-          const subscription = event.data.object as Stripe.Subscription;
-          console.log(`[Stripe Webhook] Assinatura cancelada: ${subscription.id}`);
-
-          if (subscription.customer) {
-            const customer = await stripe.customers.retrieve(subscription.customer as string);
-            if (!customer.deleted && customer.email) {
-              const user = await db.getUserByEmail(customer.email);
-              if (user) {
-                await db.upsertSubscription({
-                  userId: user.id,
-                  plan: "free",
-                  status: "cancelled",
-                  stripeSubscriptionId: subscription.id,
-                  autoRenew: 0,
-                  endDate: null,
-                });
-                console.log(`[Stripe Webhook] Plano de ${user.email} revertido para free`);
-              }
-            }
-          }
-          break;
-        }
-
-        // ❌ Pagamento falhou
-        case "invoice.payment_failed": {
-          const invoice = event.data.object as Stripe.Invoice;
-          console.log(`[Stripe Webhook] Pagamento falhou: ${invoice.id} — ${invoice.customer_email}`);
-
-          if (invoice.customer_email) {
-            const user = await db.getUserByEmail(invoice.customer_email);
-            if (user) {
-              await db.createPaymentRecord({
-                userId: user.id,
-                amount: invoice.amount_due / 100,
-                currency: invoice.currency,
-                status: "failed",
-                paymentMethod: "stripe",
-                stripeInvoiceId: invoice.id,
-                description: "Pagamento recusado",
-              });
-            }
-          }
-          break;
-        }
-
-        default:
-          console.log(`[Stripe Webhook] Evento ignorado: ${event.type}`);
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const userId = Number(session.metadata?.user_id || 0);
+        if (!Number.isInteger(userId) || userId <= 0) throw new Error(`Checkout ${session.id} sem user_id.`);
+        const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+        await db.upsertProviderPayment({
+          userId,
+          amount: session.amount_total ?? undefined,
+          currency: session.currency?.toUpperCase() || "BRL",
+          status: "pending", // Checkout concluído ainda não é confirmação de fatura paga.
+          paymentMethod: "stripe",
+          stripeInvoiceId: `stripe:checkout:${session.id}`,
+          checkoutSessionId: session.id,
+          providerSubscriptionId: subscriptionId || undefined,
+          providerStatus: session.payment_status === "paid" ? "checkout_completed" : "checkout_completed_pending_payment",
+          paymentUrl: null,
+          planSlug: session.metadata?.plan_slug || null,
+          description: `Checkout Stripe — ${session.metadata?.plan_slug || "assinatura"}`,
+        });
+        break;
       }
 
-      res.json({ received: true });
-    } catch (error) {
-      console.error(`[Stripe Webhook] Erro ao processar evento ${event.type}:`, error);
-      res.status(500).send("Webhook processing error");
+      case "checkout.session.expired": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const userId = Number(session.metadata?.user_id || 0);
+        if (userId > 0) {
+          await db.upsertProviderPayment({
+            userId,
+            status: "failed",
+            paymentMethod: "stripe",
+            stripeInvoiceId: `stripe:checkout:${session.id}`,
+            checkoutSessionId: session.id,
+            providerStatus: "checkout_expired",
+            paymentUrl: null,
+            planSlug: session.metadata?.plan_slug || null,
+            description: `Checkout Stripe expirado — ${session.metadata?.plan_slug || "assinatura"}`,
+          });
+        }
+        break;
+      }
+
+      case "invoice.paid": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscriptionId = subscriptionIdFromInvoice(invoice);
+        if (!subscriptionId) break;
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const synced = await syncStripeSubscription(subscription);
+        if (!synced) throw new Error(`Não foi possível vincular a fatura ${invoice.id} a um usuário e plano.`);
+        await db.upsertProviderPayment({
+          userId: synced.user.id,
+          amount: Math.max(0, invoice.amount_paid ?? 0),
+          currency: (invoice.currency || "brl").toUpperCase(),
+          status: "completed",
+          paymentMethod: "stripe",
+          stripeInvoiceId: invoice.id,
+          stripePaymentIntentId: invoicePaymentIntentId(invoice),
+          providerStatus: invoice.status || "paid",
+          paymentUrl: invoice.hosted_invoice_url,
+          dueDate: invoice.due_date ? new Date(invoice.due_date * 1000).toISOString().slice(0, 10) : null,
+          paidAt: invoice.status_transitions?.paid_at ? new Date(invoice.status_transitions.paid_at * 1000) : new Date(),
+          providerSubscriptionId: subscription.id,
+          planSlug: synced.planSlug,
+          description: `Assinatura ${synced.planName} — fatura ${invoice.id}`,
+        });
+        if (invoice.billing_reason === "subscription_create" && (invoice.amount_paid ?? 0) > 0) {
+          await processReferralOnSubscription(synced.user.id, synced.planName);
+        }
+        break;
+      }
+
+      case "invoice.payment_failed":
+      case "invoice.payment_action_required": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscriptionId = subscriptionIdFromInvoice(invoice);
+        const subscription = subscriptionId ? await stripe.subscriptions.retrieve(subscriptionId) : null;
+        const synced = subscription ? await syncStripeSubscription(subscription) : null;
+        const user = synced?.user ?? (invoice.customer_email ? await db.getUserByEmail(invoice.customer_email) : null);
+        if (!user) throw new Error(`Usuário não localizado para a fatura ${invoice.id}.`);
+        const actionRequired = event.type === "invoice.payment_action_required";
+        await db.upsertProviderPayment({
+          userId: user.id,
+          amount: Math.max(0, invoice.amount_due ?? 0),
+          currency: (invoice.currency || "brl").toUpperCase(),
+          status: actionRequired ? "pending" : "failed",
+          paymentMethod: "stripe",
+          stripeInvoiceId: invoice.id,
+          providerStatus: actionRequired ? "payment_action_required" : "payment_failed",
+          paymentUrl: invoice.hosted_invoice_url,
+          dueDate: invoice.due_date ? new Date(invoice.due_date * 1000).toISOString().slice(0, 10) : null,
+          providerSubscriptionId: subscriptionId || undefined,
+          planSlug: synced?.planSlug,
+          description: actionRequired ? "Ação necessária para concluir o pagamento" : "Pagamento da fatura falhou",
+        });
+        break;
+      }
+
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+        await syncStripeSubscription(event.data.object as Stripe.Subscription);
+        break;
+
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription;
+        const synced = await syncStripeSubscription(subscription);
+        if (synced) {
+          await db.upsertSubscription({
+            userId: synced.user.id,
+            plan: "free",
+            status: "cancelled",
+            stripeSubscriptionId: subscription.id,
+            stripePriceId: subscription.items.data[0]?.price.id,
+            stripeCustomerId: synced.customerId,
+            autoRenew: 0,
+            endDate: null,
+          });
+        }
+        break;
+      }
+
+      case "charge.refunded": {
+        const charge = event.data.object as Stripe.Charge;
+        const intentId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
+        if (intentId) await db.updateStripePaymentRefund(intentId, charge.amount_refunded, charge.amount);
+        break;
+      }
+
+      default:
+        console.log(`[Stripe Webhook] Evento ignorado: ${event.type}`);
     }
+
+    await db.finishStripeWebhookEvent(event.id);
+    return res.json({ received: true });
+  } catch (error) {
+    console.error(`[Stripe Webhook] Erro ao processar evento ${event.type}:`, error);
+    await db.finishStripeWebhookEvent(event.id, error instanceof Error ? error.message : String(error)).catch(() => undefined);
+    return res.status(500).send("Webhook processing error");
   }
-);
+});
 
 export default router;

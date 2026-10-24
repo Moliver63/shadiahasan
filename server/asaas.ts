@@ -150,17 +150,23 @@ async function getPlanPriceCents(planSlug: PlanSlug): Promise<number> {
   return DEFAULT_PRICES_CENTS[planSlug];
 }
 
-export async function firstPaymentLink(asaasSubscriptionId: string): Promise<string | null> {
+async function firstPaymentDetails(asaasSubscriptionId: string): Promise<{
+  id?: string; invoiceUrl?: string; status?: string; dueDate?: string; value?: number; billingType?: string;
+} | null> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const list = await asaasRequest<{ data?: Array<{ invoiceUrl?: string; status?: string }> }>(
+    const list = await asaasRequest<{ data?: Array<{ id?: string; invoiceUrl?: string; status?: string; dueDate?: string; value?: number; billingType?: string }> }>(
       "GET",
       `/subscriptions/${encodeURIComponent(asaasSubscriptionId)}/payments`,
     );
     const open = (list.data || []).find((p) => p.invoiceUrl && p.status === "PENDING") || (list.data || [])[0];
-    if (open?.invoiceUrl) return open.invoiceUrl;
+    if (open?.invoiceUrl) return open;
     await new Promise((r) => setTimeout(r, 1500));
   }
   return null;
+}
+
+export async function firstPaymentLink(asaasSubscriptionId: string): Promise<string | null> {
+  return (await firstPaymentDetails(asaasSubscriptionId))?.invoiceUrl ?? null;
 }
 
 export async function createAsaasCheckout(params: {
@@ -194,8 +200,24 @@ export async function createAsaasCheckout(params: {
     .limit(1);
 
   if (pending) {
-    const link = await firstPaymentLink(pending.asaasSubscriptionId);
-    if (link) return { url: link, asaasSubscriptionId: pending.asaasSubscriptionId };
+    const payment = await firstPaymentDetails(pending.asaasSubscriptionId);
+    if (payment?.invoiceUrl) {
+      if (payment.id) await db.upsertProviderPayment({
+        userId: params.userId,
+        amount: Math.round(Number(payment.value ?? 0) * 100),
+        currency: "BRL",
+        status: "pending",
+        paymentMethod: `asaas${payment.billingType ? `:${payment.billingType.toLowerCase()}` : ""}`,
+        stripeInvoiceId: paymentKey(payment.id),
+        providerStatus: payment.status || "PENDING",
+        paymentUrl: payment.invoiceUrl,
+        dueDate: payment.dueDate || null,
+        providerSubscriptionId: pending.asaasSubscriptionId,
+        planSlug: pending.planSlug,
+        description: `Assinatura ${getPlanDisplayName(pending.planSlug as PlanSlug)} (Asaas)`,
+      }).catch((error) => console.error("[Asaas] não foi possível registrar a cobrança pendente:", error));
+      return { url: payment.invoiceUrl, asaasSubscriptionId: pending.asaasSubscriptionId };
+    }
   }
 
   // Cliente: reaproveita o existente do usuário
@@ -253,11 +275,25 @@ export async function createAsaasCheckout(params: {
     status: "pending",
   });
 
-  const url = await firstPaymentLink(subscription.id);
-  if (!url) throw new AsaasError("Cobrança criada, mas o link de pagamento ainda não está disponível. Tente novamente em instantes.", 502);
+  const firstPayment = await firstPaymentDetails(subscription.id);
+  if (!firstPayment?.invoiceUrl) throw new AsaasError("Cobrança criada, mas o link de pagamento ainda não está disponível. Tente novamente em instantes.", 502);
+  if (firstPayment.id) await db.upsertProviderPayment({
+    userId: params.userId,
+    amount: Math.round(Number(firstPayment.value ?? valueCents / 100) * 100),
+    currency: "BRL",
+    status: "pending",
+    paymentMethod: `asaas${firstPayment.billingType ? `:${firstPayment.billingType.toLowerCase()}` : ""}`,
+    stripeInvoiceId: paymentKey(firstPayment.id),
+    providerStatus: firstPayment.status || "PENDING",
+    paymentUrl: firstPayment.invoiceUrl,
+    dueDate: firstPayment.dueDate || null,
+    providerSubscriptionId: subscription.id,
+    planSlug: params.planSlug,
+    description: `Assinatura ${getPlanDisplayName(params.planSlug)} (Asaas)`,
+  }).catch((error) => console.error("[Asaas] não foi possível registrar a cobrança pendente:", error));
 
   console.log(`[Asaas] checkout criado: sub ${subscription.id} user ${params.userId} plano ${params.planSlug}`);
-  return { url, asaasSubscriptionId: subscription.id };
+  return { url: firstPayment.invoiceUrl, asaasSubscriptionId: subscription.id };
 }
 
 // ─── Webhook ─────────────────────────────────────────────────────────────────
@@ -271,8 +307,11 @@ export type AsaasWebhookBody = {
     subscription?: string | null;
     value?: number;
     billingType?: string;
+    status?: string;
     externalReference?: string | null;
     dueDate?: string;
+    invoiceUrl?: string;
+    paymentDate?: string | null;
   };
   subscription?: {
     id?: string;
@@ -361,25 +400,23 @@ async function activate(account: typeof asaasAccounts.$inferSelect, body: AsaasW
     .set({ status: "active", overdueSince: null, updatedAt: new Date() })
     .where(eq(asaasAccounts.id, account.id));
 
-  // Um registro por cobrança (CONFIRMED e RECEIVED chegam para a mesma cobrança no cartão)
+  // Um registro por cobrança; CONFIRMED/RECEIVED atualizam o mesmo lançamento pendente.
   if (payment.id) {
-    const key = paymentKey(payment.id);
-    const [exists] = await d
-      .select({ id: paymentHistory.id })
-      .from(paymentHistory)
-      .where(eq(paymentHistory.stripeInvoiceId, key))
-      .limit(1);
-    if (!exists) {
-      await db.createPaymentRecord({
-        userId: account.userId,
-        amount: Math.round(Number(payment.value || 0) * 100), // centavos, como no restante do financeiro
-        currency: "BRL",
-        status: "completed",
-        paymentMethod: `asaas${payment.billingType ? `:${payment.billingType.toLowerCase()}` : ""}`,
-        stripeInvoiceId: key, // coluna reaproveitada como chave de idempotência
-        description: `Assinatura ${getPlanDisplayName(planSlug)} (Asaas)`,
-      });
-    }
+    await db.upsertProviderPayment({
+      userId: account.userId,
+      amount: Math.round(Number(payment.value || 0) * 100),
+      currency: "BRL",
+      status: "completed",
+      paymentMethod: `asaas${payment.billingType ? `:${payment.billingType.toLowerCase()}` : ""}`,
+      stripeInvoiceId: paymentKey(payment.id),
+      providerStatus: payment.status || body.event || "PAYMENT_RECEIVED",
+      paymentUrl: payment.invoiceUrl,
+      dueDate: payment.dueDate || null,
+      paidAt: payment.paymentDate ? new Date(payment.paymentDate) : new Date(),
+      providerSubscriptionId: account.asaasSubscriptionId,
+      planSlug,
+      description: `Assinatura ${getPlanDisplayName(planSlug)} (Asaas)`,
+    });
   }
 
   if (firstActivation) {
@@ -443,6 +480,29 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
     const account = await resolveAccount(body);
 
     switch (event) {
+      case "PAYMENT_CREATED":
+      case "PAYMENT_UPDATED": {
+        const payment = body.payment;
+        if (account && payment?.id) {
+          const cents = Math.round(Number(payment.value || 0) * 100);
+          await db.upsertProviderPayment({
+            userId: account.userId,
+            amount: cents,
+            currency: "BRL",
+            status: "pending",
+            paymentMethod: `asaas${payment.billingType ? `:${payment.billingType.toLowerCase()}` : ""}`,
+            stripeInvoiceId: paymentKey(payment.id),
+            providerStatus: payment.status || event,
+            paymentUrl: payment.invoiceUrl,
+            dueDate: payment.dueDate || null,
+            providerSubscriptionId: account.asaasSubscriptionId,
+            planSlug: account.planSlug,
+            description: `Assinatura ${getPlanDisplayName(account.planSlug as PlanSlug)} (Asaas)`,
+          });
+        }
+        break;
+      }
+
       case "PAYMENT_CONFIRMED":
       case "PAYMENT_RECEIVED": {
         if (!account) { console.log(`[Asaas] ${event} sem assinatura vinculada — ignorado`); break; }
@@ -459,14 +519,45 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
             .set({ overdueSince: sql`coalesce(${asaasAccounts.overdueSince}, now())`, updatedAt: new Date() })
             .where(eq(asaasAccounts.id, account.id));
         }
+        if (account && body.payment?.id) {
+          const payment = body.payment;
+          await db.upsertProviderPayment({
+            userId: account.userId,
+            amount: Math.round(Number(payment.value || 0) * 100),
+            currency: "BRL",
+            status: "pending",
+            paymentMethod: `asaas${payment.billingType ? `:${payment.billingType.toLowerCase()}` : ""}`,
+            stripeInvoiceId: paymentKey(payment.id),
+            providerStatus: payment.status || "PAYMENT_OVERDUE",
+            paymentUrl: payment.invoiceUrl,
+            dueDate: payment.dueDate || null,
+            providerSubscriptionId: account.asaasSubscriptionId,
+            planSlug: account.planSlug,
+            description: `Assinatura ${getPlanDisplayName(account.planSlug as PlanSlug)} (Asaas) — em atraso`,
+          });
+        }
         break;
       }
 
       case "PAYMENT_REFUNDED": {
-        if (body.payment?.id) {
-          await d
-            .update(paymentHistory)
-            .set({ status: "refunded" })
+        if (body.payment?.id && account) {
+          const payment = body.payment;
+          const cents = Math.round(Number(payment.value || 0) * 100);
+          await db.upsertProviderPayment({
+            userId: account.userId,
+            amount: cents,
+            refundedAmount: cents,
+            currency: "BRL",
+            status: "refunded",
+            paymentMethod: `asaas${payment.billingType ? `:${payment.billingType.toLowerCase()}` : ""}`,
+            stripeInvoiceId: paymentKey(payment.id),
+            providerStatus: "PAYMENT_REFUNDED",
+            providerSubscriptionId: account.asaasSubscriptionId,
+            planSlug: account.planSlug,
+            description: `Assinatura ${getPlanDisplayName(account.planSlug as PlanSlug)} (Asaas) — estornada`,
+          });
+        } else if (body.payment?.id) {
+          await d.update(paymentHistory).set({ status: "refunded", providerStatus: "PAYMENT_REFUNDED" })
             .where(eq(paymentHistory.stripeInvoiceId, paymentKey(body.payment.id)));
         }
         if (account) await setAccountState(account, { subStatus: "cancelled", plan: "free", accountStatus: "cancelled" });
@@ -474,7 +565,43 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
       }
 
       case "PAYMENT_CHARGEBACK_REQUESTED": {
+        if (body.payment?.id && account) {
+          const payment = body.payment;
+          const cents = Math.round(Number(payment.value || 0) * 100);
+          await db.upsertProviderPayment({
+            userId: account.userId,
+            amount: cents,
+            refundedAmount: cents,
+            currency: "BRL",
+            status: "refunded",
+            paymentMethod: `asaas${payment.billingType ? `:${payment.billingType.toLowerCase()}` : ""}`,
+            stripeInvoiceId: paymentKey(payment.id),
+            providerStatus: "PAYMENT_CHARGEBACK_REQUESTED",
+            providerSubscriptionId: account.asaasSubscriptionId,
+            planSlug: account.planSlug,
+            description: `Assinatura ${getPlanDisplayName(account.planSlug as PlanSlug)} (Asaas) — contestada`,
+          });
+        }
         if (account) await setAccountState(account, { subStatus: "cancelled", plan: "free", accountStatus: "cancelled" });
+        break;
+      }
+
+      case "PAYMENT_DELETED": {
+        if (body.payment?.id && account) {
+          const payment = body.payment;
+          await db.upsertProviderPayment({
+            userId: account.userId,
+            amount: Math.round(Number(payment.value || 0) * 100),
+            currency: "BRL",
+            status: "failed",
+            paymentMethod: `asaas${payment.billingType ? `:${payment.billingType.toLowerCase()}` : ""}`,
+            stripeInvoiceId: paymentKey(payment.id),
+            providerStatus: "PAYMENT_DELETED",
+            providerSubscriptionId: account.asaasSubscriptionId,
+            planSlug: account.planSlug,
+            description: `Assinatura ${getPlanDisplayName(account.planSlug as PlanSlug)} (Asaas) — cobrança removida`,
+          });
+        }
         break;
       }
 
@@ -484,8 +611,6 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
         break;
       }
 
-      // Cobrança avulsa removida não cancela a assinatura; criação/atualização não mudam acesso
-      case "PAYMENT_DELETED":
       case "SUBSCRIPTION_CREATED":
       case "SUBSCRIPTION_UPDATED":
       default:

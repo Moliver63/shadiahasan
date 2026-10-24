@@ -1,4 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useLocation } from "wouter";
+import { capturarAtribuicaoNaEntrada, novoEventId } from "@/lib/metaAttribution";
 
 /**
  * Analytics — GA4 + Meta Pixel + Microsoft Clarity
@@ -10,6 +12,16 @@ import { useEffect } from "react";
  *   VITE_CLARITY_ID     ex: abcdefghij
  *
  * Sem os IDs definidos, o componente não injeta nada — zero overhead.
+ *
+ * ── PageView em SPA (corrigido em 24/10) ──────────────────────────────────
+ *
+ * Achado real: a campanha 804 mostrava 9 cliques e 0 visitas. O motivo estava
+ * aqui. `loadMetaPixel` disparava `PageView` uma vez, e o `useEffect` rodava
+ * com `[]`. Este site é uma SPA com wouter: trocar de página não recarrega o
+ * documento, então nenhum PageView novo saía. O pixel só via a primeira tela.
+ *
+ * Agora o PageView acompanha a rota. O primeiro é disparado pelo `init` (é
+ * assim que a Meta espera), e os seguintes vêm da troca de rota.
  */
 
 declare global {
@@ -82,29 +94,113 @@ function loadClarity(id: string) {
 }
 
 export default function Analytics() {
+  const [location] = useLocation();
+  const primeiraRota = useRef(true);
+
   useEffect(() => {
+    // Antes de qualquer script: guarda fbclid e UTMs da URL de entrada, que a
+    // primeira navegação apaga.
+    capturarAtribuicaoNaEntrada();
     if (GA4_ID) loadGA4(GA4_ID);
     if (META_PIXEL_ID) loadMetaPixel(META_PIXEL_ID);
     if (CLARITY_ID) loadClarity(CLARITY_ID);
   }, []);
 
+  useEffect(() => {
+    // O PageView da primeira tela sai no `init`; repetir aqui contaria duas
+    // vezes a mesma visita.
+    if (primeiraRota.current) {
+      primeiraRota.current = false;
+      return;
+    }
+    window.fbq?.("track", "PageView");
+    window.gtag?.("event", "page_view", { page_path: location });
+  }, [location]);
+
   return null;
 }
 
-/** Dispara evento de conversão em GA4 + Meta Pixel simultaneamente */
+/**
+ * Evento customizado (nome fora da lista padrão da Meta).
+ *
+ * Usa `trackCustom` de propósito. Não passe por aqui nomes padrão como
+ * Purchase, ViewContent ou InitiateCheckout: como evento customizado eles
+ * não contam como conversão no Gerenciador de Anúncios. Para esses, use as
+ * funções abaixo.
+ */
 export function trackEvent(name: string, params?: Record<string, unknown>) {
   window.gtag?.("event", name, params);
   window.fbq?.("trackCustom", name, params);
 }
 
-/** Eventos padrão de e-commerce */
-export function trackCheckoutStart(planSlug: string, value: number) {
-  window.gtag?.("event", "begin_checkout", {
-    currency: "BRL",
+export type ProdutoRastreado = {
+  /** Identificador do produto no sistema, ex: "lesson:42". */
+  contentId: string;
+  contentName?: string;
+  /** Valor em reais, não em centavos. */
+  value: number;
+  currency?: string;
+};
+
+/** Visualização da oferta. Página de produto, não a home genérica. */
+export function trackViewContent({ contentId, contentName, value, currency = "BRL" }: ProdutoRastreado) {
+  window.gtag?.("event", "view_item", {
+    currency,
     value,
-    items: [{ item_id: planSlug }],
+    items: [{ item_id: contentId, item_name: contentName }],
   });
-  window.fbq?.("track", "InitiateCheckout", { currency: "BRL", value });
+  window.fbq?.("track", "ViewContent", {
+    content_ids: [contentId],
+    content_type: "product",
+    ...(contentName ? { content_name: contentName } : {}),
+    value,
+    currency,
+  });
+}
+
+/**
+ * Início de pagamento. Dispare no clique que leva ao pagamento, nunca na
+ * abertura da página de vendas.
+ *
+ * Devolve o `eventId` usado, para quem chamou mandar o mesmo identificador ao
+ * servidor e a Meta não contar o evento duas vezes.
+ */
+export function trackInitiateCheckout({
+  contentId,
+  contentName,
+  value,
+  currency = "BRL",
+}: ProdutoRastreado): string {
+  const eventId = novoEventId("ic");
+  window.gtag?.("event", "begin_checkout", {
+    currency,
+    value,
+    items: [{ item_id: contentId, item_name: contentName }],
+  });
+  window.fbq?.(
+    "track",
+    "InitiateCheckout",
+    {
+      content_ids: [contentId],
+      content_type: "product",
+      ...(contentName ? { content_name: contentName } : {}),
+      value,
+      currency,
+    },
+    { eventID: eventId },
+  );
+  return eventId;
+}
+
+/**
+ * Compatibilidade com as telas de assinatura.
+ *
+ * O `value` era passado como `0` fixo em `Pricing.tsx` (duas chamadas), e era
+ * isso que fazia o InitiateCheckout aparecer com valor zero no relatório.
+ * Agora o valor é obrigatório e vem do plano.
+ */
+export function trackCheckoutStart(planSlug: string, value: number) {
+  return trackInitiateCheckout({ contentId: `plan:${planSlug}`, contentName: planSlug, value });
 }
 
 export function trackLead(source: string) {

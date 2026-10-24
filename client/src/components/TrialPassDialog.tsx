@@ -7,6 +7,8 @@ import { QrCode } from "lucide-react";
 import { isValidCpfCnpj, onlyDigits } from "@shared/br-document";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { trackInitiateCheckout } from "@/components/Analytics";
+import { atribuicaoAtual } from "@/lib/metaAttribution";
 
 export function formatBRL(cents: number) {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -45,7 +47,25 @@ export default function TrialPassDialog({ open, onOpenChange, lessonId, priceCen
     // Abre a aba no gesto do clique; navegadores podem bloquear window.open após o await.
     const paymentWindow = window.open("about:blank", "_blank");
     try {
-      const result = await createCheckout.mutateAsync({ lessonId, cpfCnpj: onlyDigits(cpfCnpj) });
+      /**
+       * InitiateCheckout aqui, não na abertura do diálogo: este é o clique que
+       * efetivamente cria a cobrança. Este fluxo é o do produto anunciado
+       * (a aula por R$ 19,90) e não disparava evento nenhum.
+       *
+       * A atribuição vai junto porque o pagamento acontece na fatura do Asaas,
+       * fora do site: sem `_fbp`/`_fbc` guardados agora, o `Purchase` que o
+       * servidor manda depois não tem como ser ligado ao clique no anúncio.
+       */
+      trackInitiateCheckout({
+        contentId: `lesson:${lessonId}`,
+        contentName: "Teste de 1 aula",
+        value: priceCents / 100,
+      });
+      const result = await createCheckout.mutateAsync({
+        lessonId,
+        cpfCnpj: onlyDigits(cpfCnpj),
+        atribuicao: atribuicaoAtual(),
+      });
       onOpenChange(false);
       if (paymentWindow) {
         paymentWindow.opener = null;

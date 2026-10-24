@@ -1,7 +1,23 @@
 import { Resend } from "resend";
 
-// Initialize Resend with API key from environment
-const resend = new Resend(process.env.RESEND_API_KEY);
+/**
+ * Cliente criado na primeira necessidade, não no import.
+ *
+ * `new Resend(undefined)` LANÇA ("Missing API key"), e isso rodava ao importar
+ * o módulo. Qualquer arquivo que chegasse aqui por importação indireta
+ * quebrava quando `RESEND_API_KEY` não estava no ambiente: era o motivo de
+ * `pnpm test` falhar na coleta dos 5 arquivos de teste, sem rodar um teste.
+ * Em produção, significa que o processo morre no import se a chave sair do
+ * ambiente, em vez de falhar só o envio de e-mail.
+ */
+let clienteResend: Resend | null = null;
+function getResend(): Resend | null {
+  if (clienteResend) return clienteResend;
+  const chave = process.env.RESEND_API_KEY;
+  if (!chave) return null;
+  clienteResend = new Resend(chave);
+  return clienteResend;
+}
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "Shadia Hasan <noreply@shadiahasan.club>";
 const SITE_URL = process.env.SITE_URL || "https://www.shadiahasan.club";
@@ -28,6 +44,11 @@ interface SendEmailParams {
 }
 
 async function sendEmail({ to, subject, html }: SendEmailParams) {
+  const resend = getResend();
+  if (!resend) {
+    console.warn("[Email] RESEND_API_KEY ausente — envio ignorado");
+    return { success: false, error: "RESEND_API_KEY não configurada" };
+  }
   try {
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,

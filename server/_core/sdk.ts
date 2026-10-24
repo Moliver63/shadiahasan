@@ -1,4 +1,5 @@
 import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { lerSessao } from "./sessionCookie";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
 import { parse as parseCookieHeader } from "cookie";
@@ -260,20 +261,14 @@ class SDKServer {
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
     
-    // Try to parse as JSON first (custom email/password login)
-    if (sessionCookie) {
-      try {
-        const parsed = JSON.parse(sessionCookie);
-        if (parsed.id && parsed.email) {
-          // Custom email/password session
-          const user = await db.getUserById(parsed.id);
-          if (user && user.email === parsed.email) {
-            return user;
-          }
-        }
-      } catch (e) {
-        // Not JSON, try JWT verification below
-      }
+    // Sessão do login próprio (e-mail/senha, Google, convite): JWT assinado.
+    // Até 24/10/2026 era JSON puro e qualquer um forjava o cookie de um admin
+    // sabendo id e e-mail. Ver server/_core/sessionCookie.ts.
+    const sessao = await lerSessao(sessionCookie);
+    if (sessao) {
+      const user = await db.getUserById(sessao.userId);
+      if (user && user.email?.toLowerCase() === sessao.email) return user;
+      throw ForbiddenError("Invalid session cookie");
     }
     
     // Try JWT verification (OAuth)

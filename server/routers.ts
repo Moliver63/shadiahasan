@@ -379,7 +379,9 @@ export const appRouter = router({
             name: user.name,
             role: user.role,
           };
-          ctx.res.cookie(COOKIE_NAME, JSON.stringify(userData), cookieOptions);
+          // Assinado: o cookie JSON antigo podia ser forjado (ver _core/sessionCookie.ts).
+          const { assinarSessao } = await import("./_core/sessionCookie");
+          ctx.res.cookie(COOKIE_NAME, await assinarSessao({ id: user.id, email: user.email }), cookieOptions);
           
           return { success: true, user: userData };
         } catch (error) {

@@ -299,6 +299,10 @@ O painel `/admin/financeiro` lê só `payment_history`, que só recebe o que os 
 
 ---
 
+## 8.1 Sessão de login assinada (24/10/2026)
+
+**Falha corrigida:** o cookie de sessão do login próprio (e-mail/senha, Google, convite de admin) era JSON puro, sem assinatura, e `sdk.authenticateRequest` aceitava qualquer cookie cujo `id` e `email` batessem com um usuário. Quem soubesse id e e-mail de um admin entrava como admin, sem senha. Agora é JWT HS256 (`server/_core/sessionCookie.ts`), assinado com `SESSION_SIGNING_SECRET` (criada no Render em 24/10; sem ela usa `JWT_SECRET`; chave com menos de 32 caracteres desativa o login em vez de aceitar sessão forjável). Cookies antigos deixaram de valer: todos fizeram login de novo uma vez. A rota REST `/api/auth/me` também passou a validar a assinatura. **Nunca voltar a aceitar cookie JSON.**
+
 ## 9. Variáveis de ambiente críticas
 
 ```env

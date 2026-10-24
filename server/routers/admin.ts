@@ -162,7 +162,8 @@ export const adminRouter = router({
         name: user.name,
         role: user.role,
       };
-      ctx.res.cookie(COOKIE_NAME, JSON.stringify(userData), cookieOptions);
+      const { assinarSessao } = await import("../_core/sessionCookie");
+      ctx.res.cookie(COOKIE_NAME, await assinarSessao({ id: user.id, email: user.email }), cookieOptions);
       
       return { success: true, user: userData };
     }),

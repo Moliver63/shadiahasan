@@ -10,6 +10,8 @@ import { Router, Request, Response, NextFunction } from 'express';
 import passport from './passport.js';
 import { COOKIE_NAME, ONE_YEAR_MS } from '@shared/const';
 import { getSessionCookieOptions } from '../_core/cookies.js';
+import { assinarSessao, lerSessao } from '../_core/sessionCookie.js';
+import { getUserById } from '../db.js';
 
 const router = Router();
 
@@ -68,7 +70,7 @@ router.get(
     )(req, res, next);
   },
 
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
 
@@ -85,7 +87,7 @@ router.get(
       };
 
       const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, JSON.stringify(userData), {
+      res.cookie(COOKIE_NAME, await assinarSessao({ id: user.id, email: user.email }), {
         ...cookieOptions,
         maxAge: ONE_YEAR_MS,
       });
@@ -120,17 +122,17 @@ router.post('/apple/callback', (_req: Request, res: Response) => {
 
 // ============ STATUS E LOGOUT ============
 
-router.get('/me', (req: Request, res: Response) => {
+router.get('/me', async (req: Request, res: Response) => {
   try {
-    const raw = req.cookies?.[COOKIE_NAME];
-    if (!raw) {
+    const sessao = await lerSessao(req.cookies?.[COOKIE_NAME]);
+    if (!sessao) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-    const user = JSON.parse(raw);
-    if (!user?.id || !user?.email) {
+    const user = await getUserById(sessao.userId);
+    if (!user || user.email?.toLowerCase() !== sessao.email) {
       return res.status(401).json({ error: 'Invalid session' });
     }
-    res.json(user);
+    res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
   } catch (error) {
     res.status(401).json({ error: 'Invalid session' });
   }

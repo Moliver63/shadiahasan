@@ -7,6 +7,7 @@ import { formatDuration } from "@/lib/formatDuration";
 import TrialPassDialog, { formatBRL } from "@/components/TrialPassDialog";
 import { trackViewContent } from "@/components/Analytics";
 import { getLoginUrl } from "@/const";
+import { guardarIntencao, lerIntencao, limparIntencao, veioDaOferta } from "@/lib/trialIntent";
 
 /**
  * Oferta de degustação: 1 aula completa por um valor único (Asaas).
@@ -44,6 +45,35 @@ export default function TrialOfferSection() {
     });
   }, [info?.enabled, info?.priceCents, primeiraEntrada]);
 
+  /**
+   * Quem chega pelo anúncio da aula de R$ 19,90 cai na home (o link da 804 é
+   * `/?utm_campaign=aula-19-90...`). A oferta fica logo abaixo do topo, mas o
+   * visitante via primeiro o banner genérico. Rola direto para a oferta.
+   */
+  const rolouParaOferta = useRef(false);
+  useEffect(() => {
+    if (rolouParaOferta.current || !info || !entries) return;
+    if (!veioDaOferta(window.location.search, window.location.hash)) return;
+    rolouParaOferta.current = true;
+    requestAnimationFrame(() =>
+      document.getElementById("experimente-uma-aula")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [info, entries]);
+
+  /** Volta do login com uma compra começada: reabre o pagamento da mesma aula. */
+  const retomou = useRef(false);
+  useEffect(() => {
+    if (retomou.current || !isAuthenticated || !info || !entries) return;
+    // Sem compra possível, descarta a intenção (senão RetomarCompraTeste devolveria o aluno à home a cada página).
+    if (!info.enabled || entries.length === 0) { limparIntencao(); return; }
+    const pendente = lerIntencao();
+    if (pendente === null) return;
+    retomou.current = true;
+    limparIntencao();
+    const aula = entries.find((e) => e.lessonId === pendente)?.lessonId ?? (entries.length === 1 ? entries[0].lessonId : null);
+    document.getElementById("experimente-uma-aula")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (aula !== null) setPayLessonId(aula);
+  }, [isAuthenticated, info, entries]);
+
   if (!info || !entries) return null;
 
   const missing: string[] = [];
@@ -57,6 +87,7 @@ export default function TrialOfferSection() {
   /** Abre o pagamento da aula; quem ainda não entrou na conta passa antes pelo login. */
   const startPayment = (lessonId: number) => {
     if (!isAuthenticated) {
+      guardarIntencao(lessonId);
       window.location.href = getLoginUrl();
       return;
     }

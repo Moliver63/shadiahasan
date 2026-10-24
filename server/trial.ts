@@ -775,3 +775,62 @@ async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<
     console.warn("[Trial→Meta] falha ao enviar Purchase:", e instanceof Error ? e.message : e);
   }
 }
+
+// ─── Conferência ativa de pagamentos pendentes ─────────────────────────────
+//
+// Achado real (24/10/2026, campanha 804): o site nunca recebeu NENHUM aviso
+// do Asaas (`asaasWebhookEvents` vazia, nenhum POST em /api/webhooks/asaas
+// nos logs do Render). Quem pagasse o teste de R$ 19,90 ficaria sem a aula,
+// porque só o webhook libera. Webhook é o caminho principal; esta rotina é a
+// rede de segurança: a cada rodada da manutenção, pergunta ao Asaas o status
+// das cobranças de teste ainda pendentes e, se foram pagas, libera pelo MESMO
+// `processTrialEvent` do webhook (idempotente, valida valor, não reativa
+// estorno e manda a compra para a Meta só na primeira ativação).
+
+const STATUS_PAGO = new Set(["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"]);
+const JANELA_DIAS = 10;
+
+type ConferenciaDeps = {
+  pendentes: () => Promise<Array<{ asaasPaymentId: string }>>;
+  consultar: (paymentId: string) => Promise<NonNullable<AsaasWebhookBody["payment"]> | null>;
+  liberar: (body: AsaasWebhookBody) => Promise<void>;
+};
+
+async function conferenciaPadrao(): Promise<ConferenciaDeps> {
+  return {
+    pendentes: async () => {
+      if (!(await ensureTrialSchema())) return [];
+      const d = await db.getDb();
+      if (!d) return [];
+      return d
+        .select({ asaasPaymentId: trialPasses.asaasPaymentId })
+        .from(trialPasses)
+        .where(and(eq(trialPasses.status, "pending"), sql`${trialPasses.createdAt} > now() - (${JANELA_DIAS} * interval '1 day')`));
+    },
+    consultar: (id) => asaasRequest("GET", `/payments/${encodeURIComponent(id)}`),
+    liberar: processTrialEvent,
+  };
+}
+
+/** Libera testes pagos cujo webhook não chegou. Devolve quantos foram liberados. */
+export async function conferirTestesPendentes(deps?: Partial<ConferenciaDeps>): Promise<number> {
+  const d = { ...(deps?.pendentes && deps.consultar && deps.liberar ? {} : await conferenciaPadrao()), ...deps } as ConferenciaDeps;
+  let liberados = 0;
+  for (const { asaasPaymentId } of await d.pendentes()) {
+    try {
+      const payment = await d.consultar(asaasPaymentId);
+      if (!payment || !STATUS_PAGO.has(String(payment.status || "").toUpperCase())) continue;
+      if (!TRIAL_REF.test(payment.externalReference || "")) continue;
+      await d.liberar({
+        id: `conferencia:${asaasPaymentId}`,
+        event: payment.status === "CONFIRMED" ? "PAYMENT_CONFIRMED" : "PAYMENT_RECEIVED",
+        payment: { ...payment, id: asaasPaymentId },
+      });
+      liberados++;
+      console.log(`[Trial] conferência: cobrança ${asaasPaymentId} paga sem webhook; aula liberada`);
+    } catch (e) {
+      console.warn(`[Trial] conferência falhou para ${asaasPaymentId}:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return liberados;
+}

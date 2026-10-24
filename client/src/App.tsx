@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
+import RetomarCompraTeste from "./components/RetomarCompraTeste";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { lazy, Suspense } from "react";
@@ -192,6 +193,7 @@ function App() {
           <Analytics />
           <Toaster />
           <Router />
+          <RetomarCompraTeste />
           <InstallAppButton mode="floating" />
           <ShadiaAssistantChat />
           <CookieConsent />

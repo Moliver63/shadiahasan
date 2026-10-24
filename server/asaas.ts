@@ -907,6 +907,9 @@ export async function runBillingMaintenance(): Promise<void> {
     await pauseOverdueAccounts();
     await endCancelledSubscriptions();
     await sendPaymentReminders();
+    // Rede de segurança do webhook: libera teste pago cujo aviso não chegou.
+    const { conferirTestesPendentes } = await import("./trial");
+    await conferirTestesPendentes();
   } catch (e) {
     console.warn("[Asaas] rotina de cobrança falhou:", e instanceof Error ? e.message : e);
   } finally {

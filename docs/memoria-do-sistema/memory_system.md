@@ -268,6 +268,14 @@ Cobrança avulsa no Asaas (padrão **R$ 19,90**, pagamento único) que libera **
 - `TrialPassDialog`: a aba de pagamento é aberta no próprio clique (`window.open("about:blank")`) e só depois recebe o link da fatura, porque navegadores bloqueiam `window.open` depois de um `await`. Se a aba for bloqueada, o checkout segue na aba atual; em erro, a aba em branco é fechada (commit `1cc8480`).
 
 
+### Funil do teste de 1 aula: correções de 24/10/2026 (campanha 804)
+
+Diagnóstico com dados reais (Render: banco, logs): no primeiro dia da campanha 804 o anúncio trouxe dezenas de visitas (`/?utm_campaign=aula-19-90&fbclid=...`) e **zero** cadastros e cobranças. Três defeitos:
+
+1. **O login perdia a compra.** Visitante sem conta clicava em "Quero experimentar", ia para `/login` e voltava em `/courses` (Google e e-mail redirecionam para lá). Agora `client/src/lib/trialIntent.ts` guarda a aula escolhida (1 h, `localStorage`), `RetomarCompraTeste` (montado no `App`) devolve o aluno logado para `/#experimente-uma-aula`, e a `TrialOfferSection` reabre o pagamento da mesma aula. Sem Asaas ou sem aula de entrada, a intenção é descartada (evita devolver o aluno à home em loop).
+2. **Quem vem do anúncio via primeiro o banner genérico.** Com `utm_campaign` contendo `aula-19-90`, `?oferta` ou `#experimente-uma-aula`, a home rola sozinha até a oferta.
+3. **O Asaas nunca avisou o site** (`asaasWebhookEvents` vazia; nenhum POST em `/api/webhooks/asaas`). Quem pagasse ficaria sem a aula. Correção definitiva é cadastrar o webhook no Asaas; enquanto isso, `conferirTestesPendentes` (em `trial.ts`, rodando no `runBillingMaintenance` a cada 10 min) consulta no Asaas as cobranças de teste pendentes dos últimos 10 dias e libera as pagas pelo mesmo `processTrialEvent` do webhook (idempotente; manda a compra para a Meta só na primeira ativação).
+
 ### Sincronização do financeiro (`server/financeSync.ts`, 24/10/2026)
 
 O painel `/admin/financeiro` lê só `payment_history`, que só recebe o que os webhooks gravaram. Cobranças anteriores a cada fluxo gravar, webhooks que não chegaram (Render dormindo, token errado, Stripe sem corpo cru até 23/10) e eventos sem usuário vinculado ficavam fora. O botão **"Sincronizar com Asaas e Stripe"** (`subscriptions.syncPayments`, admin) lê `GET /payments` do Asaas e `invoices.list` do Stripe e faz upsert pela mesma chave dos webhooks (`asaas:<id>` e id da fatura), com a data real da cobrança.

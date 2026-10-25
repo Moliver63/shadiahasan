@@ -1,5 +1,5 @@
 import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
-import { lerSessao } from "./sessionCookie";
+import { lerSessao, sessaoValidaPara } from "./sessionCookie";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
 import { parse as parseCookieHeader } from "cookie";
@@ -267,7 +267,7 @@ class SDKServer {
     const sessao = await lerSessao(sessionCookie);
     if (sessao) {
       const user = await db.getUserById(sessao.userId);
-      if (user && user.email?.toLowerCase() === sessao.email) return user;
+      if (user && sessaoValidaPara(sessao, user)) return user;
       throw ForbiddenError("Invalid session cookie");
     }
     

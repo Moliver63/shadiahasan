@@ -1801,8 +1801,10 @@ export async function requestPasswordReset(email: string) {
     return { success: true };
   }
 
-  // Check if user has password (OAuth-only users can't reset password)
-  if (!user.passwordHash) {
+  // Sem senha e com login social: não há senha para redefinir. Exceção: conta
+  // criada na compra do teste sem conta (loginMethod "email", sem senha ainda).
+  // Para ela, este link é como cria a primeira senha (ver server/trialGuest.ts).
+  if (!user.passwordHash && user.loginMethod !== "email") {
     // Don't reveal if user is OAuth-only (security)
     return { success: true };
   }
@@ -1870,8 +1872,10 @@ export async function resetPassword(token: string, newPassword: string) {
   // Hash new password
   const passwordHash = await hashPassword(newPassword);
 
-  // Update password
-  await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+  // Update password. O link chegou no e-mail da pessoa: isso prova que o
+  // e-mail é dela, então já conta como e-mail confirmado (e derruba sessões
+  // provisórias da compra sem conta; ver sessaoValidaPara).
+  await db.update(users).set({ passwordHash, emailVerified: 1 }).where(eq(users.id, user.id));
 
   // Mark token as used instead of deleting (for audit trail)
   await db.update(passwordResetTokens).set({ used: 1 }).where(eq(passwordResetTokens.token, token));

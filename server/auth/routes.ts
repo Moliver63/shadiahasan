@@ -10,7 +10,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import passport from './passport.js';
 import { COOKIE_NAME, ONE_YEAR_MS } from '@shared/const';
 import { getSessionCookieOptions } from '../_core/cookies.js';
-import { assinarSessao, lerSessao } from '../_core/sessionCookie.js';
+import { assinarSessao, lerSessao, sessaoValidaPara } from '../_core/sessionCookie.js';
 import { ehHostTecnico, emitirPasseDeLogin, hostCanonico, lerPasseDeLogin } from '../_core/canonicalHost.js';
 import { getUserById } from '../db.js';
 
@@ -162,7 +162,7 @@ router.get('/me', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
     const user = await getUserById(sessao.userId);
-    if (!user || user.email?.toLowerCase() !== sessao.email) {
+    if (!user || !sessaoValidaPara(sessao, user)) {
       return res.status(401).json({ error: 'Invalid session' });
     }
     res.json({ id: user.id, email: user.email, name: user.name, role: user.role });

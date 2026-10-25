@@ -35,6 +35,7 @@ const LessonView = lazy(() => import("./pages/LessonView"));
 const MyCourses = lazy(() => import("./pages/MyCourses"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const CheckoutSuccess = lazy(() => import("./pages/CheckoutSuccess"));
+const CompraAguardando = lazy(() => import("./pages/CompraAguardando"));
 const Ebooks = lazy(() => import("./pages/Ebooks"));
 const EbookReader = lazy(() => import("./pages/EbookReader"));
 const MyCertificates = lazy(() => import("./pages/MyCertificates"));
@@ -118,6 +119,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/pricing"} component={Pricing} />
       <Route path={"/checkout/success"} component={CheckoutSuccess} />
+      <Route path={"/compra/aguardando"} component={CompraAguardando} />
       <Route path={"/courses"} component={Courses} />
       <Route path={"/courses/:slug"} component={CourseDetail} />
       <ProtectedRoute path={"/lesson/:id"} component={LessonView} />

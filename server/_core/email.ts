@@ -287,3 +287,65 @@ export async function sendPaymentReminderEmail(
 
   return sendEmail({ to: email, subject: "Seu pagamento ainda não foi concluído", html });
 }
+
+/**
+ * Teste de 1 aula comprado sem conta ("pagar primeiro"): a aula já está
+ * liberada. O e-mail entrega o link da aula e, para conta nova, o link de
+ * criar senha. Criar a senha por este link prova que o e-mail é da pessoa
+ * (confirma o e-mail) e permite entrar de qualquer aparelho.
+ */
+export async function sendTrialAccessEmail(params: {
+  email: string;
+  name: string;
+  siteUrl: string;
+  lessonUrl: string;
+  /** null para quem já tinha conta: só avisa que liberou e manda entrar */
+  createPasswordUrl: string | null;
+}) {
+  const nome = (params.name || "").split(" ")[0] || "Olá";
+  const blocoSenha = params.createPasswordUrl
+    ? `
+          <p>Sua conta foi criada com este e-mail. Para entrar de outro celular ou do computador, crie sua senha:</p>
+          <div style="text-align: center;">
+            <a href="${params.createPasswordUrl}" class="button">Criar minha senha</a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">O link vale por 7 dias. Criar a senha também confirma que este e-mail é seu.</p>`
+    : `
+          <p>A aula foi liberada na conta que você já tem com este e-mail. Para assistir, entre com sua senha ou com o Google.</p>`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>${emailStyles}</style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <img src="${params.siteUrl}/logo.png" alt="Shadia Hasan" class="logo" />
+          <h1>Sua aula está liberada</h1>
+        </div>
+        <div class="content">
+          <p>${nome}, recebemos seu pagamento. Obrigada!</p>
+          <div style="text-align: center;">
+            <a href="${params.lessonUrl}" class="button">Assistir à aula</a>
+          </div>
+          ${blocoSenha}
+          <div class="highlight">
+            <p style="margin: 0;">Se o botão não abrir, copie este endereço no navegador:</p>
+            <p style="margin: 8px 0 0 0; word-break: break-all; color: #9333EA;">${params.lessonUrl}</p>
+          </div>
+        </div>
+        <div class="footer">
+          <p>Dúvidas? Fale com a gente pelo <a href="https://wa.me/5547991665536">WhatsApp</a>.</p>
+          <p style="margin-top: 20px;"><strong>Psicóloga Shadia Hasan</strong><br>CRP 12/27052</p>
+          <p><a href="${params.siteUrl}">${params.siteUrl.replace(/^https?:\/\//, "")}</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail({ to: params.email, subject: "Sua aula está liberada - Shadia Hasan", html });
+}

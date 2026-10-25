@@ -586,8 +586,12 @@ export async function createTrialCheckout(params: {
 
 const TRIAL_REF = /^trial:(\d+):(\d+)$/;
 
+/** Compra sem conta (pagar primeiro): "trialguest:<compraId>:<aulaId>". Ver server/trialGuest.ts. */
+const GUEST_TRIAL_REF = /^trialguest:(\d+):(\d+)$/;
+
 export function isTrialEvent(body: AsaasWebhookBody): boolean {
-  return TRIAL_REF.test(body.payment?.externalReference || "");
+  const ref = body.payment?.externalReference || "";
+  return TRIAL_REF.test(ref) || GUEST_TRIAL_REF.test(ref);
 }
 
 export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
@@ -596,11 +600,36 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
   if (!d) throw new Error("db indisponível");
 
   const payment = body.payment!;
-  const match = TRIAL_REF.exec(payment.externalReference || "")!;
-  const refUserId = Number(match[1]);
-  const refLessonId = Number(match[2]);
   const paymentId = String(payment.id || "");
   if (!paymentId) throw new Error("evento sem id de cobrança");
+  const pagamentoConfirmado = body.event === "PAYMENT_CONFIRMED" || body.event === "PAYMENT_RECEIVED";
+
+  let refUserId: number;
+  let refLessonId: number;
+  const guest = GUEST_TRIAL_REF.exec(payment.externalReference || "");
+  if (guest) {
+    // Compra sem conta: a conta só nasce quando o pagamento é confirmado
+    const guestModule = await import("./trialGuest");
+    if (pagamentoConfirmado) {
+      const m = await guestModule.materializarCompra(Number(guest[1]), paymentId);
+      if (!m) return;
+      refUserId = m.userId;
+      refLessonId = m.lessonId;
+    } else {
+      const [existente] = await d.select().from(trialPasses).where(eq(trialPasses.asaasPaymentId, paymentId)).limit(1);
+      if (!existente) {
+        // Ainda não pago e sem passe: só a compra pendente muda de estado
+        if (body.event === "PAYMENT_DELETED") await guestModule.cancelarCompra(paymentId);
+        return;
+      }
+      refUserId = existente.userId;
+      refLessonId = existente.lessonId;
+    }
+  } else {
+    const match = TRIAL_REF.exec(payment.externalReference || "")!;
+    refUserId = Number(match[1]);
+    refLessonId = Number(match[2]);
+  }
 
   // Localiza o passe pela cobrança; se o registro local se perdeu, recria pelo externalReference
   let [pass] = await d.select().from(trialPasses).where(eq(trialPasses.asaasPaymentId, paymentId)).limit(1);
@@ -666,6 +695,7 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
       // Só na primeira ativação: PAYMENT_CONFIRMED e PAYMENT_RECEIVED chegam
       // os dois pra mesma cobrança, e a Meta não pode contar duas compras.
       if (firstActivation) await enviarCompraParaMeta(pass.id, paymentId);
+      if (guest) await (await import("./trialGuest")).concluirCompra(paymentId);
       return;
     }
 
@@ -678,6 +708,7 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
 
     case "PAYMENT_OVERDUE":
     case "PAYMENT_DELETED": {
+      if (guest && body.event === "PAYMENT_DELETED") await (await import("./trialGuest")).cancelarCompra(paymentId);
       // Só cancela o que ainda não foi pago
       await d
         .update(trialPasses)
@@ -802,10 +833,14 @@ async function conferenciaPadrao(): Promise<ConferenciaDeps> {
       if (!(await ensureTrialSchema())) return [];
       const d = await db.getDb();
       if (!d) return [];
-      return d
+      const comConta = await d
         .select({ asaasPaymentId: trialPasses.asaasPaymentId })
         .from(trialPasses)
         .where(and(eq(trialPasses.status, "pending"), sql`${trialPasses.createdAt} > now() - (${JANELA_DIAS} * interval '1 day')`));
+      // Compras sem conta ainda não têm passe: vêm da tabela própria
+      const semConta = await (await import("./trialGuest")).cobrancasPendentesDeConvidados().catch(() => []);
+      const vistos = new Set(comConta.map((c) => c.asaasPaymentId));
+      return [...comConta, ...semConta.filter((c) => !vistos.has(c.asaasPaymentId))];
     },
     consultar: (id) => asaasRequest("GET", `/payments/${encodeURIComponent(id)}`),
     liberar: processTrialEvent,
@@ -820,7 +855,7 @@ export async function conferirTestesPendentes(deps?: Partial<ConferenciaDeps>): 
     try {
       const payment = await d.consultar(asaasPaymentId);
       if (!payment || !STATUS_PAGO.has(String(payment.status || "").toUpperCase())) continue;
-      if (!TRIAL_REF.test(payment.externalReference || "")) continue;
+      if (!TRIAL_REF.test(payment.externalReference || "") && !GUEST_TRIAL_REF.test(payment.externalReference || "")) continue;
       await d.liberar({
         id: `conferencia:${asaasPaymentId}`,
         event: payment.status === "CONFIRMED" ? "PAYMENT_CONFIRMED" : "PAYMENT_RECEIVED",

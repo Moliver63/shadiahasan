@@ -159,6 +159,10 @@ export default function InstallAppButton({
   if (!isReady || isStandalone || (mode === "floating" && isDismissed)) {
     return null;
   }
+  // Na tela do Pix o convite flutuante cobria o "esperando o pagamento"
+  if (mode === "floating" && typeof window !== "undefined" && window.location.pathname.startsWith("/compra/")) {
+    return null;
+  }
 
   const button = (
     <Button

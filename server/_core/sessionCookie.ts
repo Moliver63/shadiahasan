@@ -26,16 +26,18 @@ export function chaveDeSessao(env: NodeJS.ProcessEnv = process.env): Uint8Array 
   return new TextEncoder().encode(segredo);
 }
 
-export type SessaoDoCookie = { userId: number; email: string };
+export type SessaoDoCookie = { userId: number; email: string; provisoria: boolean };
 
 export async function assinarSessao(
   usuario: { id: number; email: string },
-  opts: { chave?: Uint8Array | null; agoraS?: number; validadeS?: number } = {},
+  opts: { chave?: Uint8Array | null; agoraS?: number; validadeS?: number; provisoria?: boolean } = {},
 ): Promise<string> {
   const chave = opts.chave === undefined ? chaveDeSessao() : opts.chave;
   if (!chave) throw new Error("SESSION_SIGNING_SECRET ausente ou curta: login desativado por segurança.");
   const agora = opts.agoraS ?? Math.floor(Date.now() / 1000);
-  return new SignJWT({ uid: usuario.id, email: usuario.email.toLowerCase(), v: VERSAO })
+  const claims: Record<string, unknown> = { uid: usuario.id, email: usuario.email.toLowerCase(), v: VERSAO };
+  if (opts.provisoria) claims.prov = 1;
+  return new SignJWT(claims)
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuer(EMISSOR)
     .setIssuedAt(agora)
@@ -60,8 +62,29 @@ export async function lerSessao(
     const uid = Number(payload.uid);
     const email = typeof payload.email === "string" ? payload.email : "";
     if (payload.v !== VERSAO || !Number.isSafeInteger(uid) || uid <= 0 || !email) return null;
-    return { userId: uid, email };
+    return { userId: uid, email, provisoria: payload.prov === 1 };
   } catch {
     return null;
   }
+}
+
+/**
+ * Sessão provisória: a de quem comprou o teste de 1 aula sem ter conta
+ * ("pagar primeiro, criar conta depois"). A conta nasce com o e-mail que a
+ * pessoa digitou, sem prova de que o e-mail é dela.
+ *
+ * Risco: alguém compra com o e-mail de outra pessoa e fica logado na conta
+ * que, mais tarde, o dono verdadeiro do e-mail vai usar (o login com Google
+ * vincula pelo e-mail). Por isso a sessão provisória só vale enquanto a conta
+ * continua "de compra": e-mail não confirmado, sem senha, sem login social.
+ * No momento em que alguém prova ser dono do e-mail (confirma pelo link,
+ * cria senha pelo link ou entra com Google), toda sessão provisória cai.
+ */
+export function sessaoValidaPara(
+  sessao: SessaoDoCookie,
+  usuario: { email: string | null; emailVerified?: number | null; passwordHash?: string | null; loginMethod?: string | null } | null | undefined,
+): boolean {
+  if (!usuario || usuario.email?.toLowerCase() !== sessao.email) return false;
+  if (!sessao.provisoria) return true;
+  return usuario.emailVerified !== 1 && !usuario.passwordHash && (usuario.loginMethod ?? "email") === "email";
 }

@@ -12,7 +12,7 @@ describe("cookie de sessão assinado", () => {
 
   it("ida e volta com a chave certa", async () => {
     const t = await assinarSessao({ id: 7, email: "Aluno@Exemplo.com" }, { chave: CHAVE });
-    expect(await lerSessao(t, { chave: CHAVE })).toEqual({ userId: 7, email: "aluno@exemplo.com" });
+    expect(await lerSessao(t, { chave: CHAVE })).toEqual({ userId: 7, email: "aluno@exemplo.com", provisoria: false });
   });
 
   it("assinado com outra chave ou adulterado é recusado", async () => {

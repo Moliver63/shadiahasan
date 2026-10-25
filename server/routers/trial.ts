@@ -11,10 +11,39 @@ import { lessons } from "../../drizzle/schema";
 import { AsaasError } from "../asaas";
 import {
   createTrialCheckout, getEntryDiagnostics, getEntryLessonForCourse, getEntryLessons, getTrialPriceCents, getTrialStatus,
-  getTrialValidDays, setEntryLesson, TrialError,
+  getTrialValidDays, isEntryLesson, setEntryLesson, TrialError,
 } from "../trial";
 import { isAsaasConfigured } from "../asaas";
 import { checkUserHasAccess } from "./videos";
+import { and, isNotNull, notInArray } from "drizzle-orm";
+import { trialPasses, users } from "../../drizzle/schema";
+import { COOKIE_NAME } from "@shared/const";
+import { getSessionCookieOptions } from "../_core/cookies";
+import { assinarSessao } from "../_core/sessionCookie";
+import { CompraSemContaError, compraSemContaLigada, criarCompraDeConvidado, normalizarEmail, statusDaCompra } from "../trialGuest";
+
+const TRINTA_DIAS_S = 30 * 24 * 60 * 60;
+
+const atribuicaoSchema = z
+  .object({
+    fbp: z.string().max(128).optional(),
+    fbc: z.string().max(255).optional(),
+    utmSource: z.string().max(128).optional(),
+    utmMedium: z.string().max(128).optional(),
+    utmCampaign: z.string().max(191).optional(),
+    utmContent: z.string().max(191).optional(),
+    utmTerm: z.string().max(191).optional(),
+    landingUrl: z.string().max(2048).optional(),
+  })
+  .partial()
+  .optional();
+
+function erroDaCompraSemConta(e: unknown): never {
+  if (e instanceof CompraSemContaError) {
+    throw new TRPCError({ code: e.code === "UNAVAILABLE" ? "INTERNAL_SERVER_ERROR" : e.code, message: e.message });
+  }
+  throw e;
+}
 
 /**
  * IP real do visitante. No Render a aplicação fica atrás de proxy, então
@@ -70,7 +99,82 @@ export const trialRouter = router({
     enabled: isAsaasConfigured(),
     priceCents: getTrialPriceCents(),
     validDays: getTrialValidDays(),
+    /** Visitante sem conta paga primeiro; a conta nasce no pagamento (ver server/trialGuest.ts). */
+    compraSemConta: isAsaasConfigured() && compraSemContaLigada(),
   })),
+
+  /** Compra sem conta: nome, e-mail e CPF. Não cria conta (só quando o pagamento for confirmado). */
+  guestCheckout: publicProcedure
+    .input(z.object({
+      lessonId: z.number().int().positive(),
+      nome: z.string().min(1).max(120),
+      email: z.string().min(3).max(254),
+      cpfCnpj: z.string().min(11).max(18),
+      atribuicao: atribuicaoSchema,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const origin = (ctx.req.headers.origin as string | undefined) || "https://shadiahasan.com";
+      try {
+        return await criarCompraDeConvidado({
+          nome: input.nome,
+          email: input.email,
+          cpfCnpj: input.cpfCnpj,
+          lessonId: input.lessonId,
+          origin,
+          aula: { precoCentavos: getTrialPriceCents(), ehAulaDeEntrada: isEntryLesson },
+          contaExistente: async (email, aula) => {
+            const d = await getDb();
+            if (!d) return null;
+            const [u] = await d.select({ id: users.id }).from(users).where(eq(users.email, normalizarEmail(email))).limit(1);
+            if (!u) return null;
+            const jaTemAcesso = await checkUserHasAccess(u.id, { isAccessRestricted: aula.isAccessRestricted ?? 0, courseId: aula.courseId });
+            const usados = await d
+              .select({ id: trialPasses.id })
+              .from(trialPasses)
+              .where(and(eq(trialPasses.userId, u.id), isNotNull(trialPasses.paidAt), notInArray(trialPasses.status, ["refunded", "cancelled"])))
+              .limit(1);
+            return { jaTemAcesso, jaUsouTeste: usados.length > 0 };
+          },
+          atribuicao: {
+            ...(input.atribuicao || {}),
+            clientIp: ipDoRequest(ctx.req),
+            clientUserAgent: (ctx.req.headers["user-agent"] as string | undefined) ?? null,
+          },
+        });
+      } catch (e) {
+        erroDaCompraSemConta(e);
+      }
+    }),
+
+  /**
+   * Tela "aguardando pagamento". Consulta o Asaas na hora se ainda pendente.
+   * Paga e com conta criada por esta compra: entra sozinho (sessão provisória).
+   */
+  guestStatus: publicProcedure
+    .input(z.object({ token: z.string().min(20).max(128) }))
+    .query(async ({ input, ctx }) => {
+      const r = await statusDaCompra(input.token);
+      if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Compra não encontrada." });
+      let logado = !!ctx.user && r.entrarSozinho?.userId === ctx.user.id;
+      if (r.entrarSozinho && !ctx.user) {
+        ctx.res.cookie(
+          COOKIE_NAME,
+          await assinarSessao({ id: r.entrarSozinho.userId, email: r.entrarSozinho.email }, { provisoria: true, validadeS: TRINTA_DIAS_S }),
+          { ...getSessionCookieOptions(ctx.req), maxAge: TRINTA_DIAS_S * 1000 },
+        );
+        logado = true;
+      }
+      return {
+        situacao: r.situacao,
+        lessonId: r.lessonId,
+        invoiceUrl: r.invoiceUrl,
+        pix: r.pix,
+        emailMascarado: r.emailMascarado,
+        logado,
+        // Logado em outra conta, ou e-mail que já tinha conta: precisa entrar na conta do e-mail
+        precisaEntrar: r.situacao === "paga" && !logado,
+      };
+    }),
 
   /** Preço, validade e situação do aluno para uma aula (a tela de aula bloqueada usa isto). */
   status: publicProcedure

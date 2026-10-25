@@ -334,11 +334,38 @@ STRIPE_SECRET_KEY=...  STRIPE_WEBHOOK_SECRET=...  STRIPE_PRICE_*=...
 ASAAS_API_KEY=...  ASAAS_WEBHOOK_TOKEN=...  ASAAS_BASE_URL=...
 # opcionais: carência no atraso (dias) e teste de 1 aula
 ASAAS_GRACE_DAYS=3  TRIAL_PRICE_CENTS=1990  TRIAL_VALID_DAYS=7
+# compra do teste sem conta (pagar primeiro); "off" volta ao login antes de pagar
+TRIAL_GUEST_CHECKOUT=on
 ```
 
 `drizzle.config.ts` lê o `.env` local; `pnpm db:push` precisa de `DATABASE_URL`.
 
 ---
+
+### Teste de 1 aula sem conta: "pagar primeiro, conta depois" (25/10/2026)
+
+Motivo: campanha 804 levou ~25 visitantes à oferta e nenhum passou do login
+(público 55+, navegador do app do Facebook, onde o Google bloqueia login).
+
+- `server/trialGuest.ts`: compra pendente em `trialGuestCheckouts` (nome,
+  e-mail, hash do CPF, token só em hash). Cobrança Asaas com
+  `externalReference = trialguest:<compraId>:<aulaId>`. **Conta só nasce quando o
+  pagamento é confirmado** (`materializarCompra`, chamada por `processTrialEvent`);
+  daí em diante é o caminho normal do passe (financeiro, Meta CAPI).
+- Limites contra robôs: 6/h por IP, 4/dia por CPF e por e-mail (memória) + 4/dia
+  por CPF no banco.
+- `trial.guestStatus`: tela `/compra/aguardando` consulta a cada 4 s; se pendente,
+  pergunta ao Asaas na hora (não espera webhook nem os 10 min da manutenção).
+  Mostra Pix copia e cola (`/payments/{id}/pixQrCode`) e a fatura como alternativa.
+- Login automático só se a conta foi criada por esta compra e até 48 h após o
+  pagamento. E-mail que já tinha conta **nunca** entra sozinho.
+- Sessão provisória (`prov:1` no JWT, `sessaoValidaPara`): cai quando o e-mail é
+  confirmado, uma senha é criada ou a conta entra com Google.
+- E-mail pós-pagamento (`trialGuestEmail.ts`): link da aula + "criar senha"
+  (token em `password_reset_tokens`, 7 dias). `resetPassword` agora marca
+  `emailVerified=1`; `requestPasswordReset` aceita conta sem senha com
+  `loginMethod=email`. Depende de `RESEND_API_KEY` válida.
+- Desligar: `TRIAL_GUEST_CHECKOUT=off` no Render.
 
 ## 10. Segurança e operação
 

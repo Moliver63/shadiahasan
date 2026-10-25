@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { formatDuration } from "@/lib/formatDuration";
 import TrialPassDialog, { formatBRL } from "@/components/TrialPassDialog";
+import GuestCheckoutDialog from "@/components/GuestCheckoutDialog";
 import { trackViewContent } from "@/components/Analytics";
 import { getLoginUrl } from "@/const";
 import { guardarIntencao, lerIntencao, limparIntencao, veioDaOferta } from "@/lib/trialIntent";
@@ -23,6 +24,8 @@ export default function TrialOfferSection() {
     enabled: isAdmin && !!entries && entries.length === 0,
   });
   const [payLessonId, setPayLessonId] = useState<number | null>(null);
+  /** Visitante sem conta: compra numa tela só, sem login (ver server/trialGuest.ts). */
+  const [guestLessonId, setGuestLessonId] = useState<number | null>(null);
 
   /**
    * ViewContent da oferta anunciada.
@@ -84,8 +87,16 @@ export default function TrialOfferSection() {
   // Só dá para comprar com Asaas configurado e ao menos uma aula de entrada.
   const canBuy = info.enabled && entries.length > 0;
 
-  /** Abre o pagamento da aula; quem ainda não entrou na conta passa antes pelo login. */
+  /**
+   * Abre o pagamento da aula. Sem conta: paga primeiro, a conta nasce no
+   * pagamento (compraSemConta). Com a chave desligada no servidor, volta ao
+   * caminho antigo: login antes de pagar.
+   */
   const startPayment = (lessonId: number) => {
+    if (!isAuthenticated && info.compraSemConta) {
+      setGuestLessonId(lessonId);
+      return;
+    }
     if (!isAuthenticated) {
       guardarIntencao(lessonId);
       window.location.href = getLoginUrl();
@@ -216,6 +227,16 @@ export default function TrialOfferSection() {
         </div>
         )}
       </div>
+
+      {canBuy && guestLessonId !== null && (
+        <GuestCheckoutDialog
+          open
+          onOpenChange={(open) => { if (!open) setGuestLessonId(null); }}
+          lessonId={guestLessonId}
+          priceCents={info.priceCents}
+          validDays={info.validDays}
+        />
+      )}
 
       {canBuy && payLessonId !== null && (
         <TrialPassDialog

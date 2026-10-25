@@ -1,7 +1,7 @@
 # Auditoria — Campanha 804 (Meta Ads) e rastreamento de compra
 
 Data da apuração: 25/10/2026, 12:20 UTC.
-Período analisado: 18/10 a 25/10/2026.
+Campanha publicada em 23/10/2026, 21:36 UTC (cerca de 2 dias de veiculação na apuração). Dados de 23/10 a 25/10.
 Serviço: `srv-d7cedcosfn5c73cevgqg` · Banco: `shadia-db` (`dpg-d7ci5vn7f7vs739gel50-a`).
 
 Documento de acompanhamento (linguagem não técnica, compartilhado):
@@ -21,9 +21,9 @@ e a segunda depende da primeira:
 | Evento `Purchase` via CAPI | No-op silencioso | `META_PIXEL_ID` e `META_CAPI_ACCESS_TOKEN` ausentes no Render |
 
 Nenhuma compra de terceiro aconteceu até agora. O gargalo atual não é o
-pagamento nem o rastreamento: é que nenhum visitante chega ao checkout.
+pagamento nem o rastreamento: é que nenhum visitante do anúncio chegou a preencher o checkout. Em cerca de 2 dias e 31 visualizações isso ainda é pouco para concluir.
 
-## 2. Números (7 dias, R$ 6/dia)
+## 2. Números (desde a publicação, cerca de 2 dias, R$ 6/dia)
 
 | Etapa | Quantidade |
 | --- | --- |
@@ -38,7 +38,7 @@ Gasto: R$ 10,49. Entrega concentrada no Feed do Facebook em celular
 
 ## 3. Confusão de medição — importante para leituras futuras
 
-Duas mudanças entraram na mesma janela de análise:
+Duas mudanças entraram na mesma janela de análise. A campanha foi publicada em 23/10 21:36 UTC; a faixa etária mudou 27 horas depois, quando ela mal tinha saído da fase inicial de aprendizado:
 
 | Quando (UTC) | Mudança |
 | --- | --- |
@@ -131,6 +131,6 @@ do envio.
    deixa de estar vazia.
 3. Definir `META_PIXEL_ID` e `META_CAPI_ACCESS_TOKEN` no Render.
    Verificação: `Purchase` visível no Gerenciador de Eventos.
-4. Investigar por que nenhum visitante chega ao checkout. 31 visualizações
-   de página, zero formulários. Validar a página em celular, dentro do
+4. Observar por que nenhum visitante chegou ao checkout. 31 visualizações
+   de página em cerca de 2 dias, zero formulários: ainda pouco para concluir. Validar a página em celular, dentro do
    navegador do app do Facebook.

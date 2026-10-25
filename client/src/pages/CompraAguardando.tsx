@@ -126,7 +126,9 @@ export default function CompraAguardando() {
   return (
     <Moldura>
       <p className="text-center text-[11px] font-medium uppercase tracking-[0.3em] text-[#a8743c]">Falta só o pagamento</p>
-      <h1 className="mt-2 text-center font-serif text-3xl leading-tight">Pague com Pix e a aula abre aqui</h1>
+      <h1 className="mt-2 text-center font-serif text-3xl leading-tight">
+        {dados.pix ? "Pague com Pix e a aula abre aqui" : "Pague e a aula abre aqui"}
+      </h1>
 
       {dados.pix ? (
         <>
@@ -146,13 +148,13 @@ export default function CompraAguardando() {
           )}
         </>
       ) : (
-        <p className="mt-5 text-center text-base">Toque no botão abaixo para ver o Pix e pagar.</p>
+        <p className="mt-5 text-center text-base">Toque no botão abaixo para pagar com cartão ou boleto. Depois volte para esta tela.</p>
       )}
 
       {dados.invoiceUrl && (
         <a href={dados.invoiceUrl} className="mt-4 block">
           <Button size="lg" variant={dados.pix ? "outline" : "default"} className="h-12 w-full text-base">
-            <CreditCard className="mr-2 h-5 w-5" /> {dados.pix ? "Prefiro cartão ou boleto" : "Ver o Pix e pagar"}
+            <CreditCard className="mr-2 h-5 w-5" /> {dados.pix ? "Prefiro cartão ou boleto" : "Pagar agora"}
           </Button>
         </a>
       )}

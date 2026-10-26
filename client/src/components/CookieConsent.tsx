@@ -95,7 +95,7 @@ export default function CookieConsent() {
                   Este site usa cookies
                 </h3>
                 <p className="text-sm text-gray-700 leading-relaxed">
-                  Utilizamos cookies para melhorar sua experiência, personalizar conteúdo e analisar o tráfego do site. 
+                  Os cookies de análise ajudam a entender o uso do site por meio do Google Analytics 4, Meta Pixel e Microsoft Clarity. Eles só são ativados se você aceitar esta categoria.
                   Cookies essenciais são necessários para o funcionamento básico da plataforma. 
                   Você pode escolher quais categorias aceitar ou{" "}
                   <Link href="/privacy" className="text-purple-600 hover:underline font-medium">
@@ -205,7 +205,7 @@ export default function CookieConsent() {
                   anonimamente. Isso nos permite melhorar a experiência do usuário.
                 </p>
                 <p className="text-xs text-gray-500 mt-2">
-                  Exemplos: Google Analytics, métricas de uso, análise de comportamento
+                  Exemplos: Google Analytics 4, Meta Pixel e Microsoft Clarity
                 </p>
               </div>
               <Switch

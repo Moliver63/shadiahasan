@@ -64,6 +64,10 @@ function sendGA4(...args: unknown[]) {
   if (hasAnalyticsConsent()) window.gtag?.(...args);
 }
 
+function sendMeta(...args: unknown[]) {
+  if (hasAnalyticsConsent()) window.fbq?.(...args);
+}
+
 function loadMetaPixel(id: string) {
   // O pixel normalmente já nasceu no `<head>` do index.html, que é onde ele
   // precisa estar para disparar antes do bundle (ver o comentário lá). Então
@@ -126,11 +130,18 @@ export default function Analytics() {
         ad_personalization: "denied",
       });
       if (granted && GA4_ID) loadGA4(GA4_ID);
+      if (granted && META_PIXEL_ID) loadMetaPixel(META_PIXEL_ID);
+      if (granted && CLARITY_ID) loadClarity(CLARITY_ID);
+      if (window.clarity) {
+        window.clarity("consentv2", {
+          ad_Storage: "denied",
+          analytics_Storage: granted ? "granted" : "denied",
+        });
+        if (!granted) window.clarity("consent", false);
+      }
     };
     applyAnalyticsConsent();
     window.addEventListener("cookie-consent-updated", applyAnalyticsConsent);
-    if (META_PIXEL_ID) loadMetaPixel(META_PIXEL_ID);
-    if (CLARITY_ID) loadClarity(CLARITY_ID);
     return () => window.removeEventListener("cookie-consent-updated", applyAnalyticsConsent);
   }, []);
 
@@ -143,7 +154,7 @@ export default function Analytics() {
       primeiraRota.current = false;
       return;
     }
-    window.fbq?.("track", "PageView");
+    sendMeta("track", "PageView");
     sendGA4("event", "page_view", { page_path: location });
   }, [location]);
 
@@ -160,7 +171,7 @@ export default function Analytics() {
  */
 export function trackEvent(name: string, params?: Record<string, unknown>) {
   sendGA4("event", name, params);
-  window.fbq?.("trackCustom", name, params);
+  sendMeta("trackCustom", name, params);
 }
 
 export type ProdutoRastreado = {
@@ -179,7 +190,7 @@ export function trackViewContent({ contentId, contentName, value, currency = "BR
     value,
     items: [{ item_id: contentId, item_name: contentName }],
   });
-  window.fbq?.("track", "ViewContent", {
+  sendMeta("track", "ViewContent", {
     content_ids: [contentId],
     content_type: "product",
     ...(contentName ? { content_name: contentName } : {}),
@@ -207,7 +218,7 @@ export function trackInitiateCheckout({
     value,
     items: [{ item_id: contentId, item_name: contentName }],
   });
-  window.fbq?.(
+  sendMeta(
     "track",
     "InitiateCheckout",
     {
@@ -235,5 +246,5 @@ export function trackCheckoutStart(planSlug: string, value: number) {
 
 export function trackLead(source: string) {
   sendGA4("event", "generate_lead", { source });
-  window.fbq?.("track", "Lead", { source });
+  sendMeta("track", "Lead", { source });
 }

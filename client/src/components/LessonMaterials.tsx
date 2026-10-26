@@ -157,7 +157,7 @@ function ExerciseCard({ exercise, lessonId, lessonTitle }: { exercise: Exercise;
                 <div key={field.key} className="space-y-1.5">
                   <label className="text-sm font-medium">{field.label}</label>
                   {field.type === "textarea" && (
-                    <Textarea value={values[field.key] ?? ""} rows={3} className="text-sm resize-none"
+                    <Textarea data-clarity-mask="true" value={values[field.key] ?? ""} rows={3} className="text-sm resize-none"
                       placeholder="Escreva aqui..."
                       onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))} />
                   )}

@@ -7,7 +7,7 @@ import { Lock } from "lucide-react";
 import { isValidCpfCnpj, onlyDigits } from "@shared/br-document";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { trackInitiateCheckout } from "@/components/Analytics";
+import { trackEvent, trackInitiateCheckout } from "@/components/Analytics";
 import { atribuicaoAtual } from "@/lib/metaAttribution";
 import { formatBRL } from "@/components/TrialPassDialog";
 import { guardarCompra } from "@/lib/compraSemConta";
@@ -55,6 +55,7 @@ export default function GuestCheckoutDialog({ open, onOpenChange, lessonId, pric
         cpfCnpj: onlyDigits(cpf),
         atribuicao: atribuicaoAtual(),
       });
+      trackEvent("checkout_created_pending", { provider: "asaas", item_type: "lesson_trial" });
       guardarCompra(r.token);
       // Mesma aba: no navegador do Facebook, abrir aba nova se perde com facilidade
       window.location.assign(`/compra/aguardando#t=${r.token}`);
@@ -79,12 +80,13 @@ export default function GuestCheckoutDialog({ open, onOpenChange, lessonId, pric
         >
           <div className="space-y-1.5">
             <Label htmlFor="guestNome" className="text-base">Seu nome</Label>
-            <Input id="guestNome" autoComplete="name" className="h-12 text-base" value={nome} onChange={(e) => setNome(e.target.value)} />
+            <Input id="guestNome" data-clarity-mask="true" autoComplete="name" className="h-12 text-base" value={nome} onChange={(e) => setNome(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="guestEmail" className="text-base">Seu e-mail</Label>
             <Input
               id="guestEmail"
+              data-clarity-mask="true"
               type="email"
               inputMode="email"
               autoComplete="email"
@@ -103,6 +105,7 @@ export default function GuestCheckoutDialog({ open, onOpenChange, lessonId, pric
             <Label htmlFor="guestCpf" className="text-base">CPF</Label>
             <Input
               id="guestCpf"
+              data-clarity-mask="true"
               inputMode="numeric"
               autoComplete="off"
               placeholder="000.000.000-00"

@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import PublicHeader from "@/components/PublicHeader";
-import { trackCheckoutStart } from "@/components/Analytics";
+import { trackCheckoutStart, trackEvent } from "@/components/Analytics";
 
 export default function Pricing() {
   const { user, isAuthenticated } = useAuth();
@@ -151,6 +151,7 @@ export default function Pricing() {
       const result = await createCheckout.mutateAsync({ planSlug });
       
       if (result.url) {
+        trackEvent("checkout_created_pending", { provider: "stripe", item_type: "subscription" });
         window.open(result.url, "_blank");
         toast.success("Abrindo página de pagamento...");
       }
@@ -179,6 +180,7 @@ export default function Pricing() {
         cpfCnpj: onlyDigits(cpfCnpj),
         billingType: method === "asaas-card" ? "CREDIT_CARD" : "UNDEFINED",
       });
+      trackEvent("checkout_created_pending", { provider: "asaas", item_type: "subscription" });
       setChosenPlan(null);
       window.open(result.url, "_blank");
       toast.success("Abrindo página de pagamento...");

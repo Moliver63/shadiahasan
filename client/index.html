@@ -34,7 +34,7 @@
     </script>
     
     <!--
-      Meta Pixel — carregado aqui, antes de tudo.
+      Meta Pixel — carregado aqui apenas após consentimento de analytics.
 
       Achado real (auditoria de 24/10, campanha 804): 19 cliques no link e 1
       visualização de página de destino. O pixel não estava quebrado; ele era
@@ -42,7 +42,8 @@
       navegador baixar ~890 kB comprimidos e o React montar. Com 470 das 471
       impressões em `mobile_app` (navegador interno do app do Facebook) e 71%
       do público em 55+, a maioria saía antes disso. Aqui o pixel dispara
-      independente do bundle, do React e do tempo de boot.
+      independente do bundle, do React e do tempo de boot quando já há
+      consentimento salvo. Sem consentimento, o Pixel aguarda o banner.
 
       O ID vem de VITE_META_PIXEL_ID, substituído pelo Vite no build. Sem a
       variável definida o bloco não faz nada: medir errado com um ID inventado
@@ -58,6 +59,12 @@
         // Variável ausente no build: o Vite deixa a string vazia ou o próprio
         // marcador. Nos dois casos não há pixel para iniciar.
         if (!id || id.charAt(0) === "%") return;
+        try {
+          var consent = JSON.parse(localStorage.getItem("cookie-consent") || "null");
+          if (!consent || consent.analytics !== true) return;
+        } catch (_) {
+          return;
+        }
         if (window.fbq) return;
         !(function (f, b, e, v, n, t, s) {
           if (f.fbq) return;

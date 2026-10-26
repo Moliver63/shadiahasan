@@ -7,7 +7,7 @@ import { QrCode } from "lucide-react";
 import { isValidCpfCnpj, onlyDigits } from "@shared/br-document";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { trackInitiateCheckout } from "@/components/Analytics";
+import { trackEvent, trackInitiateCheckout } from "@/components/Analytics";
 import { atribuicaoAtual } from "@/lib/metaAttribution";
 
 export function formatBRL(cents: number) {
@@ -66,6 +66,7 @@ export default function TrialPassDialog({ open, onOpenChange, lessonId, priceCen
         cpfCnpj: onlyDigits(cpfCnpj),
         atribuicao: atribuicaoAtual(),
       });
+      trackEvent("checkout_created_pending", { provider: "asaas", item_type: "lesson_trial" });
       onOpenChange(false);
       if (paymentWindow) {
         paymentWindow.opener = null;
@@ -105,6 +106,7 @@ export default function TrialPassDialog({ open, onOpenChange, lessonId, priceCen
             <Label htmlFor="trialCpfCnpj">CPF ou CNPJ</Label>
             <Input
               id="trialCpfCnpj"
+              data-clarity-mask="true"
               inputMode="numeric"
               autoComplete="off"
               placeholder="000.000.000-00"

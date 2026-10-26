@@ -1,9 +1,9 @@
-# Configuração de Email - Domínio shadiahasan.club
+# Configuração de Email - Domínio shadiahasan.com
 
 ## 📧 Status Atual
 
-- **Domínio**: shadiahasan.club
-- **Email Remetente**: noreply@shadiahasan.club
+- **Domínio**: shadiahasan.com
+- **Email Remetente**: noreply@shadiahasan.com
 - **Provedor**: Resend API
 - **Status**: ⚠️ Aguardando verificação de domínio
 
@@ -18,7 +18,7 @@ Acesse: https://resend.com/domains
 ### 2. Adicionar Domínio
 
 1. Clique em **"Add Domain"**
-2. Digite: `shadiahasan.club`
+2. Digite: `shadiahasan.com`
 3. Clique em **"Add"**
 
 ### 3. Configurar Registros DNS
@@ -72,21 +72,21 @@ Após a verificação, teste o cadastro:
 
 ## 🎯 Onde Adicionar os Registros DNS
 
-Dependendo de onde você registrou o domínio `shadiahasan.club`, acesse o painel DNS:
+Dependendo de onde você registrou o domínio `shadiahasan.com`, acesse o painel DNS:
 
 ### Registro.br (Brasil)
 
 1. Acesse https://registro.br
 2. Faça login
 3. Vá em "Meus Domínios"
-4. Clique em "shadiahasan.club"
+4. Clique em "shadiahasan.com"
 5. Vá em "Editar Zona DNS"
 6. Adicione os registros TXT e MX
 
 ### Cloudflare
 
 1. Acesse https://dash.cloudflare.com
-2. Selecione o domínio `shadiahasan.club`
+2. Selecione o domínio `shadiahasan.com`
 3. Vá em "DNS"
 4. Clique em "Add record"
 5. Adicione cada registro conforme instruções
@@ -102,7 +102,7 @@ Dependendo de onde você registrou o domínio `shadiahasan.club`, acesse o paine
 
 1. Acesse o painel da Hostinger
 2. Vá em "Domínios"
-3. Clique em "Gerenciar" ao lado de shadiahasan.club
+3. Clique em "Gerenciar" ao lado de shadiahasan.com
 4. Vá em "DNS / Nameservers"
 5. Adicione os registros
 
@@ -120,7 +120,7 @@ Dependendo de onde você registrou o domínio `shadiahasan.club`, acesse o paine
 
 ```bash
 # Criar conta de teste
-1. Acesse https://shadiahasan.club/signup
+1. Acesse https://shadiahasan.com/signup
 2. Preencha o formulário
 3. Clique em "Criar conta gratuita"
 4. Verifique sua caixa de entrada
@@ -140,12 +140,12 @@ Você pode verificar se os registros foram aplicados usando ferramentas online:
 
 ### MXToolbox
 https://mxtoolbox.com/SuperTool.aspx
-- Digite: `shadiahasan.club`
+- Digite: `shadiahasan.com`
 - Verifique registros SPF, DKIM e MX
 
 ### Google Admin Toolbox
 https://toolbox.googleapps.com/apps/dig/
-- Digite: `shadiahasan.club`
+- Digite: `shadiahasan.com`
 - Tipo: TXT
 - Verifique se aparecem os registros do Resend
 
@@ -157,12 +157,12 @@ Após a configuração, o sistema enviará automaticamente:
 
 1. **Email de Verificação** (ao criar conta)
    - Assunto: "Bem-vindo à Jornada de Transformação Interior"
-   - Remetente: noreply@shadiahasan.club
+   - Remetente: noreply@shadiahasan.com
    - Conteúdo: Link de ativação de conta
 
 2. **Email de Recuperação de Senha**
    - Assunto: "Recuperação de Senha - Shadia Hasan"
-   - Remetente: noreply@shadiahasan.club
+   - Remetente: noreply@shadiahasan.com
    - Conteúdo: Link para redefinir senha (válido por 1 hora)
 
 3. **Notificações do Sistema** (futuro)
@@ -200,7 +200,7 @@ Quando o domínio estiver verificado:
 3. ✅ Notificações do sistema funcionarão
 4. ✅ Todos os emails terão branding profissional
 
-**Não é necessário alterar nenhum código** - o sistema já está configurado para usar `noreply@shadiahasan.club`!
+**Não é necessário alterar nenhum código** - o sistema já está configurado para usar `noreply@shadiahasan.com`!
 
 ---
 
@@ -217,7 +217,7 @@ Se tiver problemas:
 ## 📝 Checklist de Configuração
 
 - [ ] Acessar https://resend.com/domains
-- [ ] Adicionar domínio `shadiahasan.club`
+- [ ] Adicionar domínio `shadiahasan.com`
 - [ ] Copiar registros DNS fornecidos pelo Resend
 - [ ] Adicionar registro SPF (TXT)
 - [ ] Adicionar registro DKIM (TXT)
@@ -231,5 +231,5 @@ Se tiver problemas:
 ---
 
 **Data de configuração**: 14 de fevereiro de 2026
-**Email configurado**: noreply@shadiahasan.club
+**Email configurado**: noreply@shadiahasan.com
 **Status**: Aguardando verificação de domínio no Resend

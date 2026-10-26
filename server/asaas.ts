@@ -807,6 +807,59 @@ export async function sendPaymentReminders(): Promise<number> {
   // O segundo envio fica elegível 7h após a criação (1h até o primeiro + 6h).
   const window = (n: number) => (n === 0 ? sql`interval '1 hour'` : sql`interval '7 hours'`);
 
+  // Checkout da promoção sem conta. Estes clientes ainda não têm linha em
+  // trialPasses; a cobrança pendente fica em trialGuestCheckouts até o pagamento.
+  const guestModule = await import("./trialGuest");
+  if (await guestModule.ensureGuestSchema()) {
+    const { trialGuestCheckouts } = guestModule;
+    const pendingGuests = await d
+      .select()
+      .from(trialGuestCheckouts)
+      .where(and(
+        eq(trialGuestCheckouts.status, "pending"),
+        sql`${trialGuestCheckouts.remindersSent} < 2`,
+        sql`${trialGuestCheckouts.invoiceUrl} IS NOT NULL`,
+        eq(trialGuestCheckouts.dueDate, SP_TODAY()),
+      ));
+
+    for (const checkout of pendingGuests) {
+      const n = checkout.remindersSent;
+      const [{ ready }] = (await d.execute(sql`
+        select ("createdAt" < now() - ${window(n)}) as ready
+        from "trialGuestCheckouts" where id = ${checkout.id}
+      `)).rows as Array<{ ready: boolean }>;
+      if (!ready) continue;
+
+      const claimed = await d
+        .update(trialGuestCheckouts)
+        .set({ remindersSent: n + 1, updatedAt: new Date() })
+        .where(and(
+          eq(trialGuestCheckouts.id, checkout.id),
+          eq(trialGuestCheckouts.remindersSent, n),
+          eq(trialGuestCheckouts.status, "pending"),
+        ))
+        .returning({ id: trialGuestCheckouts.id });
+      if (!claimed.length) continue;
+
+      const r = await sendPaymentReminderEmail(checkout.email, checkout.name, {
+        invoiceUrl: checkout.invoiceUrl!,
+        what: "o teste de 1 aula por R$ 19,90",
+        note: "O link de pagamento vale até o fim de hoje. Se você já pagou, ignore este lembrete.",
+      });
+      if (r.success) {
+        sent++;
+      } else {
+        await d.update(trialGuestCheckouts)
+          .set({ remindersSent: n, updatedAt: new Date() })
+          .where(and(
+            eq(trialGuestCheckouts.id, checkout.id),
+            eq(trialGuestCheckouts.remindersSent, n + 1),
+            eq(trialGuestCheckouts.status, "pending"),
+          ));
+      }
+    }
+  }
+
   // Teste de 1 aula
   if (await ensureTrialSchema()) {
     const pending = await d

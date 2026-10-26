@@ -19,8 +19,8 @@ function getResend(): Resend | null {
   return clienteResend;
 }
 
-const FROM_EMAIL = process.env.FROM_EMAIL || "Shadia Hasan <noreply@shadiahasan.club>";
-const SITE_URL = process.env.SITE_URL || "https://www.shadiahasan.club";
+const FROM_EMAIL = process.env.FROM_EMAIL || "Shadia Hasan <noreply@shadiahasan.com>";
+const SITE_URL = process.env.SITE_URL || "https://www.shadiahasan.com";
 
 // Email template styles
 const emailStyles = `
@@ -108,9 +108,9 @@ export async function sendVerificationEmail(email: string, name: string, token: 
         </div>
         
         <div class="footer">
-          <p>Precisa de ajuda? Entre em contato conosco: <a href="mailto:contato@shadiahasan.club">contato@shadiahasan.club</a></p>
+          <p>Precisa de ajuda? Entre em contato conosco: <a href="mailto:contato@shadiahasan.com">contato@shadiahasan.com</a></p>
           <p style="margin-top: 20px;"><strong>Psicóloga Shadia Hasan</strong><br>CRP 12/27052</p>
-          <p><a href="${SITE_URL}">www.shadiahasan.club</a></p>
+          <p><a href="${SITE_URL}">www.shadiahasan.com</a></p>
         </div>
       </div>
     </body>
@@ -167,9 +167,9 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
         </div>
         
         <div class="footer">
-          <p>Precisa de ajuda? Entre em contato conosco: <a href="mailto:contato@shadiahasan.club">contato@shadiahasan.club</a></p>
+          <p>Precisa de ajuda? Entre em contato conosco: <a href="mailto:contato@shadiahasan.com">contato@shadiahasan.com</a></p>
           <p style="margin-top: 20px;"><strong>Psicóloga Shadia Hasan</strong><br>CRP 12/27052</p>
-          <p><a href="${SITE_URL}">www.shadiahasan.club</a></p>
+          <p><a href="${SITE_URL}">www.shadiahasan.com</a></p>
         </div>
       </div>
     </body>
@@ -224,10 +224,10 @@ export async function sendWelcomeEmail(email: string, name: string) {
         </div>
         
         <div class="footer">
-          <p>Precisa de ajuda? Nossa equipe está sempre disponível: <a href="mailto:contato@shadiahasan.club">contato@shadiahasan.club</a></p>
+          <p>Precisa de ajuda? Nossa equipe está sempre disponível: <a href="mailto:contato@shadiahasan.com">contato@shadiahasan.com</a></p>
           <p style="margin-top: 20px;"><strong>Psicóloga Shadia Hasan</strong><br>CRP 12/27052</p>
-          <p><a href="${SITE_URL}">www.shadiahasan.club</a></p>
-          <p style="margin-top: 20px; font-size: 12px; color: #9ca3af;">Você está recebendo este email porque criou uma conta em shadiahasan.club</p>
+          <p><a href="${SITE_URL}">www.shadiahasan.com</a></p>
+          <p style="margin-top: 20px; font-size: 12px; color: #9ca3af;">Você está recebendo este email porque criou uma conta em shadiahasan.com</p>
         </div>
       </div>
     </body>
@@ -277,8 +277,8 @@ export async function sendPaymentReminderEmail(
           <p>Se você já pagou, pode ignorar esta mensagem. A liberação acontece sozinha assim que o pagamento é confirmado.</p>
         </div>
         <div class="footer">
-          <p>Precisa de ajuda? Escreva para <a href="mailto:contato@shadiahasan.club">contato@shadiahasan.club</a></p>
-          <p><a href="${SITE_URL}">www.shadiahasan.club</a></p>
+          <p>Precisa de ajuda? Escreva para <a href="mailto:contato@shadiahasan.com">contato@shadiahasan.com</a></p>
+          <p><a href="${SITE_URL}">www.shadiahasan.com</a></p>
         </div>
       </div>
     </body>

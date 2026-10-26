@@ -146,6 +146,7 @@ export const trialGuestCheckouts = pgTable("trialGuestCheckouts", {
   amountCents: integer("amountCents").notNull(),
   /** creating → pending → paid | cancelled | failed */
   status: varchar("status", { length: 16 }).notNull().default("creating"),
+  remindersSent: integer("remindersSent").notNull().default(0),
   userId: integer("userId"),
   /** 1 quando a conta foi criada por esta compra (só então pode entrar sozinho) */
   userCreated: integer("userCreated").notNull().default(0),
@@ -186,6 +187,7 @@ export function ensureGuestSchema(): Promise<boolean> {
             "dueDate" varchar(10),
             "amountCents" integer NOT NULL,
             "status" varchar(16) NOT NULL DEFAULT 'creating',
+            "remindersSent" integer NOT NULL DEFAULT 0,
             "userId" integer,
             "userCreated" integer NOT NULL DEFAULT 0,
             "paidAt" timestamp,
@@ -203,6 +205,7 @@ export function ensureGuestSchema(): Promise<boolean> {
             "updatedAt" timestamp NOT NULL DEFAULT now()
           )
         `);
+        await d.execute(sql`ALTER TABLE "trialGuestCheckouts" ADD COLUMN IF NOT EXISTS "remindersSent" integer NOT NULL DEFAULT 0`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "trialGuest_email_idx" ON "trialGuestCheckouts" ("email")`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "trialGuest_cpf_idx" ON "trialGuestCheckouts" ("cpfHash")`);
         return true;

@@ -73,7 +73,8 @@ export default function CookieConsent() {
   const savePreferences = (prefs: CookiePreferences) => {
     safeLocalStorageSet("cookie-consent", JSON.stringify(prefs));
     setPreferences(prefs);
-    
+    window.dispatchEvent(new Event("cookie-consent-updated"));
+
     // Aqui você pode adicionar lógica para ativar/desativar cookies baseado nas preferências
     // Por exemplo, desabilitar Google Analytics se analytics === false
   };

@@ -16,7 +16,7 @@ import {
   Download,
 } from "lucide-react";
 
-const GA4_ID = import.meta.env.VITE_GA4_ID as string | undefined;
+const GA4_ID = (import.meta.env.VITE_GA4_ID as string | undefined) || "G-DGCPN51SD6";
 const META_PIXEL_ID = import.meta.env.VITE_META_PIXEL_ID as string | undefined;
 const CLARITY_ID = import.meta.env.VITE_CLARITY_ID as string | undefined;
 

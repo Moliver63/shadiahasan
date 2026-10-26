@@ -1,17 +1,17 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { capturarAtribuicaoNaEntrada, novoEventId } from "@/lib/metaAttribution";
+import { safeLocalStorageGet } from "@/lib/safeStorage";
 
 /**
  * Analytics — GA4 + Meta Pixel + Microsoft Clarity
  *
- * Só carrega os scripts cujos IDs estiverem definidos nas variáveis de
- * ambiente do Vite (configurar no Render → Environment):
- *   VITE_GA4_ID         ex: G-XXXXXXXXXX
+ * O GA4 usa VITE_GA4_ID (padrão G-DGCPN51SD6) e só carrega após consentimento.
+ * Os demais scripts são opcionais e usam variáveis do Vite:
  *   VITE_META_PIXEL_ID  ex: 1234567890
  *   VITE_CLARITY_ID     ex: abcdefghij
  *
- * Sem os IDs definidos, o componente não injeta nada — zero overhead.
+ * Sem IDs para Meta/Clarity, esses scripts não são injetados.
  *
  * ── PageView em SPA (corrigido em 24/10) ──────────────────────────────────
  *
@@ -33,24 +33,35 @@ declare global {
   }
 }
 
-const GA4_ID = import.meta.env.VITE_GA4_ID as string | undefined;
+const GA4_ID = (import.meta.env.VITE_GA4_ID as string | undefined) || "G-DGCPN51SD6";
 const META_PIXEL_ID = import.meta.env.VITE_META_PIXEL_ID as string | undefined;
 const CLARITY_ID = import.meta.env.VITE_CLARITY_ID as string | undefined;
 
 function loadGA4(id: string) {
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = window.gtag || function gtag(...args: unknown[]) { window.dataLayer!.push(args); };
   if (document.getElementById("ga4-script")) return;
   const s = document.createElement("script");
   s.id = "ga4-script";
   s.async = true;
   s.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;
   document.head.appendChild(s);
-
-  window.dataLayer = window.dataLayer || [];
-  window.gtag = function gtag(...args: unknown[]) {
-    window.dataLayer!.push(args);
-  };
   window.gtag("js", new Date());
   window.gtag("config", id);
+}
+
+function hasAnalyticsConsent(): boolean {
+  const saved = safeLocalStorageGet("cookie-consent");
+  if (!saved) return false;
+  try {
+    return JSON.parse(saved)?.analytics === true;
+  } catch {
+    return false;
+  }
+}
+
+function sendGA4(...args: unknown[]) {
+  if (hasAnalyticsConsent()) window.gtag?.(...args);
 }
 
 function loadMetaPixel(id: string) {
@@ -106,9 +117,21 @@ export default function Analytics() {
     // Antes de qualquer script: guarda fbclid e UTMs da URL de entrada, que a
     // primeira navegação apaga.
     capturarAtribuicaoNaEntrada();
-    if (GA4_ID) loadGA4(GA4_ID);
+    const applyAnalyticsConsent = () => {
+      const granted = hasAnalyticsConsent();
+      window.gtag?.("consent", "update", {
+        analytics_storage: granted ? "granted" : "denied",
+        ad_storage: "denied",
+        ad_user_data: "denied",
+        ad_personalization: "denied",
+      });
+      if (granted && GA4_ID) loadGA4(GA4_ID);
+    };
+    applyAnalyticsConsent();
+    window.addEventListener("cookie-consent-updated", applyAnalyticsConsent);
     if (META_PIXEL_ID) loadMetaPixel(META_PIXEL_ID);
     if (CLARITY_ID) loadClarity(CLARITY_ID);
+    return () => window.removeEventListener("cookie-consent-updated", applyAnalyticsConsent);
   }, []);
 
   useEffect(() => {
@@ -121,7 +144,7 @@ export default function Analytics() {
       return;
     }
     window.fbq?.("track", "PageView");
-    window.gtag?.("event", "page_view", { page_path: location });
+    sendGA4("event", "page_view", { page_path: location });
   }, [location]);
 
   return null;
@@ -136,7 +159,7 @@ export default function Analytics() {
  * funções abaixo.
  */
 export function trackEvent(name: string, params?: Record<string, unknown>) {
-  window.gtag?.("event", name, params);
+  sendGA4("event", name, params);
   window.fbq?.("trackCustom", name, params);
 }
 
@@ -151,7 +174,7 @@ export type ProdutoRastreado = {
 
 /** Visualização da oferta. Página de produto, não a home genérica. */
 export function trackViewContent({ contentId, contentName, value, currency = "BRL" }: ProdutoRastreado) {
-  window.gtag?.("event", "view_item", {
+  sendGA4("event", "view_item", {
     currency,
     value,
     items: [{ item_id: contentId, item_name: contentName }],
@@ -179,7 +202,7 @@ export function trackInitiateCheckout({
   currency = "BRL",
 }: ProdutoRastreado): string {
   const eventId = novoEventId("ic");
-  window.gtag?.("event", "begin_checkout", {
+  sendGA4("event", "begin_checkout", {
     currency,
     value,
     items: [{ item_id: contentId, item_name: contentName }],
@@ -211,6 +234,6 @@ export function trackCheckoutStart(planSlug: string, value: number) {
 }
 
 export function trackLead(source: string) {
-  window.gtag?.("event", "generate_lead", { source });
+  sendGA4("event", "generate_lead", { source });
   window.fbq?.("track", "Lead", { source });
 }

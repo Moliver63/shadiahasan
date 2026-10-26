@@ -18,7 +18,7 @@ import {
 
 const GA4_ID = (import.meta.env.VITE_GA4_ID as string | undefined) || "G-DGCPN51SD6";
 const META_PIXEL_ID = import.meta.env.VITE_META_PIXEL_ID as string | undefined;
-const CLARITY_ID = import.meta.env.VITE_CLARITY_ID as string | undefined;
+const CLARITY_ID = (import.meta.env.VITE_CLARITY_ID as string | undefined) || "z3xy56e2y4";
 
 function StatusBadge({ id, label }: { id?: string; label: string }) {
   return (

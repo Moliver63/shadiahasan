@@ -9,7 +9,7 @@ import { safeLocalStorageGet } from "@/lib/safeStorage";
  * O GA4 usa VITE_GA4_ID (padrão G-DGCPN51SD6) e só carrega após consentimento.
  * Os demais scripts são opcionais e usam variáveis do Vite:
  *   VITE_META_PIXEL_ID  ex: 1234567890
- *   VITE_CLARITY_ID     ex: abcdefghij
+ *   VITE_CLARITY_ID     ex: abcdefghij (padrão z3xy56e2y4)
  *
  * Sem IDs para Meta/Clarity, esses scripts não são injetados.
  *
@@ -35,7 +35,7 @@ declare global {
 
 const GA4_ID = (import.meta.env.VITE_GA4_ID as string | undefined) || "G-DGCPN51SD6";
 const META_PIXEL_ID = import.meta.env.VITE_META_PIXEL_ID as string | undefined;
-const CLARITY_ID = import.meta.env.VITE_CLARITY_ID as string | undefined;
+const CLARITY_ID = (import.meta.env.VITE_CLARITY_ID as string | undefined) || "z3xy56e2y4";
 
 function loadGA4(id: string) {
   window.dataLayer = window.dataLayer || [];

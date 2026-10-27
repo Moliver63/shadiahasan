@@ -142,55 +142,45 @@ export default function TrialOfferSection() {
         </div>
       )}
       <div className="container py-14 md:py-20">
-        {/* Oferta */}
-        <div className="grid items-center gap-10 lg:grid-cols-[1.2fr_1fr_1fr]">
-          <div className="space-y-4">
-            <p className="text-[11px] font-medium uppercase tracking-[0.3em] text-[#d9b27c]">Teste de 1 aula</p>
-            <h2 className="font-serif text-3xl leading-tight sm:text-4xl md:text-5xl">
-              Experimente uma aula
-              <span className="block italic text-[#e8c48f]">antes de decidir</span>
-            </h2>
-            <p className="max-w-md text-base text-[#d8cabd]">
-              Assista a uma aula inteira, no seu ritmo. Se fizer sentido para você, é só assinar para continuar.
-            </p>
-          </div>
-
-          <div className="space-y-3 lg:border-x lg:border-[#d9b27c]/20 lg:px-8">
-            <p className="font-serif text-6xl leading-none text-[#e8c48f] sm:text-7xl">{price}</p>
-            <p className="text-sm text-[#d8cabd]">
-              Pagamento único. Você assiste em até {info.validDays} dias.
-            </p>
-            {(() => {
-              const cls = "inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-[#d9b27c] to-[#f0d3a4] px-8 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-[#2b1d16] shadow-lg transition hover:brightness-105 sm:w-auto";
-              if (!canBuy) return <Link href="/courses" className={cls}>Quero experimentar</Link>;
-              // Com uma única aula de entrada vai direto ao pagamento; com várias, o aluno escolhe o curso.
-              const onClick = entries.length === 1 ? () => startPayment(entries[0].lessonId) : scrollToCards;
-              return <button type="button" onClick={onClick} className={cls}>Quero experimentar</button>;
-            })()}
-          </div>
-
-          <ul className="space-y-4 text-sm">
-            <li className="flex items-center gap-3">
-              <ShieldCheck className="h-5 w-5 shrink-0 text-[#d9b27c]" />
-              <span>Pagamento seguro por PIX, boleto ou cartão</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <Clock className="h-5 w-5 shrink-0 text-[#d9b27c]" />
-              <span>Liberação após a confirmação do pagamento</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <RefreshCcwDot className="h-5 w-5 shrink-0 text-[#d9b27c]" />
-              <span>Sem renovação automática</span>
-            </li>
-          </ul>
+        {/*
+          Ordem (27/10/2026): 1) título com o preço, só para confirmar o que o
+          anúncio prometeu; 2) vídeo da Shadia; 3) preço em destaque + botão,
+          que é o "botão abaixo" que ela pede no vídeo; 4) cards "Escolha o seu
+          tema"; 5) garantias perto da compra. Um preço grande e um botão só.
+        */}
+        <div className="max-w-2xl space-y-3">
+          <p className="text-[11px] font-medium uppercase tracking-[0.3em] text-[#d9b27c]">Teste de 1 aula</p>
+          <h2 className="font-serif text-3xl leading-tight sm:text-4xl md:text-5xl">
+            Experimente uma aula
+            <span className="block italic text-[#e8c48f]">por {price}</span>
+          </h2>
+          <p className="text-base text-[#d8cabd]">
+            Assista a uma aula inteira, no seu ritmo. Se fizer sentido para você, é só assinar para continuar.
+          </p>
         </div>
 
-        {/* Convite em vídeo: termina com "clica no botão abaixo e escolha o seu tema" */}
-        {canBuy && <ConviteShadiaVideo price={price} validDays={info.validDays} onEscolher={scrollToCards} />}
+        {canBuy ? (
+          /* Convite em vídeo: termina com "clica no botão abaixo e escolha o seu tema" */
+          <ConviteShadiaVideo
+            price={price}
+            validDays={info.validDays}
+            // Com uma única aula de entrada vai direto ao pagamento; com várias, o aluno escolhe o tema.
+            onEscolher={entries.length === 1 ? () => startPayment(entries[0].lessonId) : scrollToCards}
+          />
+        ) : (
+          <div className="mt-8">
+            <Link
+              href="/courses"
+              className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-[#d9b27c] to-[#f0d3a4] px-8 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-[#2b1d16] shadow-lg transition hover:brightness-105 sm:w-auto"
+            >
+              Quero experimentar
+            </Link>
+          </div>
+        )}
 
         {/* Uma aula de entrada por curso */}
         {canBuy && (
-        <div id="aulas-de-entrada" className="mt-12 scroll-mt-24">
+        <div id="aulas-de-entrada" className="mt-14 scroll-mt-24">
           <p className="mb-5 text-[11px] font-medium uppercase tracking-[0.3em] text-[#d9b27c]">Escolha o seu tema</p>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {entries.map((entry) => (
@@ -230,6 +220,22 @@ export default function TrialOfferSection() {
           </div>
         </div>
         )}
+
+        {/* Garantias perto da compra: tiram a última dúvida antes de pagar */}
+        <ul className="mt-8 grid gap-4 text-sm text-[#d8cabd] sm:grid-cols-3">
+          <li className="flex items-center gap-3">
+            <ShieldCheck className="h-5 w-5 shrink-0 text-[#d9b27c]" />
+            <span>Pagamento seguro por PIX, boleto ou cartão</span>
+          </li>
+          <li className="flex items-center gap-3">
+            <Clock className="h-5 w-5 shrink-0 text-[#d9b27c]" />
+            <span>Liberação após a confirmação do pagamento</span>
+          </li>
+          <li className="flex items-center gap-3">
+            <RefreshCcwDot className="h-5 w-5 shrink-0 text-[#d9b27c]" />
+            <span>Sem renovação automática</span>
+          </li>
+        </ul>
       </div>
 
       {canBuy && guestLessonId !== null && (

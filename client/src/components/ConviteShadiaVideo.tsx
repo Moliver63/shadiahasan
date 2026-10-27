@@ -78,8 +78,9 @@ export default function ConviteShadiaVideo({
           Você não precisa adquirir o curso inteiro
           <span className="block italic text-[#e8c48f]">para começar.</span>
         </p>
-        <p className="mx-auto max-w-md text-base text-[#d8cabd] md:mx-0">
-          Escolha uma aula do tema que mais fala com você, por {price} em pagamento único, e assista em até {validDays} dias.
+        <p className="font-serif text-6xl leading-none text-[#e8c48f] sm:text-7xl">{price}</p>
+        <p className="mx-auto max-w-md text-sm text-[#d8cabd] md:mx-0">
+          Pagamento único por uma aula do tema que mais fala com você. Assista em até {validDays} dias.
         </p>
         <button
           type="button"

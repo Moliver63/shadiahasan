@@ -5,7 +5,6 @@ import NotFound from "@/pages/NotFound";
 import { lazy, Suspense } from "react";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
-import InstallAppButton from "./components/InstallAppButton";
 import { ShadiaAssistantChat } from "./components/ShadiaAssistantChat";
 import CookieConsent from "./components/CookieConsent";
 import Analytics from "./components/Analytics";
@@ -196,7 +195,6 @@ function App() {
           <Toaster />
           <Router />
           <RetomarCompraTeste />
-          <InstallAppButton mode="floating" />
           <ShadiaAssistantChat />
           <CookieConsent />
         </TooltipProvider>

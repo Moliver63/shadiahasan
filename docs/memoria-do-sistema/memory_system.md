@@ -455,3 +455,4 @@ Estado em produção: `ASAAS_API_KEY` já está no Render. **Ainda conferir:** `
 - Mesmo vídeo do anúncio em vídeo da campanha 804. Termina com "clica no botão abaixo e escolha o seu tema": o botão "Escolher meu tema" rola até `#aulas-de-entrada`, cujo título passou a ser "Escolha o seu tema".
 - Sem autoplay: até o play só baixa a capa (`/midia/shadia-convite-capa.jpg`, ~55 KB); o vídeo 720p (`/midia/shadia-convite-720.mp4`, ~7 MB) carrega no toque. Eventos GA4 `video_play` e `video_complete`.
 - `/midia/anuncio-shadia-aula.mp4` (1080x1920, 15 MB) existe só para a Meta buscar por URL ao criar o anúncio; não é usado na página.
+- 27/10/2026: o aviso flutuante "Instale o app" (`InstallAppButton mode="floating"` em App.tsx) foi removido a pedido, para a página da oferta ficar limpa. A instalação continua no cabeçalho (botão no desktop e item no menu do celular).

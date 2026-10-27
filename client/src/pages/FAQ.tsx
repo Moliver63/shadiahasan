@@ -84,7 +84,7 @@ export default function FAQ() {
       questions: [
         {
           q: "Como entro em contato com o suporte?",
-          a: "Você pode entrar em contato através do WhatsApp (+55 47 99142-6662), email (contato@shadiahasan.club) ou pelo formulário na página de Contato. Respondemos em até 24 horas úteis."
+          a: "Você pode entrar em contato através do WhatsApp (+55 47 99142-6662), email (contato@shadiahasan.com) ou pelo formulário na página de Contato. Respondemos em até 24 horas úteis."
         },
         {
           q: "Há alguma comunidade ou grupo de alunos?",

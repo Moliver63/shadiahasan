@@ -184,9 +184,9 @@ export default function Contact() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-lg mb-4">contato@shadiahasan.club</p>
+                <p className="text-lg mb-4">contato@shadiahasan.com</p>
                 <Button
-                  onClick={() => window.location.href = "mailto:contato@shadiahasan.club"}
+                  onClick={() => window.location.href = "mailto:contato@shadiahasan.com"}
                   variant="outline"
                   className="w-full"
                   size="lg"

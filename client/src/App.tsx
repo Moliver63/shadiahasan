@@ -15,6 +15,7 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 const AdminAppointments = lazy(() => import("./pages/AdminAppointments"));
 const AdminFinanceiro = lazy(() => import("./pages/AdminFinanceiro"));
+const AdminEmails = lazy(() => import("./pages/AdminEmails"));
 const AdminPrograms = lazy(() => import("./pages/AdminPrograms"));
 const AdminCourses = lazy(() => import("./pages/AdminCourses"));
 const AdminPlans = lazy(() => import("./pages/AdminPlans"));
@@ -128,6 +129,7 @@ function Router() {
       <ProtectedRoute path={"/admin/users"} component={AdminUsers} requireAdmin />
       <ProtectedRoute path={"/admin/appointments"} component={AdminAppointments} requireAdmin />
       <ProtectedRoute path={"/admin/financeiro"} component={AdminFinanceiro} requireAdmin />
+      <ProtectedRoute path={"/admin/emails"} component={AdminEmails} requireAdmin />
       <ProtectedRoute path={"/admin/programs"} component={AdminPrograms} requireAdmin />
       <ProtectedRoute path={"/admin/courses"} component={AdminCourses} requireAdmin />
       <ProtectedRoute path={"/admin/plans"} component={AdminPlans} requireAdmin />

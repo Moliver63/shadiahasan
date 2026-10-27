@@ -269,6 +269,28 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
         if (invoice.billing_reason === "subscription_create" && (invoice.amount_paid ?? 0) > 0) {
           await processReferralOnSubscription(synced.user.id, synced.planName);
         }
+        if ((invoice.amount_paid ?? 0) > 0) {
+          // Uma vez por fatura (ver server/emailAvisos.ts); nunca derruba o webhook.
+          const avisos = await import("../emailAvisos");
+          if (invoice.billing_reason === "subscription_create") {
+            await avisos.avisarAssinaturaAtivada({
+              chave: `pago:stripe:${invoice.id}`,
+              userId: synced.user.id,
+              plano: synced.planName,
+              valorCentavos: invoice.amount_paid,
+              forma: "Cartão de crédito",
+            });
+          } else {
+            await avisos.avisarPagamentoRecebido({
+              chave: `pago:stripe:${invoice.id}`,
+              userId: synced.user.id,
+              plano: synced.planName,
+              valorCentavos: invoice.amount_paid,
+              pagoEm: invoice.status_transitions?.paid_at ? new Date(invoice.status_transitions.paid_at * 1000) : new Date(),
+              reciboUrl: invoice.hosted_invoice_url || null,
+            });
+          }
+        }
         break;
       }
 
@@ -295,6 +317,18 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
           planSlug: synced?.planSlug,
           description: actionRequired ? "Ação necessária para concluir o pagamento" : "Pagamento da fatura falhou",
         });
+        // Só a renovação: na primeira cobrança o aluno ainda está na tela do checkout.
+        if (invoice.billing_reason !== "subscription_create") {
+          const { avisarPagamentoAtrasado } = await import("../emailAvisos");
+          await avisarPagamentoAtrasado({
+            chave: `atraso:stripe:${invoice.id}`,
+            userId: user.id,
+            plano: synced?.planName || "da plataforma",
+            faturaUrl: invoice.hosted_invoice_url || null,
+            diasCarencia: 0,
+            falhaCartao: !actionRequired,
+          });
+        }
         break;
       }
 
@@ -316,6 +350,13 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
             stripeCustomerId: synced.customerId,
             autoRenew: 0,
             endDate: null,
+          });
+          const { avisarAssinaturaEncerrada } = await import("../emailAvisos");
+          await avisarAssinaturaEncerrada({
+            chave: `fim:stripe:${subscription.id}`,
+            userId: synced.user.id,
+            plano: synced.planName,
+            motivo: "fim_periodo",
           });
         }
         break;

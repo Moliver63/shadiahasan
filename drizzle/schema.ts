@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, serial, text, varchar, integer, timestamp, date } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, serial, text, varchar, integer, timestamp, date, boolean } from "drizzle-orm/pg-core";
 
 // ============ ENUMS ============
 export const roleEnum = pgEnum("role", ["user", "admin", "superadmin"]);
@@ -1038,4 +1038,53 @@ export const trialPasses = pgTable("trialPasses", {
   expiresAt: timestamp("expiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+/**
+ * E-mails automáticos já enviados (assinatura ativada, atraso, cancelamento...).
+ * A chave identifica o fato que gerou o aviso (ex.: "pago:asaas:pay_123"), para
+ * que webhook repetido ou reprocessado nunca mande o mesmo e-mail duas vezes.
+ * Criada também em tempo de execução por server/emailAvisos.ts.
+ */
+export const emailAvisosEnviados = pgTable("emailAvisosEnviados", {
+  chave: varchar("chave", { length: 200 }).primaryKey(),
+  userId: integer("userId"),
+  tipo: varchar("tipo", { length: 40 }).notNull(),
+  resendId: varchar("resendId", { length: 100 }),
+  enviadoEm: timestamp("enviadoEm").defaultNow().notNull(),
+});
+
+/**
+ * Caixa de e-mail do admin (/admin/emails): mensagens recebidas em contato@.
+ * O Resend só avisa (webhook) ou lista; o corpo é buscado pela API e guardado
+ * aqui. Anexos: só metadados em JSON, o link de download é gerado na hora.
+ * Criada também em tempo de execução por server/caixaEmail.ts.
+ */
+export const emailRecebidos = pgTable("emailRecebidos", {
+  id: serial("id").primaryKey(),
+  resendEmailId: varchar("resendEmailId", { length: 100 }).notNull().unique(),
+  remetente: varchar("remetente", { length: 320 }).notNull(),
+  destinatario: text("destinatario"),
+  assunto: varchar("assunto", { length: 500 }),
+  corpoTexto: text("corpoTexto"),
+  corpoHtml: text("corpoHtml"),
+  anexos: text("anexos"), // JSON: [{ id, filename, size, contentType }]
+  lida: boolean("lida").default(false).notNull(),
+  respondida: boolean("respondida").default(false).notNull(),
+  arquivada: boolean("arquivada").default(false).notNull(),
+  excluida: boolean("excluida").default(false).notNull(), // lixeira (restaurável)
+  recebidoEm: timestamp("recebidoEm").defaultNow().notNull(),
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+});
+
+/** E-mails escritos no admin (respostas e novos). Pasta "Enviados". */
+export const emailEnviados = pgTable("emailEnviados", {
+  id: serial("id").primaryKey(),
+  mensagemOrigemId: integer("mensagemOrigemId"),
+  destinatario: varchar("destinatario", { length: 320 }).notNull(),
+  assunto: varchar("assunto", { length: 500 }),
+  corpo: text("corpo").notNull(),
+  resendId: varchar("resendId", { length: 100 }),
+  enviadoPor: integer("enviadoPor"),
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
 });

@@ -457,3 +457,30 @@ Estado em produção: `ASAAS_API_KEY` já está no Render. **Ainda conferir:** `
 - `/midia/anuncio-shadia-aula.mp4` (1080x1920, 15 MB) existe só para a Meta buscar por URL ao criar o anúncio; não é usado na página.
 - 27/10/2026: o aviso flutuante "Instale o app" (`InstallAppButton mode="floating"` em App.tsx) foi removido a pedido, para a página da oferta ficar limpa. A instalação continua no cabeçalho (botão no desktop e item no menu do celular).
 - 27/10/2026: ordem da seção da oferta refeita: título com o preço ("Experimente uma aula por R$ 19,90") → vídeo da Shadia → preço grande + "Escolher meu tema" → cards "Escolha o seu tema" → garantias. Saiu o bloco antigo com o segundo preço grande e o botão "Quero experimentar" (fica só quando não há compra possível, levando a /courses). Com uma única aula de entrada, "Escolher meu tema" abre o pagamento direto.
+
+## E-mails: visual da marca, avisos de assinatura e caixa contato@ (27/10/2026)
+
+**DNS (Cloudflare, zona shadiahasan.com):** DKIM `resend._domainkey`, `send` (MX + SPF), `_dmarc` e **MX @ → inbound-smtp.sa-east-1.amazonaws.com (10)**. Envio verificado no Resend (conta mixavier31). Antes não havia MX: contato@ não recebia nada.
+
+**Layout único** (`server/_core/emailLayout.ts`): azul #0B3354, verde #23686C, papel #F5F2EC, título em serifa, logo em `client/public/email/logo-email.png`, assinatura "Shadia Hasan · Psicóloga · CRP 12/27052". Todo envio leva versão em texto e `replyTo` = `EMAIL_CONTATO` (padrão contato@shadiahasan.com): resposta do aluno cai na caixa do admin.
+
+**Avisos automáticos** (`server/emailAvisos.ts`), uma vez por fato via tabela `emailAvisosEnviados` (chave reservada antes do envio, desfeita se falhar):
+
+| Fato | Onde | Chave |
+|---|---|---|
+| Assinatura ativada (1ª cobrança) | Asaas `activate`, Stripe `invoice.paid` subscription_create | `pago:asaas:<payment>` / `pago:stripe:<invoice>` |
+| Pagamento recebido / acesso voltou | idem, renovação ou volta de pausa | mesma chave (CONFIRMED+RECEIVED = 1 e-mail) |
+| Mensalidade em aberto | Asaas `PAYMENT_OVERDUE`, Stripe `invoice.payment_failed` (só renovação) | `atraso:...` |
+| Acesso pausado | `pauseOverdueAccounts` | `pausa:asaas:<conta>:<dia do atraso>` |
+| Cancelamento pelo aluno | `cancelAsaasSubscription` | `cancelamento:asaas:<assinatura>` |
+| Fim do período / estorno | `endCancelledSubscriptions`, `PAYMENT_REFUNDED`, Stripe `subscription.deleted` | `fim:...` / `estorno:...` |
+
+Chargeback não gera e-mail. Opcional: `EMAIL_AVISOS_ADMIN` recebe "[Painel] Nova assinatura" e "Mensagem nova em contato@" (não pode ser o próprio contato@, senão vira laço).
+
+**Caixa de e-mail** `/admin/emails` (`server/caixaEmail.ts`, `server/routers/caixaEmail.ts`, `client/src/pages/AdminEmails.tsx`): Entrada, Arquivadas, Enviados, Lixeira; responder (cita original, sai de contato@ com assinatura), encaminhar (passthrough com anexos), escrever novo, anexos por link gerado na hora, "Buscar novas" (lista no Resend o que o webhook não entregou, ex.: Render dormindo). Tabelas `emailRecebidos` / `emailEnviados`, criadas sozinhas na primeira chamada (também no `drizzle/schema.ts`). HTML recebido abre em iframe sandbox sem scripts.
+
+**Webhook** `POST /api/webhooks/resend` (evento `email.received`, cadastrado no Resend em 27/10), montado **antes** do `express.json()`. Valida assinatura se `RESEND_WEBHOOK_SECRET` existir; sem ela funciona, porque o conteúdo é sempre buscado na API do Resend pelo id.
+
+Variáveis: `RESEND_API_KEY` (obrigatória), `RESEND_WEBHOOK_SECRET` (signing secret do webhook no Resend), `EMAIL_CONTATO`, `EMAIL_CONTATO_REMETENTE`, `EMAIL_AVISOS_ADMIN`, `EMAIL_CAIXA_DOMINIO`, `FROM_EMAIL`, `SITE_URL` (padrão agora `https://shadiahasan.com`).
+
+Pendências vistas: `SEOHead.tsx`/`Breadcrumbs.tsx`/`AdminSettings.tsx` ainda usam `shadiahasan.club`; FAQ cita WhatsApp 47 99142-6662 e o resto do site 47 99166-5536.

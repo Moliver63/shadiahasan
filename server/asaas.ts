@@ -312,6 +312,7 @@ export type AsaasWebhookBody = {
     dueDate?: string;
     invoiceUrl?: string;
     paymentDate?: string | null;
+    transactionReceiptUrl?: string | null;
   };
   subscription?: {
     id?: string;
@@ -427,6 +428,36 @@ async function activate(account: typeof asaasAccounts.$inferSelect, body: AsaasW
       console.error("[Asaas] erro ao processar indicação:", e instanceof Error ? e.message : e);
     }
   }
+
+  // E-mail ao aluno. Cartão manda CONFIRMED e depois RECEIVED da mesma
+  // cobrança: a chave é a cobrança, então sai um e-mail só (ver emailAvisos.ts).
+  try {
+    const avisos = await import("./emailAvisos");
+    const plano = getPlanDisplayName(planSlug);
+    const valorCentavos = payment.value ? Math.round(Number(payment.value) * 100) : null;
+    const chave = payment.id ? `pago:asaas:${payment.id}` : `ativada:asaas:${account.asaasSubscriptionId}`;
+    if (firstActivation) {
+      await avisos.avisarAssinaturaAtivada({
+        chave,
+        userId: account.userId,
+        plano,
+        valorCentavos,
+        forma: avisos.nomeFormaPagamento(payment.billingType),
+      });
+    } else {
+      await avisos.avisarPagamentoRecebido({
+        chave,
+        userId: account.userId,
+        plano,
+        valorCentavos,
+        pagoEm: payment.paymentDate ? new Date(`${payment.paymentDate}T12:00:00-03:00`) : new Date(),
+        reativado: account.status === "paused",
+        reciboUrl: payment.transactionReceiptUrl || payment.invoiceUrl || null,
+      });
+    }
+  } catch (e) {
+    console.warn("[Asaas] aviso por e-mail falhou:", e instanceof Error ? e.message : e);
+  }
 }
 
 async function setAccountState(
@@ -518,6 +549,16 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
             .update(asaasAccounts)
             .set({ overdueSince: sql`coalesce(${asaasAccounts.overdueSince}, now())`, updatedAt: new Date() })
             .where(eq(asaasAccounts.id, account.id));
+          if (body.payment?.id) {
+            const { avisarPagamentoAtrasado } = await import("./emailAvisos");
+            await avisarPagamentoAtrasado({
+              chave: `atraso:asaas:${body.payment.id}`,
+              userId: account.userId,
+              plano: getPlanDisplayName(account.planSlug as PlanSlug),
+              faturaUrl: body.payment.invoiceUrl || null,
+              diasCarencia: getGraceDays(),
+            });
+          }
         }
         if (account && body.payment?.id) {
           const payment = body.payment;
@@ -560,7 +601,19 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
           await d.update(paymentHistory).set({ status: "refunded", providerStatus: "PAYMENT_REFUNDED" })
             .where(eq(paymentHistory.stripeInvoiceId, paymentKey(body.payment.id)));
         }
-        if (account) await setAccountState(account, { subStatus: "cancelled", plan: "free", accountStatus: "cancelled" });
+        if (account) {
+          await setAccountState(account, { subStatus: "cancelled", plan: "free", accountStatus: "cancelled" });
+          if (body.payment?.id) {
+            const { avisarAssinaturaEncerrada } = await import("./emailAvisos");
+            await avisarAssinaturaEncerrada({
+              chave: `estorno:asaas:${body.payment.id}`,
+              userId: account.userId,
+              plano: getPlanDisplayName(account.planSlug as PlanSlug),
+              motivo: "estorno",
+              valorCentavos: body.payment.value ? Math.round(Number(body.payment.value) * 100) : null,
+            });
+          }
+        }
         break;
       }
 
@@ -693,6 +746,23 @@ export async function pauseOverdueAccounts(): Promise<number> {
     try {
       await setAccountState(account, { subStatus: "paused", accountStatus: "paused" });
       console.log(`[Asaas] acesso pausado por atraso: user ${account.userId}`);
+      // Link da cobrança em aberto mais recente, para o aluno pagar direto do e-mail.
+      const [aberta] = await d
+        .select({ url: paymentHistory.paymentUrl })
+        .from(paymentHistory)
+        .where(and(
+          eq(paymentHistory.providerSubscriptionId, account.asaasSubscriptionId),
+          eq(paymentHistory.status, "pending"),
+        ))
+        .orderBy(desc(paymentHistory.createdAt))
+        .limit(1);
+      const { avisarAcessoPausado } = await import("./emailAvisos");
+      await avisarAcessoPausado({
+        chave: `pausa:asaas:${account.id}:${account.overdueSince ? new Date(account.overdueSince).toISOString().slice(0, 10) : "sem-data"}`,
+        userId: account.userId,
+        plano: getPlanDisplayName(account.planSlug as PlanSlug),
+        faturaUrl: aberta?.url || null,
+      });
     } catch (e) {
       console.warn("[Asaas] falha ao pausar por atraso:", e instanceof Error ? e.message : e);
     }
@@ -725,6 +795,13 @@ export async function endCancelledSubscriptions(): Promise<number> {
         notes: "Assinatura via Asaas",
       });
       console.log(`[Asaas] período pago encerrado: user ${sub.userId}`);
+      const { avisarAssinaturaEncerrada } = await import("./emailAvisos");
+      await avisarAssinaturaEncerrada({
+        chave: `fim:assinatura:${sub.id}:${sub.endDate ? new Date(sub.endDate).toISOString().slice(0, 10) : "sem-data"}`,
+        userId: sub.userId,
+        plano: getPlanDisplayName((sub.plan || "basic") as PlanSlug),
+        motivo: "fim_periodo",
+      });
     } catch (e) {
       console.warn("[Asaas] falha ao encerrar assinatura cancelada:", e instanceof Error ? e.message : e);
     }
@@ -778,12 +855,28 @@ export async function cancelAsaasSubscription(userId: number): Promise<{ accessU
     await d.update(asaasAccounts).set({ status: "cancelled", updatedAt: new Date() }).where(eq(asaasAccounts.id, account.id));
     const current = await db.getSubscriptionByUserId(userId);
     console.log(`[Asaas] assinatura cancelada pelo aluno (acesso até o fim do período): user ${userId}`);
+    await avisarCancelamentoAluno(account, current?.endDate ?? null);
     return { accessUntil: current?.endDate ?? null };
   }
 
   await setAccountState(account, { subStatus: "cancelled", plan: "free", accountStatus: "cancelled" });
   console.log(`[Asaas] assinatura cancelada pelo aluno (sem período a cumprir): user ${userId}`);
+  await avisarCancelamentoAluno(account, null);
   return { accessUntil: null };
+}
+
+async function avisarCancelamentoAluno(account: typeof asaasAccounts.$inferSelect, acessoAte: Date | null) {
+  try {
+    const { avisarCancelamento } = await import("./emailAvisos");
+    await avisarCancelamento({
+      chave: `cancelamento:asaas:${account.asaasSubscriptionId}`,
+      userId: account.userId,
+      plano: getPlanDisplayName(account.planSlug as PlanSlug),
+      acessoAte,
+    });
+  } catch (e) {
+    console.warn("[Asaas] aviso de cancelamento falhou:", e instanceof Error ? e.message : e);
+  }
 }
 
 const SP_TODAY = () => todayInSaoPaulo();

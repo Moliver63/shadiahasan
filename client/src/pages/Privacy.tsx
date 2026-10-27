@@ -39,7 +39,7 @@ export default function Privacy() {
               <div className="bg-purple-50 p-6 rounded-lg mb-4">
                 <p className="text-gray-700 mb-2"><strong>Shadia Hasan</strong></p>
                 <p className="text-gray-700 mb-2">CRP: 12/27052</p>
-                <p className="text-gray-700 mb-2">E-mail: contato@shadiahasan.club</p>
+                <p className="text-gray-700 mb-2">E-mail: contato@shadiahasan.com</p>
                 <p className="text-gray-700 mb-2">WhatsApp: +55 47 99142-6662</p>
                 <p className="text-gray-700">Website: shadiahasan.club</p>
               </div>
@@ -203,7 +203,7 @@ export default function Privacy() {
               </div>
 
               <p className="text-gray-700 leading-relaxed">
-                Para exercer seus direitos, entre em contato conosco através do e-mail contato@shadiahasan.club. Responderemos à sua solicitação em até 15 dias, podendo ser prorrogado por mais 15 dias mediante justificativa.
+                Para exercer seus direitos, entre em contato conosco através do e-mail contato@shadiahasan.com. Responderemos à sua solicitação em até 15 dias, podendo ser prorrogado por mais 15 dias mediante justificativa.
               </p>
             </section>
 
@@ -266,7 +266,7 @@ export default function Privacy() {
                 <p className="text-gray-700 mb-2"><strong>Shadia Hasan</strong></p>
                 <p className="text-gray-700 mb-2">Encarregado de Proteção de Dados (DPO)</p>
                 <p className="text-gray-700 mb-2">CRP: 12/27052</p>
-                <p className="text-gray-700 mb-2">E-mail: contato@shadiahasan.club</p>
+                <p className="text-gray-700 mb-2">E-mail: contato@shadiahasan.com</p>
                 <p className="text-gray-700 mb-2">WhatsApp: +55 47 99142-6662</p>
                 <p className="text-gray-700">Website: shadiahasan.club</p>
               </div>

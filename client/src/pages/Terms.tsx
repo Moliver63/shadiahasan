@@ -164,7 +164,7 @@ export default function Terms() {
               <div className="bg-purple-50 p-6 rounded-lg">
                 <p className="text-gray-700 mb-2"><strong>Shadia Hasan</strong></p>
                 <p className="text-gray-700 mb-2">CRP: 12/27052</p>
-                <p className="text-gray-700 mb-2">E-mail: contato@shadiahasan.club</p>
+                <p className="text-gray-700 mb-2">E-mail: contato@shadiahasan.com</p>
                 <p className="text-gray-700">WhatsApp: +55 47 99142-6662</p>
               </div>
             </section>

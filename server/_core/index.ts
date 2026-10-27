@@ -55,6 +55,11 @@ async function startServer() {
   const stripeWebhook = await import('../routes/stripe-webhook');
   app.use('/api', stripeWebhook.default);
 
+  // E-mail recebido em contato@ (Resend). Também precisa do corpo cru para
+  // validar a assinatura: fica antes do express.json(). Ver resend-webhook.ts.
+  const resendWebhook = await import('../routes/resend-webhook');
+  app.use('/api', resendWebhook.default);
+
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.use(cookieParser());

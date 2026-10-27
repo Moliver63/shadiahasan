@@ -13,6 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
+import GerenciarCaixas from "@/components/GerenciarCaixas";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   Archive,
@@ -28,6 +30,7 @@ import {
   Reply,
   Search,
   Send,
+  Settings2,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -135,15 +138,25 @@ export default function AdminEmails() {
   const [encaminharAberto, setEncaminharAberto] = useState(false);
   const [encaminharPara, setEncaminharPara] = useState("");
   const [novoAberto, setNovoAberto] = useState(false);
-  const [novo, setNovo] = useState({ para: "", assunto: "", corpo: "" });
+  const [novo, setNovo] = useState({ para: "", assunto: "", corpo: "", caixaId: 0 });
+  /** null = todas as caixas */
+  const [caixaId, setCaixaId] = useState<number | null>(null);
+  const [gerenciarAberto, setGerenciarAberto] = useState(false);
 
   const status = trpc.caixaEmail.status.useQuery();
+  const caixas = trpc.caixaEmail.caixas.useQuery();
   const naoLidas = trpc.caixaEmail.contarNaoLidas.useQuery(undefined, { refetchInterval: 60_000 });
   const recebidos = trpc.caixaEmail.listar.useQuery(
-    { pasta: pasta === "enviados" ? "entrada" : pasta },
+    { pasta: pasta === "enviados" ? "entrada" : pasta, caixaId },
     { enabled: pasta !== "enviados", refetchInterval: pasta === "entrada" ? 60_000 : false },
   );
-  const enviados = trpc.caixaEmail.listarEnviados.useQuery(undefined, { enabled: pasta === "enviados" });
+  const enviados = trpc.caixaEmail.listarEnviados.useQuery({ caixaId }, { enabled: pasta === "enviados" });
+  const listaCaixas = caixas.data ?? [];
+  const caixaAtual = listaCaixas.find((c) => c.id === caixaId) ?? null;
+  const caixaPadrao = listaCaixas.find((c) => c.padrao) ?? listaCaixas[0] ?? null;
+  const nomeCaixa = (id: number | null | undefined) => listaCaixas.find((c) => c.id === id)?.nome ?? "";
+  const enderecoCaixa = (id: number | null | undefined) =>
+    (listaCaixas.find((c) => c.id === id) ?? caixaPadrao)?.enderecoCompleto ?? "contato@shadiahasan.com";
   const mensagem = trpc.caixaEmail.obter.useQuery(
     { id: selecionado ?? 0 },
     { enabled: pasta !== "enviados" && selecionado !== null },
@@ -170,7 +183,7 @@ export default function AdminEmails() {
     setSelecionado(null);
     setRespondendo(false);
     setBusca("");
-  }, [pasta]);
+  }, [pasta, caixaId]);
 
   useEffect(() => {
     setRespondendo(false);
@@ -188,6 +201,13 @@ export default function AdminEmails() {
   const arquivar = trpc.caixaEmail.arquivar.useMutation({ onSuccess: atualizar, onError: (e) => toast.error(e.message) });
   const excluir = trpc.caixaEmail.excluir.useMutation({ onSuccess: atualizar, onError: (e) => toast.error(e.message) });
   const excluirDeVez = trpc.caixaEmail.excluirDeVez.useMutation({ onSuccess: atualizar, onError: (e) => toast.error(e.message) });
+  const moverParaCaixa = trpc.caixaEmail.moverParaCaixa.useMutation({
+    onSuccess: async () => {
+      toast.success("Mensagem movida");
+      await atualizar();
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const linkAnexo = trpc.caixaEmail.linkAnexo.useMutation({
     onSuccess: (r) => window.open(r.url, "_blank", "noopener"),
     onError: (e) => toast.error(e.message),
@@ -213,7 +233,7 @@ export default function AdminEmails() {
     onSuccess: async () => {
       toast.success("E-mail enviado");
       setNovoAberto(false);
-      setNovo({ para: "", assunto: "", corpo: "" });
+      setNovo({ para: "", assunto: "", corpo: "", caixaId: 0 });
       await atualizar();
     },
     onError: (e) => toast.error(e.message),
@@ -295,7 +315,14 @@ export default function AdminEmails() {
                     <span className="truncate text-sm font-medium">Para: {e.destinatario}</span>
                     <span className="shrink-0 text-xs text-muted-foreground">{dataCurta(e.criadoEm)}</span>
                   </div>
-                  <p className="mt-0.5 truncate text-sm">{e.assunto || "(sem assunto)"}</p>
+                  <p className="mt-0.5 truncate text-sm">
+                    {caixaId === null && listaCaixas.length > 1 && e.caixaId && (
+                      <span className="mr-1.5 inline-block rounded bg-muted px-1.5 py-px align-[1px] text-[11px] font-medium text-muted-foreground">
+                        {nomeCaixa(e.caixaId)}
+                      </span>
+                    )}
+                    {e.assunto || "(sem assunto)"}
+                  </p>
                   <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{e.corpo}</p>
                 </button>
               </li>
@@ -324,7 +351,14 @@ export default function AdminEmails() {
                         {dataCurta(r.recebidoEm)}
                       </span>
                     </div>
-                    <p className={cn("mt-0.5 truncate text-sm", !r.lida && "font-medium")}>{r.assunto || "(sem assunto)"}</p>
+                    <p className={cn("mt-0.5 truncate text-sm", !r.lida && "font-medium")}>
+                      {caixaId === null && listaCaixas.length > 1 && r.caixaId && (
+                        <span className="mr-1.5 inline-block rounded bg-muted px-1.5 py-px align-[1px] text-[11px] font-medium text-muted-foreground">
+                          {nomeCaixa(r.caixaId)}
+                        </span>
+                      )}
+                      {r.assunto || "(sem assunto)"}
+                    </p>
                     <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{r.previa}</p>
                   </button>
                 </li>
@@ -359,7 +393,8 @@ export default function AdminEmails() {
         <div>
           <h2 className="font-serif text-2xl leading-snug">{enviadoSelecionado.assunto || "(sem assunto)"}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Para <span className="text-foreground">{enviadoSelecionado.destinatario}</span> · {dataLonga(enviadoSelecionado.criadoEm)}
+            De <span className="text-foreground">{enviadoSelecionado.remetente || enderecoCaixa(enviadoSelecionado.caixaId)}</span> para{" "}
+            <span className="text-foreground">{enviadoSelecionado.destinatario}</span> · {dataLonga(enviadoSelecionado.criadoEm)}
           </p>
         </div>
         <div className="rounded-lg border bg-card p-5">
@@ -395,7 +430,25 @@ export default function AdminEmails() {
                 {email !== nome ? `${email} · ` : ""}
                 {dataLonga(m.recebidoEm)}
               </p>
+              <p className="truncate text-xs text-muted-foreground">Para {m.destinatario || enderecoCaixa(m.caixaId)}</p>
             </div>
+            {listaCaixas.length > 1 && !m.excluida && (
+              <Select
+                value={String(m.caixaId ?? caixaPadrao?.id ?? "")}
+                onValueChange={(v) => moverParaCaixa.mutate({ id: m.id, caixaId: Number(v) })}
+              >
+                <SelectTrigger className="h-8 w-auto shrink-0 gap-1.5 text-xs" aria-label="Caixa da mensagem">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {listaCaixas.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -501,8 +554,8 @@ export default function AdminEmails() {
           {respondendo && (
             <div className="space-y-3 rounded-lg border bg-card p-4">
               <p className="text-sm text-muted-foreground">
-                Para <span className="text-foreground">{email}</span>. Sai de {status.data?.endereco ?? "contato@"} com a assinatura da marca e a mensagem
-                original citada.
+                Para <span className="text-foreground">{email}</span>. Sai de{" "}
+                <span className="text-foreground">{enderecoCaixa(m.caixaId)}</span> com a assinatura e a mensagem original citada.
               </p>
               <Textarea
                 autoFocus
@@ -531,16 +584,21 @@ export default function AdminEmails() {
     }
   }
 
-  const contador = naoLidas.data ?? 0;
+  const contador = caixaId === null ? (naoLidas.data?.total ?? 0) : (naoLidas.data?.porCaixa[caixaId] ?? 0);
 
   return (
     <DashboardLayout>
-      <div className="space-y-5">
+      {/* contain: as faixas com rolagem horizontal não alargam a página no celular */}
+      <div className="w-full space-y-5 [contain:inline-size]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">E-mails</h1>
             <p className="text-muted-foreground">
-              Caixa de {status.data?.endereco ?? "contato@shadiahasan.com"}
+              {caixaAtual
+                ? caixaAtual.enderecoCompleto
+                : listaCaixas.length > 1
+                  ? `Todas as caixas · ${listaCaixas.length} endereços`
+                  : enderecoCaixa(null)}
             </p>
           </div>
           <div className="flex gap-2">
@@ -553,7 +611,13 @@ export default function AdminEmails() {
               <RefreshCw className={cn("mr-2 h-4 w-4", sincronizar.isPending && "animate-spin")} />
               {sincronizar.isPending ? "Buscando..." : "Buscar novas"}
             </Button>
-            <Button onClick={() => setNovoAberto(true)} disabled={status.data?.resendConfigurado === false}>
+            <Button
+              onClick={() => {
+                setNovo((n) => ({ ...n, caixaId: caixaAtual?.id ?? caixaPadrao?.id ?? 0 }));
+                setNovoAberto(true);
+              }}
+              disabled={status.data?.resendConfigurado === false}
+            >
               <PenLine className="mr-2 h-4 w-4" /> Escrever
             </Button>
           </div>
@@ -564,6 +628,40 @@ export default function AdminEmails() {
             A chave do Resend (<code>RESEND_API_KEY</code>) não está configurada no servidor. Sem ela a caixa não recebe nem envia.
           </div>
         )}
+
+        <div className="flex items-center gap-2">
+          <div className="flex w-0 min-w-0 flex-1 gap-1.5 overflow-x-auto pb-1" aria-label="Caixas">
+            {[{ id: null as number | null, nome: "Todas", n: naoLidas.data?.total ?? 0 }, ...listaCaixas.map((c) => ({ id: c.id as number | null, nome: c.nome, n: naoLidas.data?.porCaixa[c.id] ?? 0 }))].map((c) => (
+              <button
+                key={c.id ?? "todas"}
+                type="button"
+                onClick={() => setCaixaId(c.id)}
+                aria-pressed={caixaId === c.id}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                  caixaId === c.id
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+                )}
+              >
+                {c.nome}
+                {c.n > 0 && (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 text-[11px] font-semibold leading-[18px]",
+                      caixaId === c.id ? "bg-primary-foreground/20" : "bg-primary/10 text-primary",
+                    )}
+                  >
+                    {c.n}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setGerenciarAberto(true)}>
+            <Settings2 className="mr-1.5 h-4 w-4" /> Caixas
+          </Button>
+        </div>
 
         <div className="flex gap-1 overflow-x-auto border-b" role="tablist" aria-label="Pastas">
           {PASTAS.map(({ id, rotulo, icone: Icone }) => (
@@ -633,11 +731,26 @@ export default function AdminEmails() {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Novo e-mail</DialogTitle>
-            <DialogDescription>
-              Sai de {status.data?.endereco ?? "contato@shadiahasan.com"} com a assinatura da marca. As respostas chegam nesta caixa.
-            </DialogDescription>
+            <DialogDescription>Sai com a assinatura da marca. As respostas voltam para a caixa escolhida.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {listaCaixas.length > 1 && (
+              <div className="space-y-2">
+                <Label>De</Label>
+                <Select value={String(novo.caixaId || caixaPadrao?.id || "")} onValueChange={(v) => setNovo({ ...novo, caixaId: Number(v) })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {listaCaixas.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.nome} · {c.enderecoCompleto}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="novo-para">Para</Label>
               <Input
@@ -668,7 +781,9 @@ export default function AdminEmails() {
               Cancelar
             </Button>
             <Button
-              onClick={() => enviarNovo.mutate(novo)}
+              onClick={() =>
+                enviarNovo.mutate({ para: novo.para, assunto: novo.assunto, corpo: novo.corpo, caixaId: novo.caixaId || undefined })
+              }
               disabled={
                 !/^\S+@\S+\.\S+$/.test(novo.para) || !novo.assunto.trim() || !novo.corpo.trim() || enviarNovo.isPending
               }
@@ -679,6 +794,7 @@ export default function AdminEmails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <GerenciarCaixas aberto={gerenciarAberto} onFechar={() => setGerenciarAberto(false)} />
     </DashboardLayout>
   );
 }

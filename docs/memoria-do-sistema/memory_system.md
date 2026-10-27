@@ -484,3 +484,7 @@ Chargeback não gera e-mail. Opcional: `EMAIL_AVISOS_ADMIN` recebe "[Painel] Nov
 Variáveis: `RESEND_API_KEY` (obrigatória), `RESEND_WEBHOOK_SECRET` (signing secret do webhook no Resend), `EMAIL_CONTATO`, `EMAIL_CONTATO_REMETENTE`, `EMAIL_AVISOS_ADMIN`, `EMAIL_CAIXA_DOMINIO`, `FROM_EMAIL`, `SITE_URL` (padrão agora `https://shadiahasan.com`).
 
 Pendências vistas: `SEOHead.tsx`/`Breadcrumbs.tsx`/`AdminSettings.tsx` ainda usam `shadiahasan.club`; FAQ cita WhatsApp 47 99142-6662 e o resto do site 47 99166-5536.
+
+### Caixas por setor (27/10/2026)
+
+Tabela `emailCaixas` (`endereco` = parte antes do @, `nome`, `nomeRemetente`, `copiaPara`, `padrao`). O MX aponta para o Resend, que aceita qualquer endereço @shadiahasan.com: criar caixa nova (financeiro@, rh@, ti@, diretoria@...) é só no painel, sem DNS. A mensagem entra na caixa do destinatário (aceita `setor+algo@`); sem correspondência, vai para a padrão (criada sozinha como contato@ na primeira subida, e adota as mensagens antigas). Resposta e e-mail novo saem do endereço da caixa, com o nome do setor na assinatura (a padrão assina como a psicóloga). `copiaPara` encaminha tudo que chega (com anexos) para um e-mail fora do domínio; dentro do domínio é recusado para não virar laço. Excluir caixa move as mensagens para a padrão; a padrão não pode ser excluída. Endereços reservados: noreply, no-reply, postmaster, abuse, mailer-daemon, bounce(s), send. Ainda não há permissão por caixa: todo admin vê todas.

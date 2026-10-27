@@ -1073,6 +1073,7 @@ export const emailRecebidos = pgTable("emailRecebidos", {
   respondida: boolean("respondida").default(false).notNull(),
   arquivada: boolean("arquivada").default(false).notNull(),
   excluida: boolean("excluida").default(false).notNull(), // lixeira (restaurável)
+  caixaId: integer("caixaId"), // emailCaixas.id (setor que recebeu)
   recebidoEm: timestamp("recebidoEm").defaultNow().notNull(),
   criadoEm: timestamp("criadoEm").defaultNow().notNull(),
 });
@@ -1086,5 +1087,24 @@ export const emailEnviados = pgTable("emailEnviados", {
   corpo: text("corpo").notNull(),
   resendId: varchar("resendId", { length: 100 }),
   enviadoPor: integer("enviadoPor"),
+  caixaId: integer("caixaId"),
+  remetente: varchar("remetente", { length: 320 }), // endereço que enviou (ex.: financeiro@)
+  criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+});
+
+/**
+ * Caixas por setor (contato@, financeiro@, rh@, ti@, diretoria@...). O MX do
+ * domínio aponta para o Resend, que recebe qualquer endereço @shadiahasan.com;
+ * a mensagem entra na caixa cujo `endereco` bate com o destinatário. O que não
+ * bate com nenhuma cai na caixa padrão.
+ */
+export const emailCaixas = pgTable("emailCaixas", {
+  id: serial("id").primaryKey(),
+  endereco: varchar("endereco", { length: 64 }).notNull().unique(), // parte antes do @, minúscula
+  nome: varchar("nome", { length: 80 }).notNull(), // "Financeiro"
+  nomeRemetente: varchar("nomeRemetente", { length: 120 }).notNull(), // "Financeiro · Shadia Hasan"
+  copiaPara: varchar("copiaPara", { length: 320 }), // encaminha cópia de tudo que chega (opcional)
+  padrao: boolean("padrao").default(false).notNull(),
+  ordem: integer("ordem").default(0).notNull(),
   criadoEm: timestamp("criadoEm").defaultNow().notNull(),
 });

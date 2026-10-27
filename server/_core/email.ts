@@ -372,6 +372,9 @@ export async function sendAssinaturaEncerradaEmail(
 export function emailRespostaContato(params: {
   corpo: string;
   citacao?: { remetente: string; data: string; corpo: string };
+  /** Setor que responde (ex.: "Financeiro") e o endereço da caixa. */
+  setor?: string | null;
+  endereco?: string | null;
 }): string {
   const site = siteUrl();
   const sans = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
@@ -385,7 +388,8 @@ export function emailRespostaContato(params: {
       <img src="${escapar(site)}/email/assinatura-email.png" width="200" alt="Shadia Hasan, Psicologia &amp; Desenvolvimento Humano" style="display:block;width:200px;height:auto;border:0;">
     </td></tr>
     <tr><td style="padding-top:8px;font-size:13px;line-height:1.6;color:${MARCA.suave};">
-      Psicóloga · CRP 12/27052<br>
+      ${params.setor ? `<strong style="color:${MARCA.azul};font-weight:600;">${escapar(params.setor)}</strong><br>` : "Psicóloga · CRP 12/27052<br>"}
+      ${params.endereco ? `<a href="mailto:${escapar(params.endereco)}" style="color:${MARCA.verde};text-decoration:none;">${escapar(params.endereco)}</a><br>` : ""}
       <a href="${escapar(site)}" style="color:${MARCA.verde};text-decoration:none;">${escapar(site.replace(/^https?:\/\//, ""))}</a>
       &nbsp;·&nbsp;
       <a href="https://wa.me/5547991665536" style="color:${MARCA.verde};text-decoration:none;">WhatsApp</a>

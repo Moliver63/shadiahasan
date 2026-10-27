@@ -4,12 +4,30 @@ import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Mail, CheckCircle2 } from "lucide-react";
 import SiteLogo from "@/components/SiteLogo";
 
 
+/** Só caminho interno ("/lesson/12"); qualquer outra coisa é ignorada. */
+function destinoDaUrl(): string | null {
+  const next = new URLSearchParams(window.location.search).get("next") || "";
+  if (!next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\") || next.length > 300) return null;
+  return next;
+}
+
+/** Navegador embutido do Facebook/Instagram: lá o Google bloqueia o login. */
+function navegadorDoApp(): boolean {
+  return /FBAN|FBAV|FB_IAB|Instagram/i.test(navigator.userAgent || "");
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
+  const [destino] = useState(destinoDaUrl);
+  const [noApp] = useState(navegadorDoApp);
+  const [linkAberto, setLinkAberto] = useState(false);
+  const [emailLink, setEmailLink] = useState("");
+  const [linkEstado, setLinkEstado] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const [enviandoLink, setEnviandoLink] = useState(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,15 +46,17 @@ export default function Login() {
         'passport_error': 'Erro no processo de autenticação. Tente novamente.',
         'no_user': 'Não foi possível criar sua conta. Entre em contato com o suporte.',
         'auth_error': 'Erro ao processar autenticação. Tente novamente.',
+        'link_invalido': 'Este link de acesso já foi usado ou venceu. Peça um novo em "Entrar sem senha".',
       };
       
       setOauthError(errorMessages[error] || 'Erro desconhecido. Tente novamente.');
       
       // Clear error from URL after 5 seconds
+      if (error === 'link_invalido') setLinkAberto(true);
       setTimeout(() => {
-        window.history.replaceState({}, '', '/login');
+        window.history.replaceState({}, '', destino ? `/login?next=${encodeURIComponent(destino)}` : '/login');
         setOauthError(null);
-      }, 5000);
+      }, 8000);
     }
   }, []);
 
@@ -44,7 +64,9 @@ export default function Login() {
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: (data) => {
       const role = data?.user?.role;
-      if (role === "admin" || role === "superadmin") {
+      if (destino) {
+        window.location.href = destino;
+      } else if (role === "admin" || role === "superadmin") {
         window.location.href = "/admin";
       } else {
         window.location.href = "/courses";
@@ -63,7 +85,26 @@ export default function Login() {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = '/api/auth/google';
+    window.location.href = destino ? `/api/auth/google?next=${encodeURIComponent(destino)}` : '/api/auth/google';
+  };
+
+  const pedirLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEnviandoLink(true);
+    setLinkEstado(null);
+    try {
+      const r = await fetch('/api/auth/enviar-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailLink, next: destino || '/my-courses' }),
+      });
+      const dados = await r.json().catch(() => ({}));
+      setLinkEstado({ tipo: r.ok ? 'ok' : 'erro', texto: dados.mensagem || (r.ok ? 'Link enviado.' : 'Não foi possível enviar agora.') });
+    } catch {
+      setLinkEstado({ tipo: 'erro', texto: 'Sem conexão. Tente de novo.' });
+    } finally {
+      setEnviandoLink(false);
+    }
   };
 
   const handleAppleLogin = () => {
@@ -95,6 +136,51 @@ export default function Login() {
               <AlertDescription>{oauthError}</AlertDescription>
             </Alert>
           )}
+          {noApp && (
+            <Alert className="mb-4 border-amber-300 bg-amber-50 text-amber-900">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Você está no navegador do Facebook ou Instagram, onde o Google não deixa entrar. Use{" "}
+                <strong>Entrar sem senha</strong> logo abaixo: mandamos um link para o seu e-mail.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Entrar sem senha: link de uso único no e-mail */}
+          <div className="mb-6 rounded-xl border border-purple-100 bg-purple-50/50 p-4">
+            {!linkAberto ? (
+              <Button type="button" variant="outline" className="h-11 w-full bg-white" onClick={() => setLinkAberto(true)}>
+                <Mail className="mr-2 h-5 w-5" /> Entrar sem senha (link no e-mail)
+              </Button>
+            ) : linkEstado?.tipo === "ok" ? (
+              <div className="flex items-start gap-3 text-sm">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+                <p>{linkEstado.texto}</p>
+              </div>
+            ) : (
+              <form onSubmit={pedirLink} className="space-y-3">
+                <label htmlFor="email-link" className="block text-sm font-medium text-gray-700">
+                  Seu e-mail
+                </label>
+                <Input
+                  id="email-link"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="seu@email.com"
+                  value={emailLink}
+                  onChange={(e) => setEmailLink(e.target.value)}
+                  required
+                  className="h-11"
+                />
+                {linkEstado?.tipo === "erro" && <p className="text-sm text-red-600">{linkEstado.texto}</p>}
+                <Button type="submit" className="h-11 w-full" disabled={enviandoLink}>
+                  {enviandoLink ? "Enviando..." : "Receber link de acesso"}
+                </Button>
+              </form>
+            )}
+          </div>
+
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-6">
             <Button

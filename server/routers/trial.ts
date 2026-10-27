@@ -21,7 +21,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { assinarSessao } from "../_core/sessionCookie";
 import { ga4ServidorConfigurado } from "../ga4";
-import { CompraSemContaError, compraSemContaLigada, criarCompraDeConvidado, normalizarEmail, statusDaCompra } from "../trialGuest";
+import { CompraSemContaError, compraSemContaLigada, criarCompraDeConvidado, normalizarEmail, reenviarLinkDaCompra, statusDaCompra } from "../trialGuest";
 
 const TRINTA_DIAS_S = 30 * 24 * 60 * 60;
 
@@ -131,7 +131,8 @@ export const trialRouter = router({
           contaExistente: async (email, aula) => {
             const d = await getDb();
             if (!d) return null;
-            const [u] = await d.select({ id: users.id }).from(users).where(eq(users.email, normalizarEmail(email))).limit(1);
+            const { encontrarContaPorEmail } = await import("../emailConta");
+            const u = await encontrarContaPorEmail(d, normalizarEmail(email));
             if (!u) return null;
             const jaTemAcesso = await checkUserHasAccess(u.id, { isAccessRestricted: aula.isAccessRestricted ?? 0, courseId: aula.courseId });
             const usados = await d
@@ -161,7 +162,8 @@ export const trialRouter = router({
     .query(async ({ input, ctx }) => {
       const r = await statusDaCompra(input.token);
       if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Compra não encontrada." });
-      let logado = !!ctx.user && r.entrarSozinho?.userId === ctx.user.id;
+      // Já logado na conta que recebeu a aula (ex.: entrou com Google depois de pagar)
+      let logado = !!ctx.user && !!r.donoId && r.donoId === ctx.user.id;
       if (r.entrarSozinho && !ctx.user) {
         ctx.res.cookie(
           COOKIE_NAME,
@@ -181,6 +183,20 @@ export const trialRouter = router({
         precisaEntrar: r.situacao === "paga" && !logado,
         compra: r.compra,
       };
+    }),
+
+  /** Compra paga numa conta que já existia: reenvia o link de acesso para o e-mail. */
+  guestEnviarLink: publicProcedure
+    .input(z.object({ token: z.string().min(20).max(128) }))
+    .mutation(async ({ input }) => {
+      try {
+        const r = await reenviarLinkDaCompra(input.token);
+        if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Compra não encontrada ou ainda não paga." });
+        if (!r.enviado) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não conseguimos enviar o e-mail agora. Tente de novo em instantes." });
+        return { emailMascarado: r.emailMascarado };
+      } catch (e) {
+        erroDaCompraSemConta(e);
+      }
     }),
 
   /** Preço, validade e situação do aluno para uma aula (a tela de aula bloqueada usa isto). */
@@ -230,7 +246,7 @@ export const trialRouter = router({
         courseId: lesson.courseId,
       });
 
-      const origin = ctx.req.headers.origin || "https://shadiahasan.club";
+      const origin = ctx.req.headers.origin || "https://shadiahasan.com";
       try {
         const result = await createTrialCheckout({
           userId: ctx.user.id,

@@ -182,7 +182,7 @@ export async function sendTrialAccessEmail(params: {
     ? p("Sua conta foi criada com este e-mail. Para entrar de outro celular ou do computador, crie sua senha:") +
       botao("Criar minha senha", params.createPasswordUrl) +
       pequeno("O link vale por 7 dias. Criar a senha também confirma que este e-mail é seu.")
-    : p("A aula foi liberada na conta que você já tem com este e-mail. Para assistir, entre com sua senha ou com o Google.");
+    : p("A aula foi liberada na conta que você já tem com este e-mail. O botão acima já entra na sua conta, sem senha. Depois, entre como sempre (senha ou Google).");
 
   const html = layoutEmail({
     preheader: "Pagamento confirmado. Sua aula já pode ser assistida.",
@@ -191,11 +191,27 @@ export async function sendTrialAccessEmail(params: {
       p(saudacao(params.name)) +
       p("Recebi seu pagamento, obrigada. A aula já está liberada para você:") +
       botao("Assistir à aula", params.lessonUrl) +
-      linkReserva(params.lessonUrl) +
+      pequeno("Este botão entra direto na sua conta e funciona uma vez, por 7 dias. Não encaminhe este e-mail.") +
       blocoSenha,
     motivo: "Você recebeu este e-mail porque comprou a aula experimental em shadiahasan.com.",
   });
   return enviarEmail({ para: params.email, assunto: "Sua aula está liberada", html });
+}
+
+/** Link de uso único para entrar sem senha (vale 24 h). */
+export async function sendLinkDeAcessoEmail(email: string, name: string, url: string) {
+  const html = layoutEmail({
+    preheader: "Seu link para entrar na plataforma. Vale por 24 horas.",
+    titulo: "Seu link de acesso",
+    corpo:
+      p(saudacao(name)) +
+      p("Toque no botão para entrar na sua conta. Não precisa de senha nem de Google.") +
+      botao("Entrar e assistir", url) +
+      linkReserva(url) +
+      pequeno("O link vale por 24 horas e funciona uma vez. Se não foi você que pediu, ignore este e-mail: ninguém entra sem ele."),
+    motivo: "Você recebeu este e-mail porque pediu um link de acesso em shadiahasan.com.",
+  });
+  return enviarEmail({ para: email, assunto: "Seu link de acesso", html });
 }
 
 // ─── Assinatura ──────────────────────────────────────────────────────────────

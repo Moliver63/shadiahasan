@@ -415,7 +415,10 @@ export async function materializarCompra(compraId: number, paymentId: string): P
   let userId = compra.userId;
   let contaNova = compra.userCreated === 1;
   if (!userId) {
-    const [jaExiste] = await d.select({ id: users.id }).from(users).where(eq(users.email, compra.email)).limit(1);
+    // Mesma regra do login com Google: sem diferença de maiúscula e, no Gmail,
+    // sem diferença de pontos/"+". Ver emailConta.ts.
+    const { encontrarContaPorEmail } = await import("./emailConta");
+    const jaExiste = await encontrarContaPorEmail(d, compra.email);
     if (jaExiste) {
       userId = jaExiste.id;
       contaNova = false;
@@ -439,7 +442,7 @@ export async function materializarCompra(compraId: number, paymentId: string): P
         console.log(`[TrialGuest] conta ${criado.id} criada pela compra ${compra.id}`);
       } else {
         // Corrida: outra confirmação criou a mesma conta um instante antes
-        const [outra] = await d.select({ id: users.id }).from(users).where(eq(users.email, compra.email)).limit(1);
+        const outra = await encontrarContaPorEmail(d, compra.email);
         if (!outra) throw new Error("conta não criada");
         userId = outra.id;
         const [releitura] = await d.select().from(trialGuestCheckouts).where(eq(trialGuestCheckouts.id, compraId)).limit(1);
@@ -533,6 +536,8 @@ export async function statusDaCompra(token: string, deps?: {
   emailMascarado: string;
   entrarSozinho: { userId: number; email: string } | null;
   precisaEntrar: boolean;
+  /** Conta que recebeu a aula (depois de paga). A tela compara com quem está logado. */
+  donoId: number | null;
   compra: { id: string; valorCentavos: number } | null;
 } | null> {
   if (!token || token.length < 20 || !(await ensureGuestSchema())) return null;
@@ -579,6 +584,7 @@ export async function statusDaCompra(token: string, deps?: {
     emailMascarado: mascararEmail(compra.email),
     entrarSozinho: r.entrarSozinho && compra.userId ? { userId: compra.userId, email: compra.email } : null,
     precisaEntrar: r.precisaEntrar,
+    donoId: r.situacao === "paga" ? compra.userId : null,
     /** Só depois de pago: a tela manda a compra ao GA4 (id da cobrança evita contar duas vezes). */
     compra: r.situacao === "paga" && compra.asaasPaymentId ? { id: compra.asaasPaymentId, valorCentavos: compra.amountCents } : null,
   };
@@ -595,4 +601,24 @@ export async function cobrancasPendentesDeConvidados(): Promise<Array<{ asaasPay
     .where(and(eq(trialGuestCheckouts.status, "pending"), isNotNull(trialGuestCheckouts.asaasPaymentId), sql`${trialGuestCheckouts.createdAt} > now() - interval '10 days'`))
     .orderBy(desc(trialGuestCheckouts.createdAt));
   return rows.filter((r): r is { asaasPaymentId: string } => !!r.asaasPaymentId);
+}
+
+/**
+ * Tela "pagamento confirmado", conta que já existia: manda de novo o link de
+ * acesso para o e-mail da compra. Só quem tem o token da compra (o navegador
+ * de quem pagou) pede, e o link vai para o e-mail, nunca para a tela.
+ */
+const reenviosPorCompra = criarLimitador(3, UMA_HORA);
+export async function reenviarLinkDaCompra(token: string): Promise<{ enviado: boolean; emailMascarado: string } | null> {
+  if (!token || token.length < 20 || !(await ensureGuestSchema())) return null;
+  const d = await db.getDb();
+  if (!d) return null;
+  const [compra] = await d.select().from(trialGuestCheckouts).where(eq(trialGuestCheckouts.tokenHash, hashDe(token))).limit(1);
+  if (!compra || compra.status !== "paid" || !compra.userId) return null;
+  if (!reenviosPorCompra(`compra:${compra.id}`)) {
+    throw new CompraSemContaError("Já enviamos o link há pouco. Confira a caixa de entrada e o spam.", "TOO_MANY_REQUESTS");
+  }
+  const { enviarLinkDeAcesso } = await import("./trialGuestEmail");
+  const enviado = await enviarLinkDeAcesso({ userId: compra.userId, destino: `/lesson/${compra.lessonId}` });
+  return { enviado, emailMascarado: mascararEmail(compra.email) };
 }

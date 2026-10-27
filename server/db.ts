@@ -2035,7 +2035,12 @@ export async function findOrCreateUserByProvider(data: {
 
   // Check if user exists by email (account linking)
   console.log('[OAuth] Checking if user exists by email...');
-  const existingUser = await getUserByEmail(normalizedEmail);
+  // Mesma caixa de entrada = mesma conta (no Gmail, pontos e "+" não contam).
+  // Sem isso, quem comprou a aula digitando o Gmail sem pontos ganhava uma
+  // conta e o login com Google abria outra, sem a aula. Ver emailConta.ts.
+  const { encontrarContaPorEmail } = await import("./emailConta");
+  const encontrada = await encontrarContaPorEmail(db, normalizedEmail);
+  const existingUser = encontrada ? await getUserById(encontrada.id) : null;
   console.log('[OAuth] Existing user:', existingUser ? { id: existingUser.id, email: existingUser.email } : null);
 
   if (existingUser) {

@@ -12,7 +12,8 @@ import { COOKIE_NAME, ONE_YEAR_MS } from '@shared/const';
 import { getSessionCookieOptions } from '../_core/cookies.js';
 import { assinarSessao, lerSessao, sessaoValidaPara } from '../_core/sessionCookie.js';
 import { ehHostTecnico, emitirPasseDeLogin, hostCanonico, lerPasseDeLogin } from '../_core/canonicalHost.js';
-import { getUserById } from '../db.js';
+import { getDb, getUserById } from '../db.js';
+import { destinoSeguro, usarLinkDeAcesso } from '../linkDeAcesso.js';
 
 const router = Router();
 
@@ -20,10 +21,15 @@ const router = Router();
 
 router.get('/google', (req: Request, res: Response, next: NextFunction) => {
   console.log('[Google OAuth] Step 1: Iniciando fluxo OAuth');
+  // ?next=/lesson/12 volta para a aula depois do login. Vai no `state` do
+  // OAuth porque o callback cai no domínio técnico do Render, que não lê
+  // cookie do domínio do site. Só caminho interno (destinoSeguro).
+  const destino = typeof req.query.next === 'string' ? destinoSeguro(req.query.next) : null;
   passport.authenticate('google', {
     session: false,
     scope: ['profile', 'email'],
-  })(req, res, next);
+    ...(destino && destino !== '/my-courses' ? { state: destino } : {}),
+  } as any)(req, res, next);
 });
 
 router.get(
@@ -87,7 +93,8 @@ router.get(
         role: user.role,
       };
 
-      const redirectUrl = user.role === 'admin' ? '/admin' : '/courses';
+      const pedido = typeof req.query.state === 'string' && req.query.state.startsWith('/') ? destinoSeguro(req.query.state) : null;
+      const redirectUrl = pedido ?? (user.role === 'admin' ? '/admin' : '/courses');
 
       // Google devolve no domínio técnico do Render (GOOGLE_CALLBACK_URL). A
       // sessão tem que nascer no domínio do site, senão o aluno fica logado
@@ -151,6 +158,80 @@ router.get('/handoff', async (req: Request, res: Response) => {
   });
   res.setHeader('Cache-Control', 'no-store');
   res.redirect(passe.destino);
+});
+
+// ============ LINK DE ACESSO (entrar pelo e-mail) ============
+// GET só mostra um botão; quem entra é o POST. Assim, antivírus de e-mail que
+// "abrem" os links para conferir (Outlook/Defender fazem isso) não gastam o
+// link de uso único antes da pessoa. Ver server/linkDeAcesso.ts.
+router.get('/link', (req: Request, res: Response) => {
+  const t = typeof req.query.t === 'string' ? req.query.t : '';
+  const seguro = t.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 200);
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.type('html').send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Entrar - Shadia Hasan</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F5F2EC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#24303A;padding:24px;box-sizing:border-box}
+main{background:transparent;max-width:380px;width:100%;padding:32px 28px;text-align:center}
+img{width:150px;height:auto}h1{font-family:Georgia,serif;font-weight:normal;color:#0B3354;font-size:24px;margin:18px 0 8px}p{color:#5B6770;line-height:1.5;margin:0 0 24px}
+button{width:100%;height:56px;border:0;border-radius:8px;background:#0B3354;color:#fff;font-size:18px;font-weight:600;cursor:pointer}</style></head>
+<body><main><img src="/email/logo-email.png" alt="Shadia Hasan"><h1>Entrar na sua conta</h1><p>Toque no botão para entrar e assistir.</p>
+<form method="post" action="/api/auth/link"><input type="hidden" name="t" value="${seguro}"><button type="submit">Entrar e assistir</button></form></main></body></html>`);
+});
+
+router.post('/link', async (req: Request, res: Response) => {
+  const t = typeof req.body?.t === 'string' ? req.body.t : '';
+  try {
+    const r = await usarLinkDeAcesso(t);
+    if (!r) return res.redirect(303, '/login?error=link_invalido');
+    // Sessão normal (não provisória): o link provou que o e-mail é da pessoa
+    res.cookie(COOKIE_NAME, await assinarSessao({ id: r.userId, email: r.email }), {
+      ...getSessionCookieOptions(req),
+      maxAge: ONE_YEAR_MS,
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.redirect(303, r.destino);
+  } catch (e) {
+    console.error('[LinkDeAcesso] falha:', e instanceof Error ? e.message : e);
+    return res.redirect(303, '/login?error=link_invalido');
+  }
+});
+
+// Pedido de link pela tela de entrar. Responde sempre igual (não revela se o
+// e-mail tem conta) e limita tentativas por IP e por e-mail.
+const pedidosDeLink = new Map<string, number[]>();
+function permitirPedido(chave: string, limite: number, janelaMs: number) {
+  const agora = Date.now();
+  const lista = (pedidosDeLink.get(chave) ?? []).filter((t) => agora - t < janelaMs);
+  if (lista.length >= limite) { pedidosDeLink.set(chave, lista); return false; }
+  lista.push(agora);
+  pedidosDeLink.set(chave, lista);
+  if (pedidosDeLink.size > 5000) pedidosDeLink.clear();
+  return true;
+}
+
+router.post('/enviar-link', async (req: Request, res: Response) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase().slice(0, 254) : '';
+  const destino = destinoSeguro(typeof req.body?.next === 'string' ? req.body.next : '/my-courses');
+  const ip = String(req.headers['x-forwarded-for'] || req.ip || '?').split(',')[0].trim();
+  const resposta = { ok: true, mensagem: 'Se este e-mail tiver conta, o link chega em instantes. Confira também o spam.' };
+  if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) return res.status(400).json({ ok: false, mensagem: 'E-mail inválido.' });
+  if (!permitirPedido(`ip:${ip}`, 10, 60 * 60_000) || !permitirPedido(`email:${email}`, 3, 60 * 60_000)) {
+    return res.status(429).json({ ok: false, mensagem: 'Muitos pedidos seguidos. Espere alguns minutos e tente de novo.' });
+  }
+  try {
+    const d = await getDb();
+    if (d) {
+      const { encontrarContaPorEmail } = await import('../emailConta.js');
+      const conta = await encontrarContaPorEmail(d, email);
+      if (conta) {
+        const { enviarLinkDeAcesso } = await import('../trialGuestEmail.js');
+        await enviarLinkDeAcesso({ userId: conta.id, destino });
+      }
+    }
+  } catch (e) {
+    console.error('[LinkDeAcesso] pedido falhou:', e instanceof Error ? e.message : e);
+  }
+  return res.json(resposta);
 });
 
 // ============ STATUS E LOGOUT ============

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { CheckCircle2, Copy, Loader2, QrCode, CreditCard, LogIn, AlertCircle } from "lucide-react";
+import { CheckCircle2, Copy, Loader2, QrCode, CreditCard, LogIn, AlertCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { lerCompra, limparCompra } from "@/lib/compraSemConta";
@@ -34,6 +34,8 @@ export default function CompraAguardando() {
     },
   );
   const dados = status.data;
+  const reenviar = trpc.trial.guestEnviarLink.useMutation();
+  const noApp = typeof navigator !== "undefined" && /FBAN|FBAV|FB_IAB|Instagram/i.test(navigator.userAgent || "");
   // Com a chave do GA4 no servidor, a compra já vai pelo servidor: aqui não manda de novo
   const { data: info } = trpc.trial.info.useQuery();
 
@@ -112,12 +114,40 @@ export default function CompraAguardando() {
         ) : (
           <>
             <p className="mt-3 text-center text-base">
-              A aula foi liberada na conta do e-mail {dados.emailMascarado}. Entre nessa conta para assistir.
+              A aula foi liberada na sua conta <strong>{dados.emailMascarado}</strong>.
             </p>
-            <a href={getLoginUrl()}>
-              <Button size="lg" className="mt-6 h-14 w-full text-lg"><LogIn className="mr-2 h-5 w-5" /> Entrar e assistir</Button>
+            <div className="mt-5 rounded-2xl border border-[#e6d8c8] bg-white p-4 text-center">
+              <Mail className="mx-auto h-7 w-7 text-[#a8743c]" />
+              <p className="mt-2 text-base">
+                Mandamos para esse e-mail o botão <strong>Assistir à aula</strong>. Ele entra direto na sua conta, sem senha.
+              </p>
+              {reenviar.isSuccess ? (
+                <p className="mt-3 text-sm font-medium text-green-700">Link enviado de novo. Confira também o spam.</p>
+              ) : (
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="mt-3 h-12 w-full text-base"
+                  disabled={reenviar.isPending || !token}
+                  onClick={() => token && reenviar.mutate({ token })}
+                >
+                  {reenviar.isPending ? "Enviando..." : "Não chegou? Enviar de novo"}
+                </Button>
+              )}
+              {reenviar.error && <p className="mt-2 text-sm text-red-700">{reenviar.error.message}</p>}
+            </div>
+            {noApp ? (
+              <p className="mt-4 text-center text-sm text-[#5c4a3d]">
+                Aqui no navegador do Facebook/Instagram o Google não deixa entrar. Use o link do e-mail.
+              </p>
+            ) : (
+              <a href={`/api/auth/google?next=${encodeURIComponent(`/lesson/${dados.lessonId}`)}`}>
+                <Button size="lg" className="mt-5 h-14 w-full text-lg"><LogIn className="mr-2 h-5 w-5" /> Entrar com Google e assistir</Button>
+              </a>
+            )}
+            <a href={`/login?next=${encodeURIComponent(`/lesson/${dados.lessonId}`)}`} className="mt-3 block text-center text-sm text-[#5c4a3d] underline">
+              Entrar com e-mail e senha
             </a>
-            <p className="mt-4 text-center text-sm text-[#5c4a3d]">Não lembra a senha? Na tela de entrar, use "Esqueci minha senha".</p>
           </>
         )}
       </Moldura>

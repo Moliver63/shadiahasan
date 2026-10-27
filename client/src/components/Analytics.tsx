@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { capturarAtribuicaoNaEntrada, novoEventId } from "@/lib/metaAttribution";
 import { safeLocalStorageGet } from "@/lib/safeStorage";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 /**
  * Analytics — GA4 + Meta Pixel + Microsoft Clarity
@@ -114,6 +115,23 @@ function loadClarity(id: string) {
 }
 
 export default function Analytics() {
+  /**
+   * user_id do GA4: o id interno do aluno logado (nunca e-mail ou nome). Faz o
+   * mesmo aluno no celular e no computador contar como uma pessoa. Só com
+   * consentimento; ao sair da conta, o GA4 volta a não saber quem é.
+   */
+  const { user } = useAuth();
+  const userId = user?.id ? String(user.id) : null;
+  useEffect(() => {
+    const aplicar = () => {
+      if (!hasAnalyticsConsent() || !GA4_ID || !window.gtag) return;
+      window.gtag("set", { user_id: userId });
+    };
+    aplicar();
+    window.addEventListener("cookie-consent-updated", aplicar);
+    return () => window.removeEventListener("cookie-consent-updated", aplicar);
+  }, [userId]);
+
   const [location] = useLocation();
   const primeiraRota = useRef(true);
 

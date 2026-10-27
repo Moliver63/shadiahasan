@@ -161,6 +161,8 @@ export const trialGuestCheckouts = pgTable("trialGuestCheckouts", {
   landingUrl: text("landingUrl"),
   clientIp: varchar("clientIp", { length: 64 }),
   clientUserAgent: text("clientUserAgent"),
+  ga4ClientId: varchar("ga4ClientId", { length: 32 }),
+  ga4SessionId: varchar("ga4SessionId", { length: 24 }),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
@@ -206,6 +208,7 @@ export function ensureGuestSchema(): Promise<boolean> {
           )
         `);
         await d.execute(sql`ALTER TABLE "trialGuestCheckouts" ADD COLUMN IF NOT EXISTS "remindersSent" integer NOT NULL DEFAULT 0`);
+        await d.execute(sql`ALTER TABLE "trialGuestCheckouts" ADD COLUMN IF NOT EXISTS "ga4ClientId" varchar(32), ADD COLUMN IF NOT EXISTS "ga4SessionId" varchar(24)`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "trialGuest_email_idx" ON "trialGuestCheckouts" ("email")`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "trialGuest_cpf_idx" ON "trialGuestCheckouts" ("cpfHash")`);
         return true;
@@ -238,6 +241,8 @@ export type AtribuicaoDaCompra = {
   landingUrl?: string | null;
   clientIp?: string | null;
   clientUserAgent?: string | null;
+  ga4ClientId?: string | null;
+  ga4SessionId?: string | null;
 };
 
 export type PixDaCompra = { imagemBase64: string; copiaECola: string } | null;
@@ -326,6 +331,8 @@ export async function criarCompraDeConvidado(params: {
       landingUrl: a.landingUrl ?? null,
       clientIp: a.clientIp ?? null,
       clientUserAgent: a.clientUserAgent ?? null,
+      ga4ClientId: a.ga4ClientId ?? null,
+      ga4SessionId: a.ga4SessionId ?? null,
     })
     .returning();
 
@@ -471,7 +478,9 @@ export async function materializarCompra(compraId: number, paymentId: string): P
         "utmContent" = COALESCE("utmContent", ${compra.utmContent}),
         "landingUrl" = COALESCE("landingUrl", ${compra.landingUrl}),
         "clientIp" = COALESCE("clientIp", ${compra.clientIp}),
-        "clientUserAgent" = COALESCE("clientUserAgent", ${compra.clientUserAgent})
+        "clientUserAgent" = COALESCE("clientUserAgent", ${compra.clientUserAgent}),
+        "ga4ClientId" = COALESCE("ga4ClientId", ${compra.ga4ClientId}),
+        "ga4SessionId" = COALESCE("ga4SessionId", ${compra.ga4SessionId})
       WHERE "asaasPaymentId" = ${paymentId}
     `);
   } catch (e) {

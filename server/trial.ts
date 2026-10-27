@@ -99,7 +99,10 @@ export function ensureTrialSchema(): Promise<boolean> {
             ADD COLUMN IF NOT EXISTS "landingUrl" text,
             ADD COLUMN IF NOT EXISTS "clientIp" varchar(64),
             ADD COLUMN IF NOT EXISTS "clientUserAgent" text,
-            ADD COLUMN IF NOT EXISTS "capiPurchaseSentAt" timestamp
+            ADD COLUMN IF NOT EXISTS "capiPurchaseSentAt" timestamp,
+            ADD COLUMN IF NOT EXISTS "ga4ClientId" varchar(32),
+            ADD COLUMN IF NOT EXISTS "ga4SessionId" varchar(24),
+            ADD COLUMN IF NOT EXISTS "ga4PurchaseSentAt" timestamp
         `);
         await d.execute(sql`
           CREATE TABLE IF NOT EXISTS "trialEntryLessons" (
@@ -450,6 +453,9 @@ export async function createTrialCheckout(params: {
     landingUrl?: string | null;
     clientIp?: string | null;
     clientUserAgent?: string | null;
+    /** GA4 (só com consentimento): ver server/ga4.ts */
+    ga4ClientId?: string | null;
+    ga4SessionId?: string | null;
   } | null;
 }): Promise<{ url: string; paymentId: string }> {
   if (!isAsaasConfigured()) throw new TrialError("Pagamento via Asaas não está disponível no momento.", "PRECONDITION_FAILED");
@@ -570,7 +576,9 @@ export async function createTrialCheckout(params: {
           "utmContent" = ${a.utmContent ?? null},
           "landingUrl" = ${a.landingUrl ?? null},
           "clientIp" = ${a.clientIp ?? null},
-          "clientUserAgent" = ${a.clientUserAgent ?? null}
+          "clientUserAgent" = ${a.clientUserAgent ?? null},
+          "ga4ClientId" = ${a.ga4ClientId ?? null},
+          "ga4SessionId" = ${a.ga4SessionId ?? null}
         WHERE "asaasPaymentId" = ${payment.id}
       `);
     } catch (e) {
@@ -695,6 +703,7 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
       // Só na primeira ativação: PAYMENT_CONFIRMED e PAYMENT_RECEIVED chegam
       // os dois pra mesma cobrança, e a Meta não pode contar duas compras.
       if (firstActivation) await enviarCompraParaMeta(pass.id, paymentId);
+      if (firstActivation) await enviarCompraParaGA4(pass.id, paymentId);
       if (guest) await (await import("./trialGuest")).concluirCompra(paymentId);
       return;
     }
@@ -804,6 +813,46 @@ async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<
     }
   } catch (e) {
     console.warn("[Trial→Meta] falha ao enviar Purchase:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Compra no GA4 pelo servidor (ver server/ga4.ts). Mesmas garantias do envio
+ * para a Meta: nunca atrapalha a venda, uma vez por cobrança
+ * (`ga4PurchaseSentAt`), e só com o client_id que o navegador mandou porque a
+ * pessoa aceitou cookies de análise.
+ */
+async function enviarCompraParaGA4(passId: number, paymentId: string): Promise<void> {
+  try {
+    const { ga4ServidorConfigurado, enviarCompraGA4 } = await import("./ga4");
+    if (!ga4ServidorConfigurado()) return;
+    const d = await db.getDb();
+    if (!d) return;
+    const { rows } = (await d.execute(sql`
+      SELECT p."userId", p."lessonId", p."amountCents", p."ga4ClientId", p."ga4SessionId", p."ga4PurchaseSentAt",
+             l."title" AS "lessonTitle"
+        FROM "trialPasses" p
+        LEFT JOIN "lessons" l ON l."id" = p."lessonId"
+       WHERE p."id" = ${passId}
+       LIMIT 1
+    `)) as unknown as { rows: Record<string, any>[] };
+    const linha = rows?.[0];
+    if (!linha || linha.ga4PurchaseSentAt || !linha.ga4ClientId) return;
+    const ok = await enviarCompraGA4({
+      clientId: String(linha.ga4ClientId),
+      sessionId: linha.ga4SessionId ? String(linha.ga4SessionId) : null,
+      userId: Number(linha.userId) || null,
+      transactionId: paymentId,
+      valor: Number(linha.amountCents || 0) / 100,
+      itemId: `lesson:${linha.lessonId}`,
+      itemNome: linha.lessonTitle || "Teste de 1 aula",
+    });
+    if (ok) {
+      await d.execute(sql`UPDATE "trialPasses" SET "ga4PurchaseSentAt" = now() WHERE "id" = ${passId}`);
+      console.log(`[Trial→GA4] compra ${paymentId} enviada pelo servidor`);
+    }
+  } catch (e) {
+    console.warn("[Trial→GA4] falha ao enviar compra:", e instanceof Error ? e.message : e);
   }
 }
 

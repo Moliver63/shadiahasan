@@ -336,6 +336,8 @@ ASAAS_API_KEY=...  ASAAS_WEBHOOK_TOKEN=...  ASAAS_BASE_URL=...
 ASAAS_GRACE_DAYS=3  TRIAL_PRICE_CENTS=1990  TRIAL_VALID_DAYS=7
 # compra do teste sem conta (pagar primeiro); "off" volta ao login antes de pagar
 TRIAL_GUEST_CHECKOUT=on
+# GA4: compra enviada pelo servidor (Measurement Protocol). Sem a chave, vai pelo navegador.
+GA4_API_SECRET=<chave secreta do Measurement Protocol>  GA4_MEASUREMENT_ID=G-DGCPN51SD6
 ```
 
 `drizzle.config.ts` lê o `.env` local; `pnpm db:push` precisa de `DATABASE_URL`.
@@ -366,6 +368,19 @@ Motivo: campanha 804 levou ~25 visitantes à oferta e nenhum passou do login
   `emailVerified=1`; `requestPasswordReset` aceita conta sem senha com
   `loginMethod=email`. Depende de `RESEND_API_KEY` válida.
 - Desligar: `TRIAL_GUEST_CHECKOUT=off` no Render.
+
+### GA4 mais preciso (27/10/2026)
+
+- `server/ga4.ts`: compra do teste vai ao GA4 pelo servidor quando o Asaas
+  confirma (`enviarCompraParaGA4` em `processTrialEvent`, uma vez por cobrança,
+  marca `trialPasses.ga4PurchaseSentAt`). Só com o client_id do cookie `_ga`
+  enviado pelo navegador na compra (`client/src/lib/ga4Ids.ts`), que só existe
+  com consentimento de análise. Anúncios sempre DENIED.
+- Sem `GA4_API_SECRET`, a tela `/compra/aguardando` manda o `purchase` pelo
+  navegador (`trial.info.ga4CompraPeloServidor` decide; nunca os dois).
+- `user_id` do GA4 = id interno do aluno logado (nunca e-mail), em `Analytics.tsx`.
+- `page_view` manual do GA4 removido: depende da medição otimizada
+  ("mudanças de página com base no histórico") ligada no fluxo de dados.
 
 ## 10. Segurança e operação
 

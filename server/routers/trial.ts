@@ -20,6 +20,7 @@ import { trialPasses, users } from "../../drizzle/schema";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { assinarSessao } from "../_core/sessionCookie";
+import { ga4ServidorConfigurado } from "../ga4";
 import { CompraSemContaError, compraSemContaLigada, criarCompraDeConvidado, normalizarEmail, statusDaCompra } from "../trialGuest";
 
 const TRINTA_DIAS_S = 30 * 24 * 60 * 60;
@@ -34,6 +35,9 @@ const atribuicaoSchema = z
     utmContent: z.string().max(191).optional(),
     utmTerm: z.string().max(191).optional(),
     landingUrl: z.string().max(2048).optional(),
+    // GA4 (só vem com consentimento). Formato conferido; lixo vira undefined.
+    ga4ClientId: z.string().regex(/^\d{1,20}\.\d{1,20}$/).optional().catch(undefined),
+    ga4SessionId: z.string().regex(/^\d{6,20}$/).optional().catch(undefined),
   })
   .partial()
   .optional();
@@ -101,6 +105,8 @@ export const trialRouter = router({
     validDays: getTrialValidDays(),
     /** Visitante sem conta paga primeiro; a conta nasce no pagamento (ver server/trialGuest.ts). */
     compraSemConta: isAsaasConfigured() && compraSemContaLigada(),
+    /** Com a chave do Measurement Protocol, a compra vai ao GA4 pelo servidor e a tela não manda de novo. */
+    ga4CompraPeloServidor: ga4ServidorConfigurado(),
   })),
 
   /** Compra sem conta: nome, e-mail e CPF. Não cria conta (só quando o pagamento for confirmado). */
@@ -205,6 +211,8 @@ export const trialRouter = router({
           utmContent: z.string().max(191).optional(),
           utmTerm: z.string().max(191).optional(),
           landingUrl: z.string().max(2048).optional(),
+          ga4ClientId: z.string().regex(/^\d{1,20}\.\d{1,20}$/).optional().catch(undefined),
+          ga4SessionId: z.string().regex(/^\d{6,20}$/).optional().catch(undefined),
         })
         .partial()
         .optional(),

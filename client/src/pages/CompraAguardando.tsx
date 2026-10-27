@@ -34,6 +34,8 @@ export default function CompraAguardando() {
     },
   );
   const dados = status.data;
+  // Com a chave do GA4 no servidor, a compra já vai pelo servidor: aqui não manda de novo
+  const { data: info } = trpc.trial.info.useQuery();
 
   useEffect(() => {
     if (dados?.situacao === "paga" || dados?.situacao === "cancelada") limparCompra();
@@ -42,11 +44,11 @@ export default function CompraAguardando() {
   // Compra no GA4, uma vez por cobrança (sobrevive a recarregar a página)
   useEffect(() => {
     const c = dados?.compra;
-    if (dados?.situacao !== "paga" || !c) return;
+    if (dados?.situacao !== "paga" || !c || !info || info.ga4CompraPeloServidor) return;
     const chave = `shadia:ga4:purchase:${c.id}`;
     try { if (sessionStorage.getItem(chave)) return; sessionStorage.setItem(chave, "1"); } catch { /* segue: o GA4 deduplica pelo id */ }
     trackPurchaseGA4({ transactionId: c.id, value: c.valorCentavos / 100, contentId: `lesson:${dados.lessonId}` });
-  }, [dados?.situacao, dados?.compra, dados?.lessonId]);
+  }, [dados?.situacao, dados?.compra, dados?.lessonId, info]);
 
   const copiar = async () => {
     const codigo = dados?.pix?.copiaECola;

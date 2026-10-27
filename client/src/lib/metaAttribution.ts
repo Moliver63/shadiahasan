@@ -19,6 +19,7 @@
  *
  * Nada aqui identifica a pessoa. São identificadores de clique e de navegador.
  */
+import { idsGA4Atuais } from "@/lib/ga4Ids";
 
 const CHAVE_SESSAO = "shadia:meta-attr";
 
@@ -32,6 +33,9 @@ export type AtribuicaoMeta = {
   utmTerm?: string;
   /** URL onde o visitante entrou, exigida pela Conversions API como event_source_url. */
   landingUrl?: string;
+  /** GA4, só com consentimento (ver lib/ga4Ids.ts). Não é gravado na sessão. */
+  ga4ClientId?: string;
+  ga4SessionId?: string;
 };
 
 function lerCookie(nome: string): string | undefined {
@@ -110,6 +114,8 @@ export function atribuicaoAtual(): AtribuicaoMeta {
     ...(fbp ? { fbp } : {}),
     // O cookie escrito pelo pixel vale mais que o nosso, montado do fbclid.
     ...(fbcDoCookie ? { fbc: fbcDoCookie } : {}),
+    // Para o servidor mandar a compra ao GA4 quando o Pix cair
+    ...idsGA4Atuais(),
   };
 }
 

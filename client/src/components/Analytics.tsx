@@ -155,7 +155,9 @@ export default function Analytics() {
       return;
     }
     sendMeta("track", "PageView");
-    sendGA4("event", "page_view", { page_path: location });
+    // GA4: sem page_view manual. A "medição otimizada" do GA4 (ligada por
+    // padrão no fluxo de dados) já registra a troca de tela pelo histórico do
+    // navegador; mandar aqui também contava cada página duas vezes.
   }, [location]);
 
   return null;
@@ -247,4 +249,26 @@ export function trackCheckoutStart(planSlug: string, value: number) {
 export function trackLead(source: string) {
   sendGA4("event", "generate_lead", { source });
   sendMeta("track", "Lead", { source });
+}
+
+/**
+ * Compra confirmada, para o GA4. O pagamento acontece no Asaas e é confirmado
+ * no servidor; a tela de "aguardando" é o único lugar onde o comprador ainda
+ * está no site quando o dinheiro cai. `transaction_id` é o id da cobrança: o
+ * GA4 descarta repetições com o mesmo id. A Meta já recebe o Purchase pelo
+ * servidor (CAPI), então aqui não vai fbq para não duplicar.
+ */
+export function trackPurchaseGA4({ transactionId, value, contentId, contentName, currency = "BRL" }: {
+  transactionId: string;
+  value: number;
+  contentId: string;
+  contentName?: string;
+  currency?: string;
+}) {
+  sendGA4("event", "purchase", {
+    transaction_id: transactionId,
+    currency,
+    value,
+    items: [{ item_id: contentId, item_name: contentName ?? "Teste de 1 aula", price: value, quantity: 1 }],
+  });
 }

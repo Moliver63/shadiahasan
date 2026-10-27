@@ -173,6 +173,7 @@ export const trialRouter = router({
         logado,
         // Logado em outra conta, ou e-mail que já tinha conta: precisa entrar na conta do e-mail
         precisaEntrar: r.situacao === "paga" && !logado,
+        compra: r.compra,
       };
     }),
 

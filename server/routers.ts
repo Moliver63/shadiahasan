@@ -329,6 +329,32 @@ const buildFallbackPsychologyReply = (userMessage: string, courses: ChatCourse[]
   return `Estou aqui para te acolher com a abordagem humana e cuidadosa da Shadia Hasan. Posso te ajudar a entender o que você está vivendo, sugerir próximos passos com responsabilidade e indicar conteúdos que façam sentido para o seu momento.\n\nSe você quiser, me conte em uma frase: o que mais está pesando hoje — ansiedade, autoestima, relacionamentos, comunicação, propósito ou outro tema?${suggestions}`;
 };
 
+/**
+ * A tabela `leads` existe no schema do Drizzle mas nunca foi criada no banco
+ * de produção (achado em 27/10/2026: o painel admin dava erro 500 em
+ * leads.listAll e o formulário de e-mail da home falharia em qualquer envio).
+ * Cria na primeira necessidade, sem depender de migração manual.
+ */
+let tabelaLeadsPronta: Promise<void> | null = null;
+function garantirTabelaLeads(database: NonNullable<Awaited<ReturnType<typeof db.getDb>>>): Promise<void> {
+  if (!tabelaLeadsPronta) {
+    tabelaLeadsPronta = (async () => {
+      const { sql } = await import("drizzle-orm");
+      await database.execute(sql`
+        CREATE TABLE IF NOT EXISTS "leads" (
+          "id" serial PRIMARY KEY,
+          "email" varchar(320) NOT NULL UNIQUE,
+          "name" varchar(255),
+          "source" varchar(100) NOT NULL DEFAULT 'home',
+          "convertedToUserId" integer,
+          "createdAt" timestamp NOT NULL DEFAULT now()
+        )
+      `);
+    })().catch((e) => { tabelaLeadsPronta = null; throw e; });
+  }
+  return tabelaLeadsPronta;
+}
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -1994,6 +2020,7 @@ export const appRouter = router({
         const database = await db.getDb();
         if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
         const { leads } = await import("../drizzle/schema");
+        await garantirTabelaLeads(database);
 
         try {
           await database.insert(leads).values({
@@ -2017,6 +2044,7 @@ export const appRouter = router({
       if (!database) return [];
       const { leads } = await import("../drizzle/schema");
       const { desc } = await import("drizzle-orm");
+      await garantirTabelaLeads(database);
       return database.select().from(leads).orderBy(desc(leads.createdAt));
     }),
   }),

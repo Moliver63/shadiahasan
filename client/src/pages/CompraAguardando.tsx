@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { lerCompra, limparCompra } from "@/lib/compraSemConta";
 import { getLoginUrl } from "@/const";
+import { trackPurchaseGA4 } from "@/components/Analytics";
 
 /** Fora do componente: definida dentro, remontaria a cada consulta (4 s) e fecharia o QR aberto. */
 function Moldura({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,15 @@ export default function CompraAguardando() {
   useEffect(() => {
     if (dados?.situacao === "paga" || dados?.situacao === "cancelada") limparCompra();
   }, [dados?.situacao]);
+
+  // Compra no GA4, uma vez por cobrança (sobrevive a recarregar a página)
+  useEffect(() => {
+    const c = dados?.compra;
+    if (dados?.situacao !== "paga" || !c) return;
+    const chave = `shadia:ga4:purchase:${c.id}`;
+    try { if (sessionStorage.getItem(chave)) return; sessionStorage.setItem(chave, "1"); } catch { /* segue: o GA4 deduplica pelo id */ }
+    trackPurchaseGA4({ transactionId: c.id, value: c.valorCentavos / 100, contentId: `lesson:${dados.lessonId}` });
+  }, [dados?.situacao, dados?.compra, dados?.lessonId]);
 
   const copiar = async () => {
     const codigo = dados?.pix?.copiaECola;

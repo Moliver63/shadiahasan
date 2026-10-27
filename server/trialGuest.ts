@@ -524,6 +524,7 @@ export async function statusDaCompra(token: string, deps?: {
   emailMascarado: string;
   entrarSozinho: { userId: number; email: string } | null;
   precisaEntrar: boolean;
+  compra: { id: string; valorCentavos: number } | null;
 } | null> {
   if (!token || token.length < 20 || !(await ensureGuestSchema())) return null;
   const d = await db.getDb();
@@ -569,6 +570,8 @@ export async function statusDaCompra(token: string, deps?: {
     emailMascarado: mascararEmail(compra.email),
     entrarSozinho: r.entrarSozinho && compra.userId ? { userId: compra.userId, email: compra.email } : null,
     precisaEntrar: r.precisaEntrar,
+    /** Só depois de pago: a tela manda a compra ao GA4 (id da cobrança evita contar duas vezes). */
+    compra: r.situacao === "paga" && compra.asaasPaymentId ? { id: compra.asaasPaymentId, valorCentavos: compra.amountCents } : null,
   };
 }
 

@@ -449,3 +449,9 @@ Estado em produção: `ASAAS_API_KEY` já está no Render. **Ainda conferir:** `
 4. fechar os erros de `pnpm check` e deixar o comando em zero;
 5. compra avulsa (UI + checkout);
 6. limpeza do repositório (scripts de debug, arquivos sensíveis, README).
+
+## Vídeo-convite da Shadia na oferta de 1 aula (27/10/2026)
+- `client/src/components/ConviteShadiaVideo.tsx`, dentro de `TrialOfferSection` entre a oferta e os cards (só quando `canBuy`).
+- Mesmo vídeo do anúncio em vídeo da campanha 804. Termina com "clica no botão abaixo e escolha o seu tema": o botão "Escolher meu tema" rola até `#aulas-de-entrada`, cujo título passou a ser "Escolha o seu tema".
+- Sem autoplay: até o play só baixa a capa (`/midia/shadia-convite-capa.jpg`, ~55 KB); o vídeo 720p (`/midia/shadia-convite-720.mp4`, ~7 MB) carrega no toque. Eventos GA4 `video_play` e `video_complete`.
+- `/midia/anuncio-shadia-aula.mp4` (1080x1920, 15 MB) existe só para a Meta buscar por URL ao criar o anúncio; não é usado na página.

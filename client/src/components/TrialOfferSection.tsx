@@ -6,6 +6,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { formatDuration } from "@/lib/formatDuration";
 import TrialPassDialog, { formatBRL } from "@/components/TrialPassDialog";
 import GuestCheckoutDialog from "@/components/GuestCheckoutDialog";
+import ConviteShadiaVideo from "@/components/ConviteShadiaVideo";
 import { trackViewContent } from "@/components/Analytics";
 import { getLoginUrl } from "@/const";
 import { guardarIntencao, lerIntencao, limparIntencao, veioDaOferta } from "@/lib/trialIntent";
@@ -184,10 +185,13 @@ export default function TrialOfferSection() {
           </ul>
         </div>
 
+        {/* Convite em vídeo: termina com "clica no botão abaixo e escolha o seu tema" */}
+        {canBuy && <ConviteShadiaVideo price={price} validDays={info.validDays} onEscolher={scrollToCards} />}
+
         {/* Uma aula de entrada por curso */}
         {canBuy && (
         <div id="aulas-de-entrada" className="mt-12 scroll-mt-24">
-          <p className="mb-5 text-[11px] font-medium uppercase tracking-[0.3em] text-[#d9b27c]">Escolha por onde começar</p>
+          <p className="mb-5 text-[11px] font-medium uppercase tracking-[0.3em] text-[#d9b27c]">Escolha o seu tema</p>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {entries.map((entry) => (
               <button

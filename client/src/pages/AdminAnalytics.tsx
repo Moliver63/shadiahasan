@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AcessosChart } from "@/components/AcessosChart";
 import {
   BarChart2,
   ExternalLink,
@@ -77,6 +78,9 @@ export default function AdminAnalytics() {
             Métricas de tráfego, leads capturados e conversão da plataforma.
           </p>
         </div>
+
+        {/* Acessos por dia: GA4 + Meta + Clarity */}
+        <AcessosChart />
 
         {/* Status dos pixels */}
         <Card>

@@ -114,6 +114,13 @@ async function startServer() {
       run();
       setInterval(run, 10 * 60_000).unref();
     }, 60_000);
+
+    // Clarity só informa as últimas 24 h: guarda um número por dia para o gráfico de acessos (sem token, não faz nada)
+    setTimeout(() => {
+      const run = () => { import('../acessos').then((m) => m.manterClarityEmDia()).catch(() => undefined); };
+      run();
+      setInterval(run, 3 * 60 * 60_000).unref();
+    }, 90_000);
   });
 }
 

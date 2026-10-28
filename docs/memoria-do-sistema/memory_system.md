@@ -369,6 +369,25 @@ Motivo: campanha 804 levou ~25 visitantes à oferta e nenhum passou do login
   `loginMethod=email`. Depende de `RESEND_API_KEY` válida.
 - Desligar: `TRIAL_GUEST_CHECKOUT=off` no Render.
 
+### Gráfico de acessos no Analytics (28/10/2026)
+
+Pedido do Michel: gráfico com a quantidade de acessos usando Meta, GA4 e Clarity. Fica no topo de `/admin/analytics` (`client/src/components/AcessosChart.tsx`), lido por `trpc.acessos.porDia` (admin, 7/30/90 dias, cache de 5 min, botão atualizar). Lógica em `server/acessos.ts`.
+
+As chaves que o site já tinha (`GA4_API_SECRET`, `META_CAPI_ACCESS_TOKEN`) só ENVIAM dados. Para LER, cada fonte pede credencial própria, todas opcionais. Sem ela a fonte aparece como "não conectada" com o nome da variável que falta, e as outras seguem normais.
+
+| Fonte | Variáveis no Render | O que entrega |
+|---|---|---|
+| GA4 | `GA4_PROPERTY_ID` (número da propriedade), `GA4_SERVICE_ACCOUNT_JSON` (JSON da conta de serviço, puro ou em base64; o e-mail dela precisa ser Leitor na propriedade; Data API ligada no projeto Google) | usuários, sessões e visualizações por dia |
+| Meta | `META_ADS_ACCOUNT_ID`, `META_ADS_ACCESS_TOKEN` (permissão `ads_read`; o token da API de Conversões não serve) | impressões, cliques no link e visitas à página (`landing_page_view`) por dia, só de anúncio |
+| Clarity | `CLARITY_API_TOKEN` (Settings > Data Export) | sessões (sem robôs) e usuários |
+
+Limites que o gráfico não esconde:
+- **Clarity não tem série diária.** A API só devolve as últimas 24 h e aceita 10 chamadas por dia. `manterClarityEmDia` (a cada 3 h, agendado em `server/_core/index.ts`) grava um número por dia na tabela `analyticsClaritySnapshots`; o histórico começa na data da conexão.
+- **GA4 e Clarity só contam quem aceitou cookies de análise** (LGPD): ficam abaixo do tráfego real. Meta conta só quem veio pelo anúncio.
+- Token da Meta vai no cabeçalho `Authorization`, nunca na URL.
+- Totais somam só métricas somáveis (sessões, visualizações, cliques); usuários únicos ficam só na linha do gráfico.
+- Testes: `server/acessos.test.ts` (12). A parte do Clarity com banco foi testada à mão em Postgres local, não está na suíte.
+
 ### GA4 mais preciso (27/10/2026)
 
 - `server/ga4.ts`: compra do teste vai ao GA4 pelo servidor quando o Asaas

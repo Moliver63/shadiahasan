@@ -10,6 +10,7 @@ import { materialsRouter } from "./routers/materials";
 import { courseGroupsRouter } from "./routers/groups";
 import { contentCollectionsRouter } from "./routers/collections";
 import { trialRouter } from "./routers/trial";
+import { acessosRouter } from "./routers/acessos";
 import { caixaEmailRouter } from "./routers/caixaEmail";
 import { publicProcedure, router, protectedProcedure, superAdminProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -2067,6 +2068,8 @@ export const appRouter = router({
   courseGroups: courseGroupsRouter,
   collections: contentCollectionsRouter,
   trial: trialRouter,
+  // Gráfico de acessos (GA4, Meta, Clarity) no painel Analytics
+  acessos: acessosRouter,
   // Caixa de e-mail do admin (contato@)
   caixaEmail: caixaEmailRouter,
 });

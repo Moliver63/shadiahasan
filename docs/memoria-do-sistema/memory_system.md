@@ -501,3 +501,4 @@ Testado de ponta a ponta com Postgres local (`server/trialGuest.vinculo.test.ts`
 6. `createCheckout` usava `shadiahasan.club` como origem padrão; agora `.com`.
 
 Continua por desenho: quem digita o e-mail de OUTRA pessoa paga a aula para a conta dela (o e-mail é a identidade). A tela mostra o e-mail mascarado para conferir antes de pagar.
+- 28/10/2026: aviso de venda do teste de 1 aula. Na primeira ativação do passe (`processTrialEvent`, depois de `concluirCompra`), `avisarVendaAoAdmin` manda e-mail "[Painel] Venda confirmada: R$ 19,90" para `EMAIL_AVISOS_ADMIN` com aluno, aula, forma de pagamento, origem (UTM) e id da cobrança. Assinaturas novas já avisavam por `emailAvisos.ts`.

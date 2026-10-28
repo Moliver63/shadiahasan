@@ -705,6 +705,8 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
       if (firstActivation) await enviarCompraParaMeta(pass.id, paymentId);
       if (firstActivation) await enviarCompraParaGA4(pass.id, paymentId);
       if (guest) await (await import("./trialGuest")).concluirCompra(paymentId);
+      // Depois de concluirCompra: na compra sem conta, é ali que o aluno ganha conta.
+      if (firstActivation) await avisarVendaAoAdmin(pass.id, paymentId, payment.billingType, !!guest);
       return;
     }
 
@@ -741,6 +743,45 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
 
     default:
       console.log(`[Trial] evento sem ação: ${body.event}`);
+  }
+}
+
+/**
+ * E-mail para a equipe a cada venda confirmada do teste de 1 aula (28/10/2026).
+ * Vai para EMAIL_AVISOS_ADMIN (o mesmo das assinaturas novas). Uma vez por
+ * cobrança: só roda na primeira ativação do passe. Nunca atrapalha a venda.
+ */
+async function avisarVendaAoAdmin(passId: number, paymentId: string, billingType: string | undefined, semConta: boolean): Promise<void> {
+  try {
+    const d = await db.getDb();
+    if (!d) return;
+    const { rows } = (await d.execute(sql`
+      SELECT p."amountCents", p."utmCampaign", p."utmContent", p."utmSource",
+             l."title" AS "aula", c."title" AS "curso",
+             u."name" AS "nome", u."email" AS "email"
+        FROM "trialPasses" p
+        LEFT JOIN "lessons" l ON l."id" = p."lessonId"
+        LEFT JOIN "courses" c ON c."id" = p."courseId"
+        LEFT JOIN "users" u ON u."id" = p."userId"
+       WHERE p."id" = ${passId}
+       LIMIT 1
+    `)) as unknown as { rows: Record<string, any>[] };
+    const v = rows?.[0];
+    if (!v) return;
+    const valor = (Number(v.amountCents || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const forma = ({ PIX: "Pix", CREDIT_CARD: "Cartão", BOLETO: "Boleto" } as Record<string, string>)[String(billingType || "").toUpperCase()] || "Asaas";
+    const origem = [v.utmSource, v.utmCampaign, v.utmContent].filter(Boolean).join(" / ") || "direto (sem UTM)";
+    const { enviarAvisoInterno } = await import("./_core/email");
+    const r = await enviarAvisoInterno(`Venda confirmada: ${valor}`, [
+      `Teste de 1 aula pago por ${forma}.`,
+      `Aluno: ${v.nome || "(sem nome)"} <${v.email || "sem e-mail"}>${semConta ? ", conta criada na compra" : ""}.`,
+      `Aula: ${v.aula || "?"}${v.curso ? ` (${v.curso})` : ""}.`,
+      `Origem: ${origem}.`,
+      `Cobrança no Asaas: ${paymentId}.`,
+    ], { texto: "Ver pagamentos", url: "https://www.asaas.com/payment/list" });
+    if (!r.success) console.warn(`[Trial] aviso de venda não enviado: ${r.error}`);
+  } catch (e) {
+    console.warn("[Trial] falha ao avisar venda:", e instanceof Error ? e.message : e);
   }
 }
 

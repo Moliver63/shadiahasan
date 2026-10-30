@@ -103,6 +103,11 @@ async function startServer() {
     console.log(`Google OAuth: http://localhost:${port}/api/auth/google`);
     console.log(`Auth status:  http://localhost:${port}/api/auth/me\n`);
 
+    // Corrige acentos quebrados nos planos ("BÃ¡sico" → "Básico"); idempotente
+    setTimeout(() => {
+      import('../textoCorrigido').then((m) => m.consertarPlanosNoBanco()).catch(() => undefined);
+    }, 15_000);
+
     // Reprocessa eventos do Asaas que ficaram pendentes (não bloqueia a subida)
     setTimeout(() => {
       import('../asaas').then((m) => m.recoverAsaasEvents()).catch(() => undefined);

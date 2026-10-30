@@ -585,12 +585,13 @@ export async function getCourseStats() {
 // ============ SUBSCRIPTION PLANS ============
 
 import { subscriptionPlans, userSubscriptions, SubscriptionPlan, UserSubscription, InsertSubscriptionPlan, InsertUserSubscription } from "../drizzle/schema";
+import { consertarPlano } from "../shared/acentos";
 
 export async function getAllPlans() {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.isActive, 1));
+  return (await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.isActive, 1))).map(consertarPlano);
 }
 
 export async function getPlanById(id: number) {
@@ -598,7 +599,7 @@ export async function getPlanById(id: number) {
   if (!db) return undefined;
   
   const result = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, id)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return result.length > 0 ? consertarPlano(result[0]) : undefined;
 }
 
 export async function getPlanBySlug(slug: string) {
@@ -606,7 +607,7 @@ export async function getPlanBySlug(slug: string) {
   if (!db) return undefined;
   
   const result = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.slug, slug)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return result.length > 0 ? consertarPlano(result[0]) : undefined;
 }
 
 export async function createPlan(plan: InsertSubscriptionPlan) {
@@ -635,7 +636,7 @@ export async function getAllPlansAdmin() {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(subscriptionPlans); // Include inactive for admin
+  return (await db.select().from(subscriptionPlans)).map(consertarPlano); // Include inactive for admin
 }
 
 // ============ USER SUBSCRIPTIONS ============

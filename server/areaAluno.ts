@@ -11,6 +11,7 @@
  */
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import * as db from "./db";
+import { consertarAcentos } from "../shared/acentos";
 import {
   certificates, courses, enrollments, lessons, paymentHistory, subscriptionPlans, subscriptions, trialPasses,
 } from "../drizzle/schema";
@@ -137,7 +138,7 @@ export function montarAreaAluno(d: DadosAreaAluno, agora = new Date()): AreaAlun
     const todos = ativa.plan === "premium" || ativa.plan === "vip";
     plano = {
       slug: ativa.plan,
-      nome: info?.name || NOMES_PLANO[ativa.plan] || ativa.plan,
+      nome: consertarAcentos(info?.name) || NOMES_PLANO[ativa.plan] || ativa.plan,
       status: ativa.status,
       desde: ativa.startDate,
       ate: ativa.endDate,

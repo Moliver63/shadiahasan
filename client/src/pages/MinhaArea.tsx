@@ -147,15 +147,23 @@ export default function MinhaArea() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm text-muted-foreground">
-                      <p>
-                        {area.plano.todosOsCursos
-                          ? "Todos os cursos estão liberados para você."
-                          : `Você pode fazer até ${area.plano.limiteCursos} cursos ao mesmo tempo (${area.plano.cursosUsados} em uso).`}
-                      </p>
+                      {area.plano.todosOsCursos ? (
+                        <p>Todos os cursos estão liberados para você.</p>
+                      ) : (
+                        <>
+                          <p>
+                            Seu plano inclui até {area.plano.limiteCursos} cursos. Você está usando{" "}
+                            <strong className="text-foreground">{Math.min(area.plano.cursosUsados, area.plano.limiteCursos ?? 0)} de {area.plano.limiteCursos}</strong>.
+                          </p>
+                          {area.plano.cursosUsados >= (area.plano.limiteCursos ?? 0) && (
+                            <p>Para fazer outros cursos, conheça o plano Premium, com todos os cursos liberados.</p>
+                          )}
+                        </>
+                      )}
                       {area.plano.desde && <p>Assinante desde {data(area.plano.desde)}.</p>}
                       {area.plano.ate && <p>Acesso garantido até {data(area.plano.ate)}.</p>}
                       <div className="flex flex-wrap gap-2 pt-2">
-                        <Button asChild variant="outline" size="sm"><Link href="/courses">Ver cursos liberados</Link></Button>
+                        <Button asChild variant="outline" size="sm"><Link href="/courses">{area.plano.todosOsCursos ? "Ver todos os cursos" : "Ver catálogo"}</Link></Button>
                         <Button asChild variant="ghost" size="sm"><Link href="/my-subscription">Gerenciar assinatura</Link></Button>
                       </div>
                     </CardContent>

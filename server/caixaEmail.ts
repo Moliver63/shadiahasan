@@ -172,6 +172,14 @@ async function caixaDoDestino(destinos: string[] | null | undefined): Promise<Ca
     const achou = caixas.find((c) => c.endereco === local || c.endereco === base);
     if (achou) return achou;
   }
+  // financeiro@ (dos e-mails automáticos) cai na caixa chamada "Financeiro",
+  // mesmo que o endereço dela seja outro (ex.: o pessoal de quem cuida do setor).
+  const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  for (const local of locais) {
+    const base = local.split("+")[0];
+    const porNome = caixas.find((c) => semAcento(c.nome) === base);
+    if (porNome) return porNome;
+  }
   return caixas.find((c) => c.padrao) ?? caixas[0] ?? null;
 }
 

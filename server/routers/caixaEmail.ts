@@ -50,8 +50,10 @@ async function caixaOuPadrao(caixaId: number | null | undefined): Promise<Caixa>
 }
 
 function assinaturaDa(caixa: Caixa) {
-  // A caixa padrão assina como a psicóloga; as de setor, com o nome do setor.
-  return { setor: caixa.padrao ? null : caixa.nome, endereco: enderecoCompleto(caixa) };
+  // A caixa padrão e a caixa pessoal da Shadia assinam como a psicóloga (com CRP);
+  // as de setor (Financeiro, RH, TI...) assinam com o nome do setor, sem CRP.
+  const daPsicologa = caixa.padrao || caixa.endereco === "shadia" || caixa.nome.trim().toLowerCase() === "admin";
+  return { setor: daPsicologa ? null : caixa.nome, endereco: enderecoCompleto(caixa) };
 }
 
 // Endereços que não podem virar caixa: o noreply@ dos e-mails automáticos e

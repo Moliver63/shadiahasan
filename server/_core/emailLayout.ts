@@ -37,17 +37,79 @@ export function emailContato(): string {
 export const WHATSAPP_URL = "https://wa.me/5547991665536";
 
 /**
- * Contatos que fecham todo e-mail. Boas práticas: quem envia (nome + registro
- * profissional), canais escritos por extenso (o número aparece mesmo se o link
- * não abrir ou o e-mail for impresso), site e política de privacidade (LGPD).
+ * Quem fala em cada e-mail. Regra para não confundir o aluno:
+ *  - Psicóloga: só a Shadia, em 1ª pessoa, com CRP (boas-vindas, conteúdo).
+ *  - Atendimento ao aluno: conta e acesso (confirmar e-mail, senha, link, aula liberada).
+ *  - Financeiro: tudo que envolve dinheiro (cobrança, pagamento, assinatura, cancelamento).
+ * Setores falam no plural ("recebemos") e nunca levam o CRP.
+ * O remetente ("Shadia Hasan · Financeiro"), a etiqueta no topo, a assinatura,
+ * o rodapé e o responder-para seguem o mesmo setor.
  */
 export const CONTATOS = {
-  nome: "Shadia Hasan",
-  profissao: "Psicóloga · CRP 12/27052",
+  marca: "Shadia Hasan",
+  marcaCompleta: "Shadia Hasan · Psicologia & Desenvolvimento Humano",
+  crp: "Psicóloga · CRP 12/27052",
   whatsappTexto: "(47) 99166-5536",
   instagram: "@shadia_hasan",
   instagramUrl: "https://www.instagram.com/shadia_hasan",
 } as const;
+
+export type Departamento = "psicologa" | "atendimento" | "financeiro";
+
+export type IdentidadeEmail = {
+  /** Etiqueta acima do título (null = sem etiqueta). */
+  etiqueta: string | null;
+  /** Nome que aparece na caixa de entrada, antes do endereço noreply@. */
+  remetente: string;
+  /** Primeira linha da assinatura. */
+  assina: string;
+  /** Segunda linha da assinatura. */
+  subtitulo: string;
+  /** E-mail exibido e usado no responder-para. */
+  email: string;
+  /** Frase do rodapé sobre responder. */
+  responder: string;
+};
+
+function dominioEmail(): string {
+  return (emailContato().split("@")[1] || "shadiahasan.com").toLowerCase();
+}
+
+/** Caixa do Financeiro. Sem caixa "financeiro" no admin, o e-mail cai na caixa cujo nome é "Financeiro". */
+export function emailFinanceiro(): string {
+  return process.env.EMAIL_FINANCEIRO || `financeiro@${dominioEmail()}`;
+}
+
+export function identidade(dep: Departamento = "atendimento"): IdentidadeEmail {
+  if (dep === "psicologa") {
+    return {
+      etiqueta: null,
+      remetente: CONTATOS.marca,
+      assina: CONTATOS.marca,
+      subtitulo: CONTATOS.crp,
+      email: emailContato(),
+      responder: "Quer me contar algo? É só responder este e-mail.",
+    };
+  }
+  if (dep === "financeiro") {
+    return {
+      etiqueta: "Financeiro",
+      remetente: `${CONTATOS.marca} · Financeiro`,
+      assina: "Equipe Financeira",
+      subtitulo: CONTATOS.marcaCompleta,
+      email: emailFinanceiro(),
+      responder: "Dúvidas sobre pagamento? Responda este e-mail: a resposta vai direto para o Financeiro.",
+    };
+  }
+  return {
+    etiqueta: "Atendimento ao aluno",
+    remetente: `${CONTATOS.marca} · Atendimento`,
+    assina: "Atendimento ao aluno",
+    subtitulo: CONTATOS.marcaCompleta,
+    email: emailContato(),
+    responder: "Precisa de ajuda com acesso ou conta? Responda este e-mail: a resposta vai direto para o Atendimento.",
+  };
+}
 
 /** Logo com largura e altura fixas (evita "pulo" do layout) e texto alternativo visível se a imagem for bloqueada. */
 export function logoEmail(largura = 150): string {
@@ -57,22 +119,25 @@ export function logoEmail(largura = 150): string {
 }
 
 /**
- * Bloco de contatos (assinatura): nome, registro, WhatsApp, e-mail, site e Instagram.
- * `setor` troca a linha do registro pelo setor que responde (ex.: "Financeiro").
+ * Assinatura: quem assina, de onde é, e os canais em colunas alinhadas
+ * (rótulo à esquerda, contato à direita), iguais em todos os setores.
  */
-export function blocoContatos(params: { setor?: string | null; email?: string | null; semNome?: boolean } = {}): string {
+export function blocoContatos(params: { assina: string; subtitulo: string; email: string; semAssina?: boolean }): string {
   const site = siteUrl();
-  const email = params.email || emailContato();
   const dominio = site.replace(/^https?:\/\//, "");
   const link = (href: string, texto: string) =>
     `<a href="${escapar(href)}" target="_blank" style="color:${MARCA.verde};text-decoration:none;">${escapar(texto)}</a>`;
-  const cel = `font-family:${SANS};font-size:13px;line-height:1.7;color:${MARCA.suave};`;
+  const rot = `width:76px;padding:3px 14px 3px 0;font-family:${SANS};font-size:12px;line-height:1.5;color:#8A939A;white-space:nowrap;vertical-align:top;`;
+  const val = `padding:3px 0;font-family:${SANS};font-size:13px;line-height:1.5;color:${MARCA.texto};word-break:break-word;`;
+  const linha = (r: string, v: string) => `<tr><td style="${rot}">${r}</td><td style="${val}">${v}</td></tr>`;
   return `
   <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-    ${params.semNome ? "" : `<tr><td style="font-family:${SERIFA};font-size:16px;line-height:1.4;color:${MARCA.azul};">${escapar(CONTATOS.nome)}</td></tr>`}
-    <tr><td style="${cel}">${params.setor ? `<strong style="color:${MARCA.azul};font-weight:600;">${escapar(params.setor)}</strong> · ` : ""}${escapar(CONTATOS.profissao)}</td></tr>
-    <tr><td style="${cel}">WhatsApp ${link(WHATSAPP_URL, CONTATOS.whatsappTexto)} · ${link(`mailto:${email}`, email)}</td></tr>
-    <tr><td style="${cel}">${link(site, dominio)} · Instagram ${link(CONTATOS.instagramUrl, CONTATOS.instagram)}</td></tr>
+    ${params.semAssina ? "" : `<tr><td colspan="2" style="font-family:${SERIFA};font-size:17px;line-height:1.35;color:${MARCA.azul};">${escapar(params.assina)}</td></tr>`}
+    <tr><td colspan="2" style="padding:0 0 10px;font-family:${SANS};font-size:13px;line-height:1.5;color:${MARCA.suave};">${escapar(params.subtitulo)}</td></tr>
+    ${linha("E-mail", link(`mailto:${params.email}`, params.email))}
+    ${linha("WhatsApp", link(WHATSAPP_URL, CONTATOS.whatsappTexto))}
+    ${linha("Site", link(site, dominio))}
+    ${linha("Instagram", link(CONTATOS.instagramUrl, CONTATOS.instagram))}
   </table>`;
 }
 
@@ -173,7 +238,10 @@ export function layoutEmail(params: {
   corpo: string;
   /** Por que a pessoa recebeu este e-mail (rodapé). */
   motivo?: string;
+  /** Quem fala: define etiqueta, assinatura e rodapé. Padrão: Atendimento ao aluno. */
+  departamento?: Departamento;
 }): string {
+  const id = identidade(params.departamento);
   const site = siteUrl();
   const dominio = site.replace(/^https?:\/\//, "");
 
@@ -195,19 +263,20 @@ export function layoutEmail(params: {
         ${logoEmail(150)}
       </td></tr>
       <tr><td style="background:${MARCA.branco};border:1px solid ${MARCA.linha};border-radius:10px;padding:36px 32px 28px;">
+        ${id.etiqueta ? `<p style="margin:0 0 8px;font-family:${SANS};font-size:12px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:${MARCA.verde};">${escapar(id.etiqueta)}</p>` : ""}
         <h1 style="margin:0 0 20px;font-family:${SERIFA};font-weight:normal;font-size:26px;line-height:1.3;color:${MARCA.azul};">${escapar(params.titulo)}</h1>
         ${params.corpo}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;border-top:1px solid ${MARCA.linha};">
-          <tr><td style="padding-top:18px;">${blocoContatos()}</td></tr>
+          <tr><td style="padding-top:18px;">${blocoContatos({ assina: id.assina, subtitulo: id.subtitulo, email: id.email })}</td></tr>
         </table>
       </td></tr>
       <tr><td align="center" style="padding:22px 12px 0;font-family:${SANS};font-size:12px;line-height:1.7;color:${MARCA.suave};">
-        Ficou com dúvida? É só responder este e-mail: a resposta chega direto para a nossa equipe.<br>
+        ${escapar(id.responder)}<br>
         <a href="${escapar(site)}/minha-area" style="color:${MARCA.verde};text-decoration:none;">Minha Área</a>
         &nbsp;·&nbsp; <a href="${escapar(site)}/faq" style="color:${MARCA.verde};text-decoration:none;">Perguntas frequentes</a>
         &nbsp;·&nbsp; <a href="${escapar(site)}/privacy" style="color:${MARCA.verde};text-decoration:none;">Política de privacidade</a>
         ${params.motivo ? `<br><span style="color:#8A939A;">${escapar(params.motivo)}</span>` : ""}
-        <br><span style="color:#8A939A;">© ${new Date().getFullYear()} ${escapar(CONTATOS.nome)} · ${escapar(dominio)}</span>
+        <br><span style="color:#8A939A;">© ${new Date().getFullYear()} ${escapar(CONTATOS.marcaCompleta)}</span>
       </td></tr>
     </table>
   </td></tr>
@@ -229,6 +298,7 @@ export function htmlParaTexto(html: string): string {
       if (!t) return ""; // link só de imagem (logo)
       return href.startsWith("mailto:") || t === href ? t : `${t} (${href})`;
     })
+    .replace(/<\/td>\s*<td[^>]*>/gi, ": ")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|h1|tr|table|div)>/gi, "\n")
     .replace(/<[^>]+>/g, "")

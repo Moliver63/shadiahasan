@@ -14,6 +14,9 @@ import {
   p,
   pequeno,
   blocoContatos,
+  CONTATOS,
+  identidade,
+  type Departamento,
   resumo,
   saudacao,
   siteUrl,
@@ -41,6 +44,13 @@ export function getResend(): Resend | null {
 
 const FROM_EMAIL = () => process.env.FROM_EMAIL || "Shadia Hasan <noreply@shadiahasan.com>";
 
+/** Remetente com o nome do setor ("Shadia Hasan · Financeiro <noreply@...>"), mantendo o endereço configurado. */
+export function remetenteDoSetor(dep: Departamento): string {
+  const de = FROM_EMAIL();
+  const endereco = de.match(/<([^>]+)>/)?.[1] || de.trim();
+  return `${identidade(dep).remetente} <${endereco}>`;
+}
+
 /** Remetente da caixa de contato (respostas escritas à mão no admin). */
 export function remetenteContato(): string {
   return process.env.EMAIL_CONTATO_REMETENTE || `Shadia Hasan <${emailContato()}>`;
@@ -62,7 +72,10 @@ export async function enviarEmail(params: {
   texto?: string;
   de?: string;
   responderPara?: string;
+  /** Setor que envia: define o nome do remetente e para onde vão as respostas. */
+  departamento?: Departamento;
 }): Promise<ResultadoEnvio> {
+  const id = params.departamento ? identidade(params.departamento) : null;
   const resend = getResend();
   if (!resend) {
     console.warn(`[Email] RESEND_API_KEY ausente: "${params.assunto}" para ${params.para} não foi enviado`);
@@ -70,12 +83,12 @@ export async function enviarEmail(params: {
   }
   try {
     const { data, error } = await resend.emails.send({
-      from: params.de ?? FROM_EMAIL(),
+      from: params.de ?? (params.departamento ? remetenteDoSetor(params.departamento) : FROM_EMAIL()),
       to: [params.para],
       subject: params.assunto,
       html: params.html,
       text: params.texto ?? htmlParaTexto(params.html),
-      replyTo: params.responderPara ?? emailContato(),
+      replyTo: params.responderPara ?? id?.email ?? emailContato(),
     });
     if (error) {
       console.error("[Email] Resend recusou o envio:", error);
@@ -94,6 +107,7 @@ export async function enviarEmail(params: {
 export async function sendVerificationEmail(email: string, name: string, token: string) {
   const url = `${siteUrl()}/verify-email?token=${encodeURIComponent(token)}`;
   const html = layoutEmail({
+    departamento: "atendimento",
     preheader: "Falta só confirmar seu e-mail para entrar na plataforma.",
     titulo: "Confirme seu e-mail",
     corpo:
@@ -104,12 +118,13 @@ export async function sendVerificationEmail(email: string, name: string, token: 
       pequeno("O link vale por 24 horas. Se não foi você que criou a conta, ignore esta mensagem."),
     motivo: "Você recebeu este e-mail porque alguém criou uma conta em shadiahasan.com com este endereço.",
   });
-  return enviarEmail({ para: email, assunto: "Confirme seu e-mail", html });
+  return enviarEmail({ departamento: "atendimento", para: email, assunto: "Confirme seu e-mail", html });
 }
 
 export async function sendPasswordResetEmail(email: string, name: string, token: string) {
   const url = `${siteUrl()}/reset-password?token=${encodeURIComponent(token)}`;
   const html = layoutEmail({
+    departamento: "atendimento",
     preheader: "Use o link para criar uma nova senha. Ele vale por 1 hora.",
     titulo: "Nova senha",
     corpo:
@@ -120,12 +135,13 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
       atencao("Não pediu a troca? Pode ignorar este e-mail. Sua senha atual continua valendo."),
     motivo: "Você recebeu este e-mail porque foi pedida uma nova senha para esta conta.",
   });
-  return enviarEmail({ para: email, assunto: "Crie sua nova senha", html });
+  return enviarEmail({ departamento: "atendimento", para: email, assunto: "Crie sua nova senha", html });
 }
 
 export async function sendWelcomeEmail(email: string, name: string) {
   const site = siteUrl();
   const html = layoutEmail({
+    departamento: "psicologa",
     preheader: "Sua conta está ativa. Veja por onde começar.",
     titulo: "Sua conta está ativa",
     corpo:
@@ -138,7 +154,7 @@ export async function sendWelcomeEmail(email: string, name: string) {
       ),
     motivo: "Você recebeu este e-mail porque criou uma conta em shadiahasan.com.",
   });
-  return enviarEmail({ para: email, assunto: "Sua conta está ativa", html });
+  return enviarEmail({ departamento: "psicologa", para: email, assunto: "Sua conta está ativa", html });
 }
 
 // ─── Pagamento ───────────────────────────────────────────────────────────────
@@ -153,6 +169,7 @@ export async function sendPaymentReminderEmail(
   params: { invoiceUrl: string; what: string; note?: string },
 ) {
   const html = layoutEmail({
+    departamento: "financeiro",
     preheader: "Seu pagamento ficou pela metade. Dá para retomar de onde parou.",
     titulo: "Seu pagamento ficou pela metade",
     corpo:
@@ -162,7 +179,7 @@ export async function sendPaymentReminderEmail(
       (params.note ? p(escapar(params.note)) : "") +
       pequeno("Se você já pagou, pode ignorar esta mensagem. A liberação acontece sozinha assim que o pagamento é confirmado."),
   });
-  return enviarEmail({ para: email, assunto: "Seu pagamento não foi concluído", html });
+  return enviarEmail({ departamento: "financeiro", para: email, assunto: "Seu pagamento não foi concluído", html });
 }
 
 /**
@@ -186,22 +203,24 @@ export async function sendTrialAccessEmail(params: {
     : p("A aula foi liberada na conta que você já tem com este e-mail. O botão acima já entra na sua conta, sem senha. Depois, entre como sempre (senha ou Google).");
 
   const html = layoutEmail({
+    departamento: "atendimento",
     preheader: "Pagamento confirmado. Sua aula já pode ser assistida.",
     titulo: "Sua aula está liberada",
     corpo:
       p(saudacao(params.name)) +
-      p("Recebi seu pagamento, obrigada. A aula já está liberada para você:") +
+      p("Recebemos seu pagamento. A aula já está liberada para você:") +
       botao("Assistir à aula", params.lessonUrl) +
       pequeno("Este botão entra direto na sua conta e funciona uma vez, por 7 dias. Não encaminhe este e-mail.") +
       blocoSenha,
     motivo: "Você recebeu este e-mail porque comprou a aula experimental em shadiahasan.com.",
   });
-  return enviarEmail({ para: params.email, assunto: "Sua aula está liberada", html });
+  return enviarEmail({ departamento: "atendimento", para: params.email, assunto: "Sua aula está liberada", html });
 }
 
 /** Link de uso único para entrar sem senha (vale 24 h). */
 export async function sendLinkDeAcessoEmail(email: string, name: string, url: string) {
   const html = layoutEmail({
+    departamento: "atendimento",
     preheader: "Seu link para entrar na plataforma. Vale por 24 horas.",
     titulo: "Seu link de acesso",
     corpo:
@@ -212,7 +231,7 @@ export async function sendLinkDeAcessoEmail(email: string, name: string, url: st
       pequeno("O link vale por 24 horas e funciona uma vez. Se não foi você que pediu, ignore este e-mail: ninguém entra sem ele."),
     motivo: "Você recebeu este e-mail porque pediu um link de acesso em shadiahasan.com.",
   });
-  return enviarEmail({ para: email, assunto: "Seu link de acesso", html });
+  return enviarEmail({ departamento: "atendimento", para: email, assunto: "Seu link de acesso", html });
 }
 
 // ─── Assinatura ──────────────────────────────────────────────────────────────
@@ -231,18 +250,19 @@ export async function sendAssinaturaAtivadaEmail(
   if (params.forma) linhas.push(["Pagamento", params.forma]);
 
   const html = layoutEmail({
+    departamento: "financeiro",
     preheader: `Seu plano ${params.plano} está ativo. Todas as aulas do plano já estão liberadas.`,
     titulo: "Sua assinatura está ativa",
     corpo:
       p(saudacao(name)) +
-      p("Recebi a confirmação do seu pagamento. Que bom ter você comigo. As aulas do seu plano já estão liberadas.") +
+      p("Recebemos a confirmação do seu pagamento. As aulas do seu plano já estão liberadas.") +
       resumo(linhas) +
       botao("Começar agora", `${site}/courses`) +
       p("Vá no seu ritmo. Uma aula bem vivida vale mais que três assistidas às pressas.") +
       pequeno(`A renovação é mensal e automática. Você pode cancelar quando quiser em <a href="${escapar(site)}/my-subscription" style="color:${MARCA.verde};">Minha assinatura</a>.`),
     motivo: MOTIVO_ASSINATURA,
   });
-  return enviarEmail({ para: email, assunto: `Sua assinatura ${params.plano} está ativa`, html });
+  return enviarEmail({ departamento: "financeiro", para: email, assunto: `Sua assinatura ${params.plano} está ativa`, html });
 }
 
 /** Renovação paga (e reativação depois de uma pausa por atraso). */
@@ -256,21 +276,22 @@ export async function sendPagamentoRecebidoEmail(
   linhas.push(["Data", formatarData(params.pagoEm ?? new Date())]);
 
   const html = layoutEmail({
+    departamento: "financeiro",
     preheader: params.reativado ? "Pagamento confirmado. Seu acesso voltou." : "Pagamento da sua assinatura confirmado.",
     titulo: params.reativado ? "Seu acesso voltou" : "Pagamento confirmado",
     corpo:
       p(saudacao(name)) +
       p(
         params.reativado
-          ? "Recebi seu pagamento e o acesso às aulas foi liberado de novo. Você continua exatamente de onde parou."
-          : "Recebi o pagamento da sua assinatura deste mês. Seu acesso segue normal, não precisa fazer nada.",
+          ? "Recebemos seu pagamento e o acesso às aulas foi liberado de novo. Você continua exatamente de onde parou."
+          : "Recebemos o pagamento da sua assinatura deste mês. Seu acesso segue normal, não precisa fazer nada.",
       ) +
       resumo(linhas) +
       (params.reciboUrl ? pequeno(`Comprovante: <a href="${escapar(params.reciboUrl)}" style="color:${MARCA.verde};">ver recibo</a>`) : "") +
       botao("Ir para as aulas", `${siteUrl()}/minha-area`),
     motivo: MOTIVO_ASSINATURA,
   });
-  return enviarEmail({
+  return enviarEmail({ departamento: "financeiro",
     para: email,
     assunto: params.reativado ? "Seu acesso foi liberado de novo" : "Pagamento da assinatura confirmado",
     html,
@@ -289,6 +310,7 @@ export async function sendPagamentoAtrasadoEmail(
       : "Seu acesso fica pausado até o pagamento, sem perder nada do que você já fez.";
 
   const html = layoutEmail({
+    departamento: "financeiro",
     preheader: "A mensalidade venceu e ainda não foi paga. Veja como resolver.",
     titulo: "A mensalidade ainda não foi paga",
     corpo:
@@ -303,7 +325,7 @@ export async function sendPagamentoAtrasadoEmail(
       pequeno("Se você já pagou, desconsidere. Pagamentos por boleto podem levar até 3 dias úteis para serem confirmados."),
     motivo: MOTIVO_ASSINATURA,
   });
-  return enviarEmail({ para: email, assunto: "Sua mensalidade está em aberto", html });
+  return enviarEmail({ departamento: "financeiro", para: email, assunto: "Sua mensalidade está em aberto", html });
 }
 
 /** Passou a carência: acesso pausado até pagar. */
@@ -313,16 +335,17 @@ export async function sendAcessoPausadoEmail(
   params: { plano: string; faturaUrl?: string | null },
 ) {
   const html = layoutEmail({
+    departamento: "financeiro",
     preheader: "Seu acesso às aulas foi pausado. Seu progresso está guardado.",
     titulo: "Seu acesso foi pausado",
     corpo:
       p(saudacao(name)) +
       p(`Como a mensalidade da assinatura <strong>${escapar(params.plano)}</strong> continua em aberto, o acesso às aulas foi pausado.`) +
       destaque("Nada foi perdido. Seu progresso, certificados e histórico continuam guardados. Assim que o pagamento for confirmado, tudo volta sozinho.") +
-      (params.faturaUrl ? botao("Pagar e voltar às aulas", params.faturaUrl) : p("Para regularizar, é só responder este e-mail que eu envio o link de pagamento.")),
+      (params.faturaUrl ? botao("Pagar e voltar às aulas", params.faturaUrl) : p("Para regularizar, é só responder este e-mail que enviamos o link de pagamento.")),
     motivo: MOTIVO_ASSINATURA,
   });
-  return enviarEmail({ para: email, assunto: "Seu acesso às aulas foi pausado", html });
+  return enviarEmail({ departamento: "financeiro", para: email, assunto: "Seu acesso às aulas foi pausado", html });
 }
 
 /** O próprio aluno cancelou. */
@@ -333,6 +356,7 @@ export async function sendCancelamentoConfirmadoEmail(
 ) {
   const site = siteUrl();
   const html = layoutEmail({
+    departamento: "financeiro",
     preheader: params.acessoAte
       ? `Cancelamento feito. Seu acesso continua até ${formatarData(params.acessoAte)}.`
       : "Cancelamento feito. Nenhuma nova cobrança será feita.",
@@ -343,11 +367,11 @@ export async function sendCancelamentoConfirmadoEmail(
       (params.acessoAte
         ? destaque(`Você continua com acesso a todas as aulas do plano até <strong>${escapar(formatarData(params.acessoAte))}</strong>, o período que já foi pago.`)
         : "") +
-      p("Obrigada por ter feito parte. Se quiser me contar o que pesou na decisão, é só responder este e-mail. Eu leio todas as respostas.") +
+      p("Obrigado por ter feito parte. Se quiser contar o que pesou na decisão, é só responder este e-mail: todas as respostas são lidas.") +
       pequeno(`Mudou de ideia? Dá para assinar de novo quando quiser em <a href="${escapar(site)}/pricing" style="color:${MARCA.verde};">${escapar(site.replace(/^https?:\/\//, ""))}/pricing</a>.`),
     motivo: MOTIVO_ASSINATURA,
   });
-  return enviarEmail({ para: email, assunto: "Sua assinatura foi cancelada", html });
+  return enviarEmail({ departamento: "financeiro", para: email, assunto: "Sua assinatura foi cancelada", html });
 }
 
 /** Acesso encerrado: fim do período pago depois de cancelar, ou estorno. */
@@ -359,6 +383,7 @@ export async function sendAssinaturaEncerradaEmail(
   const site = siteUrl();
   const estorno = params.motivo === "estorno";
   const html = layoutEmail({
+    departamento: "financeiro",
     preheader: estorno ? "O estorno foi feito e a assinatura foi encerrada." : "O período da sua assinatura terminou.",
     titulo: estorno ? "Estorno realizado" : "Sua assinatura terminou",
     corpo:
@@ -372,7 +397,7 @@ export async function sendAssinaturaEncerradaEmail(
       botao("Ver planos", `${site}/pricing`),
     motivo: MOTIVO_ASSINATURA,
   });
-  return enviarEmail({
+  return enviarEmail({ departamento: "financeiro",
     para: email,
     assunto: estorno ? "Estorno da assinatura realizado" : "Sua assinatura terminou",
     html,
@@ -404,7 +429,11 @@ export function emailRespostaContato(params: {
     <tr><td style="padding-top:16px;">
       <a href="${escapar(site)}" target="_blank" style="text-decoration:none;"><img src="${escapar(site)}/email/assinatura-email.png" width="200" height="44" alt="Shadia Hasan · Psicologia &amp; Desenvolvimento Humano" style="display:block;width:200px;height:auto;border:0;font-family:Georgia,serif;font-size:16px;color:${MARCA.azul};"></a>
     </td></tr>
-    <tr><td style="padding-top:10px;">${blocoContatos({ setor: params.setor, email: params.endereco, semNome: true })}</td></tr>
+    <tr><td style="padding-top:12px;">${blocoContatos(
+      params.setor
+        ? { assina: params.setor, subtitulo: CONTATOS.marcaCompleta, email: params.endereco || emailContato() }
+        : { assina: CONTATOS.marca, subtitulo: CONTATOS.crp, email: params.endereco || emailContato() },
+    )}</td></tr>
   </table>
   ${
     params.citacao

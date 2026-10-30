@@ -8,7 +8,7 @@ describe("layout dos e-mails", () => {
   });
 
   it("monta envelope com título, assinatura e preheader", () => {
-    const html = layoutEmail({ preheader: "resumo curto", titulo: "Título <x>", corpo: "<p>oi</p>" });
+    const html = layoutEmail({ preheader: "resumo curto", titulo: "Título <x>", corpo: "<p>oi</p>", departamento: "psicologa" });
     expect(html).toContain("Título &lt;x&gt;");
     expect(html).toContain("CRP 12/27052");
     expect(html).toContain("resumo curto");
@@ -34,8 +34,29 @@ describe("layout dos e-mails", () => {
       expect(html).toContain(trecho);
     }
     const texto = htmlParaTexto(html);
-    expect(texto).toContain("WhatsApp (47) 99166-5536");
+    expect(texto).toContain("WhatsApp: (47) 99166-5536");
     expect(texto).toContain("Política de privacidade");
+  });
+
+  it("cada setor tem etiqueta, assinatura e rodapé próprios; CRP só na psicóloga", () => {
+    const fin = layoutEmail({ preheader: "p", titulo: "T", corpo: "", departamento: "financeiro" });
+    expect(fin).toContain(">Financeiro</p>");
+    expect(fin).toContain("Equipe Financeira");
+    expect(fin).toContain("mailto:financeiro@shadiahasan.com");
+    expect(fin).toContain("direto para o Financeiro");
+    expect(fin).not.toContain("CRP");
+    const at = layoutEmail({ preheader: "p", titulo: "T", corpo: "" });
+    expect(at).toContain("Atendimento ao aluno");
+    expect(at).not.toContain("CRP");
+    const psi = layoutEmail({ preheader: "p", titulo: "T", corpo: "", departamento: "psicologa" });
+    expect(psi).toContain("Psicóloga · CRP 12/27052");
+    expect(psi).not.toContain("text-transform:uppercase");
+  });
+
+  it("remetente leva o nome do setor e mantém o endereço noreply", async () => {
+    const { remetenteDoSetor } = await import("./_core/email");
+    expect(remetenteDoSetor("financeiro")).toBe("Shadia Hasan · Financeiro <noreply@shadiahasan.com>");
+    expect(remetenteDoSetor("psicologa")).toBe("Shadia Hasan <noreply@shadiahasan.com>");
   });
 
   it("resposta da caixa de contato assina com o setor e os mesmos contatos", async () => {
@@ -45,7 +66,9 @@ describe("layout dos e-mails", () => {
     expect(html).toContain("Financeiro");
     expect(html).toContain("mailto:financeiro@shadiahasan.com");
     expect(html).toContain("(47) 99166-5536");
-    expect(html).toContain("CRP 12/27052");
+    expect(html).not.toContain("CRP");
+    const psi = emailRespostaContato({ corpo: "Oi", setor: null, endereco: "contato@shadiahasan.com" });
+    expect(psi).toContain("CRP 12/27052");
   });
 });
 

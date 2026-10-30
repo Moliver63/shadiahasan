@@ -1,208 +1,183 @@
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { trpc } from "@/lib/trpc";
-import { Award, Download, Share2, CheckCircle } from "lucide-react";
+/**
+ * Meus certificados: um por aula concluída e um geral por Programa.
+ * Dados: trpc.certificados.meus (server/certificados.ts). O PDF sai de
+ * /api/certificados/<numero>.pdf, gerado na hora com o nome do perfil.
+ */
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
-import SiteLogo from "@/components/SiteLogo";
+import { Award, Copy, Download, ExternalLink, Loader2, UserRound } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import PublicHeader from "@/components/PublicHeader";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getLoginUrl } from "@/const";
+import { trpc } from "@/lib/trpc";
+
+const dataCurta = (d: Date | string) => new Date(d).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+type Item = { id: number; tipo: "aula" | "programa"; titulo: string; subtitulo: string | null; numero: string; emitidoEm: Date | string };
+
+async function baixarPdf(numero: string) {
+  try {
+    const r = await fetch(`/api/certificados/${numero}.pdf`, { credentials: "include" });
+    if (!r.ok) {
+      toast.error((await r.text()) || "Não foi possível baixar o certificado agora.");
+      return;
+    }
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `certificado-${numero}.pdf`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch {
+    toast.error("Não foi possível baixar o certificado agora. Confira sua conexão.");
+  }
+}
+
+function copiarLink(numero: string) {
+  const link = `${window.location.origin}/certificado/${numero}`;
+  navigator.clipboard.writeText(link).then(
+    () => toast.success("Link de verificação copiado"),
+    () => toast.error("Não foi possível copiar. O link é " + link),
+  );
+}
+
+function Cartao({ c }: { c: Item }) {
+  const [baixando, setBaixando] = useState(false);
+  const geral = c.tipo === "programa";
+  return (
+    <Card className={geral ? "border-primary/40 bg-primary/[0.03]" : undefined}>
+      <CardHeader className="pb-3">
+        <div className="flex items-start gap-3">
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${geral ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>
+            <Award className="h-5 w-5" aria-hidden />
+          </div>
+          <div className="min-w-0">
+            <CardDescription className="text-xs font-medium uppercase tracking-wide">
+              {geral ? "Certificado geral do Programa" : "Certificado de aula"}
+            </CardDescription>
+            <CardTitle className="mt-0.5 text-lg leading-snug">{c.titulo}</CardTitle>
+            {!geral && c.subtitulo && <p className="mt-0.5 text-sm text-muted-foreground">Programa: {c.subtitulo}</p>}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Emitido em {dataCurta(c.emitidoEm)} · <span className="font-mono">{c.numero}</span>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" disabled={baixando} onClick={async () => { setBaixando(true); await baixarPdf(c.numero); setBaixando(false); }}>
+            {baixando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Baixar PDF
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => copiarLink(c.numero)}>
+            <Copy className="mr-2 h-4 w-4" /> Copiar link
+          </Button>
+          <Button asChild size="sm" variant="ghost">
+            <Link href={`/certificado/${c.numero}`}><ExternalLink className="mr-2 h-4 w-4" /> Ver verificação</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function MyCertificates() {
-  const { user, isAuthenticated, loading } = useAuth();
-
-  const { data: certificates, isLoading } =
-    trpc.certificates.getUserCertificates.useQuery(undefined, {
-      enabled: isAuthenticated,
-    });
-
-  const { data: badges } = trpc.badges.getUserBadges.useQuery(undefined, {
-    enabled: isAuthenticated,
+  const { isAuthenticated, loading } = useAuth();
+  const utils = trpc.useUtils();
+  const { data, isLoading } = trpc.certificados.meus.useQuery(undefined, { enabled: isAuthenticated });
+  const sincronizar = trpc.certificados.sincronizar.useMutation({
+    onSuccess: (r) => { if (r.novos > 0) utils.certificados.meus.invalidate(); },
   });
 
-  // Aguarda resolução do estado de autenticação
+  // Quem concluiu aulas antes de os certificados existirem recebe os atrasados ao abrir a página
+  const sincronizou = useRef(false);
+  useEffect(() => {
+    if (isAuthenticated && !sincronizou.current) {
+      sincronizou.current = true;
+      sincronizar.mutate();
+    }
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
   }
-
   if (!isAuthenticated) {
     window.location.href = getLoginUrl();
     return null;
   }
 
-  const handleShare = (certificateNumber: string) => {
-    const url = `${window.location.origin}/certificate/verify/${certificateNumber}`;
-    navigator.clipboard.writeText(url);
-    toast.success("Link do certificado copiado!");
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const lista = (data?.certificados ?? []) as Item[];
+  const gerais = lista.filter((c) => c.tipo === "programa");
+  const aulas = lista.filter((c) => c.tipo === "aula");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/">
-            <SiteLogo className="h-36 cursor-pointer" />
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link
-              href="/my-courses"
-              className="text-gray-700 hover:text-blue-600 transition"
-            >
-              Meus Cursos
-            </Link>
-            <Link
-              href="/certificates"
-              className="text-blue-600 font-semibold"
-            >
-              Certificados
-            </Link>
-            {/* Link Admin apenas para administradores */}
-            {user?.role === "admin" && (
-              <Link href="/admin">
-                <Button>Admin</Button>
-              </Link>
-            )}
-          </nav>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background">
+      <PublicHeader
+        items={[
+          { label: "Minha Área", href: "/minha-area" },
+          { label: "Catálogo", href: "/courses", match: "prefix" },
+          { label: "Certificados", href: "/certificates" },
+        ]}
+        className="bg-card"
+      />
 
-      <div className="container py-12">
-        {/* Hero */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 bg-yellow-100 text-yellow-700 px-4 py-2 rounded-full mb-6">
-            <Award className="h-5 w-5" />
-            <span className="font-medium">Conquistas</span>
-          </div>
-          <h1 className="text-4xl font-bold mb-4">
-            Meus Certificados e Badges
-          </h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Acompanhe suas conquistas e compartilhe seus certificados com o
-            mundo!
+      <main className="container max-w-5xl space-y-8 py-8 md:py-12">
+        <header>
+          <h1 className="text-3xl font-bold sm:text-4xl">Meus certificados</h1>
+          <p className="mt-1 text-lg text-muted-foreground">
+            Você ganha um certificado a cada aula concluída e um certificado geral ao concluir todas as aulas de um Programa.
           </p>
-        </div>
+        </header>
 
-        {/* Badges Section */}
-        {badges && badges.length > 0 && (
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-              Badges Conquistadas
-            </h2>
-            <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {badges.map((badge) => (
-                <Card
-                  key={badge.id}
-                  className="text-center hover:shadow-lg transition"
-                >
-                  <CardHeader>
-                    <div className="text-5xl mb-2">{badge.badgeIcon}</div>
-                    <CardTitle className="text-lg">{badge.badgeName}</CardTitle>
-                    <CardDescription>{badge.badgeDescription}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs text-gray-500">
-                      Conquistada em{" "}
-                      {new Date(badge.earnedAt).toLocaleDateString("pt-BR")}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
+        {data?.semNome && (
+          <Card className="border-amber-200 bg-amber-50">
+            <CardContent className="flex flex-col gap-3 py-4 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex items-start gap-2">
+                <UserRound className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                Seu perfil ainda não tem nome. Ele é o nome que sai impresso no certificado.
+              </span>
+              <Button asChild size="sm" variant="outline"><Link href="/profile">Completar meu perfil</Link></Button>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Certificates Section */}
-        <section>
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-            <Award className="h-6 w-6 text-blue-600" />
-            Certificados de Conclusão
-          </h2>
-          {certificates && certificates.length > 0 ? (
-            <div className="grid md:grid-cols-2 gap-6">
-              {certificates.map((cert) => (
-                <Card
-                  key={cert.id}
-                  className="hover:shadow-xl transition-all duration-300"
-                >
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <Award className="h-5 w-5 text-yellow-500" />
-                          Certificado de Conclusão
-                        </CardTitle>
-                        <CardDescription className="mt-2">
-                          Número: {cert.certificateNumber}
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Emitido em{" "}
-                      {new Date(cert.issuedAt).toLocaleDateString("pt-BR")}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleShare(cert.certificateNumber)}
-                        className="flex-1"
-                      >
-                        <Share2 className="h-4 w-4 mr-2" />
-                        Compartilhar
-                      </Button>
-                      {cert.pdfUrl && (
-                        <a href={cert.pdfUrl} download className="flex-1">
-                          <Button variant="default" size="sm" className="w-full">
-                            <Download className="h-4 w-4 mr-2" />
-                            Download PDF
-                          </Button>
-                        </a>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card className="text-center py-12">
-              <CardContent>
-                <Award className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  Nenhum certificado ainda
-                </h3>
-                <p className="text-gray-500 mb-6">
-                  Complete um curso para ganhar seu primeiro certificado!
-                </p>
-                <Link href="/courses">
-                  <Button>Explorar Cursos</Button>
-                </Link>
-              </CardContent>
-            </Card>
-          )}
-        </section>
-      </div>
+        {isLoading ? (
+          <div className="grid gap-4 md:grid-cols-2">{[1, 2].map((i) => <Skeleton key={i} className="h-44" />)}</div>
+        ) : lista.length === 0 ? (
+          <Card className="py-10 text-center">
+            <CardContent>
+              <Award className="mx-auto mb-4 h-14 w-14 text-muted-foreground/50" aria-hidden />
+              <h2 className="text-xl font-semibold">Seu primeiro certificado está a uma aula de distância</h2>
+              <p className="mx-auto mt-2 max-w-md text-muted-foreground">
+                Assista uma aula até o fim e o certificado dela aparece aqui, pronto para baixar em PDF.
+              </p>
+              <Button asChild className="mt-6"><Link href="/minha-area">Ir para Minha Área</Link></Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {gerais.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-xl font-semibold">Certificados gerais</h2>
+                <div className="grid gap-4 md:grid-cols-2">{gerais.map((c) => <Cartao key={c.id} c={c} />)}</div>
+              </section>
+            )}
+            {aulas.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-xl font-semibold">Certificados por aula <span className="text-base font-normal text-muted-foreground">({aulas.length})</span></h2>
+                <div className="grid gap-4 md:grid-cols-2">{aulas.map((c) => <Cartao key={c.id} c={c} />)}</div>
+              </section>
+            )}
+          </>
+        )}
+      </main>
     </div>
   );
 }

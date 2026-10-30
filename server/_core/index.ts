@@ -75,6 +75,10 @@ async function startServer() {
   const asaasWebhook = await import('../routes/asaas-webhook');
   app.use('/api', asaasWebhook.default);
 
+  // PDF do certificado do aluno (exige sessão)
+  const certificadosPdf = await import('../routes/certificados');
+  app.use('/api', certificadosPdf.default);
+
   // tRPC API com rate limiting
   app.use(
     "/api/trpc",

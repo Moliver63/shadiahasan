@@ -521,3 +521,30 @@ Testado de ponta a ponta com Postgres local (`server/trialGuest.vinculo.test.ts`
 
 Continua por desenho: quem digita o e-mail de OUTRA pessoa paga a aula para a conta dela (o e-mail é a identidade). A tela mostra o e-mail mascarado para conferir antes de pagar.
 - 28/10/2026: aviso de venda do teste de 1 aula. Na primeira ativação do passe (`processTrialEvent`, depois de `concluirCompra`), `avisarVendaAoAdmin` manda e-mail "[Painel] Venda confirmada: R$ 19,90" para `EMAIL_AVISOS_ADMIN` com aluno, aula, forma de pagamento, origem (UTM) e id da cobrança. Assinaturas novas já avisavam por `emailAvisos.ts`.
+
+## Certificados: por aula e geral por Programa (30/10/2026)
+
+Antes: existia só a tabela `certificates` e a mutation `certificates.generate`, que nenhuma tela chamava; não havia PDF nem página de verificação, e o link "Compartilhar" dava erro. Pedido do Michel: "um por aula e um geral".
+
+**Regras** (`server/certificados.ts`, tabela nova `certificadosEmitidos`, criada em tempo de execução):
+- **Certificado de aula:** emitido quando a aula passa a constar em `enrollments.completedLessons`. Um por aluno e aula.
+- **Certificado geral:** emitido quando o aluno conclui TODAS as aulas publicadas de um Programa ativo (`contentCollections`). Programa com menos de 2 aulas não gera o geral. Um por aluno e Programa.
+- **Anti-fraude:** o servidor só aceita a aula se ela é publicada, é do curso informado e o aluno tem acesso hoje (`checkUserHasAccess`: assinatura, compra ou teste de 1 aula dentro da validade). Mandar ids de aulas que não pode assistir não gera certificado. Ainda é o navegador quem informa "assistiu", como já era para o progresso.
+- **Número** `SH-AAAA-XXXXXXXX` aleatório (não dá para adivinhar o de outro aluno). O formato antigo `SH-<data>-<aluno>-<curso>` é recusado.
+- **Nome impresso** é o do perfil na hora de baixar o PDF (o aluno corrige e baixa de novo). Perfil sem nome, ou com nome parecido com e-mail, recebe aviso na página e o PDF responde 409.
+
+**Onde dispara:** `enrollments.updateProgress` (server/routers.ts) compara as aulas concluídas antes e depois, emite e devolve `certificadosNovos`; `LessonView` mostra o aviso "Você ganhou o certificado desta aula" com botão para ver. Quem já tinha aulas concluídas antes recebe os atrasados ao abrir `/certificates` (`certificados.sincronizar`, idempotente, cada aula só vale no curso em que foi marcada).
+
+**Peças:**
+- PDF A4 paisagem (`server/certificadoPdf.ts`): logo e cores dos e-mails, Cormorant Garamond e Inter embutidas dos pacotes `@fontsource`, QR para a verificação. Sem carga horária nem registro profissional (o sistema não tem esses dados). Libs novas: `pdfkit`, `qrcode`.
+- `GET /api/certificados/<numero>.pdf` (`server/routes/certificados.ts`): só o dono ou admin; visitante 401, outro aluno 404.
+- `/certificado/<numero>` (`CertificadoVerificar.tsx`): pública, noindex, mostra aluno, aula ou Programa, data e número (nunca e-mail).
+- `/certificates` (`MyCertificates.tsx`): gerais primeiro, depois por aula; baixar PDF, copiar link, ver verificação. Minha Área lista os 5 mais recentes.
+- tRPC `certificados.meus | sincronizar | verificar`.
+
+**Limites e pendências:**
+- A tabela e a mutation antigas (`certificates`, `certificates.generate`) continuam no código sem uso; a seção de certificados de `Profile.tsx` ainda lê a antiga e fica vazia.
+- Não há e-mail ao ganhar certificado (só o aviso na aula e a página).
+- Se o Programa mudar depois (aula nova publicada), quem já tem o geral continua com ele; quem não tem passa a precisar da aula nova.
+- Testes: `server/certificados.test.ts` (11, regras e PDF). O fluxo com banco e a rota do PDF foram testados à mão em Postgres local (emissão, fraude, backfill, dono/admin/visitante/outro aluno), não estão na suíte.
+

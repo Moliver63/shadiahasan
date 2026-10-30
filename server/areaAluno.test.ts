@@ -123,11 +123,11 @@ describe("painel do aluno", () => {
       { lessonId: 21, courseId: 2, status: "pending", invoiceUrl: "https://pagar", dueDate: "2026-10-31", paidAt: null, expiresAt: null, createdAt: dia("2026-10-30T10:00:00Z") },
     ];
     d.matriculas = [{ courseId: 1, progress: 100, completedLessons: "[11,12,13]", enrolledAt: agora, lastAccessedAt: agora }];
-    d.certificados = [{ id: 9, courseId: 1, certificateNumber: "SH-1", pdfUrl: null, issuedAt: agora }];
+    d.certificados = [{ id: 9, tipo: "aula", courseId: 1, numero: "SH-2026-AAAAAAAA", titulo: "Aula 1", subtitulo: "Autoconhecimento", emitidoEm: agora }];
     const a = montarAreaAluno(d, agora);
     expect(a.testes).toEqual([expect.objectContaining({ aulaId: 21, status: "aguardando", linkPagamento: "https://pagar" })]);
     expect(a.cursos.map((c) => c.id)).toEqual([1]); // teste aguardando não libera o curso
     expect(a.cursos[0]).toMatchObject({ progresso: 100, certificadoId: 9 });
-    expect(a.certificados[0]).toMatchObject({ cursoTitulo: "Autoconhecimento", numero: "SH-1" });
+    expect(a.certificados[0]).toMatchObject({ tipo: "aula", titulo: "Aula 1", numero: "SH-2026-AAAAAAAA" });
   });
 });

@@ -115,7 +115,17 @@ export default function LessonView() {
   );
 
   const updateProgressMutation = trpc.enrollments.updateProgress.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (resultado) => {
+      // Certificado ganho nesta aula (e o geral do Programa, se fechou)
+      const novos = resultado?.certificadosNovos ?? [];
+      if (novos.length > 0) {
+        const geral = novos.some((c) => c.tipo === "programa");
+        toast.success(geral ? "Você concluiu o Programa e ganhou o certificado geral!" : "Você ganhou o certificado desta aula!", {
+          duration: 9000,
+          action: { label: "Ver certificado", onClick: () => setLocation("/certificates") },
+        });
+        utils.certificados.meus.invalidate();
+      }
       await Promise.all([
         utils.enrollments.checkEnrollment.invalidate({
           courseId: lesson?.courseId || 0,

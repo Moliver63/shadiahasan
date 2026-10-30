@@ -40,6 +40,7 @@ const CompraAguardando = lazy(() => import("./pages/CompraAguardando"));
 const Ebooks = lazy(() => import("./pages/Ebooks"));
 const EbookReader = lazy(() => import("./pages/EbookReader"));
 const MyCertificates = lazy(() => import("./pages/MyCertificates"));
+const CertificadoVerificar = lazy(() => import("./pages/CertificadoVerificar"));
 const About = lazy(() => import("./pages/About"));
 const Contact = lazy(() => import("./pages/Contact"));
 const FAQ = lazy(() => import("./pages/FAQ"));
@@ -167,6 +168,7 @@ function Router() {
       <Route path={"/admin/accept-invite"} component={AcceptAdminInvite} />
       <Route path={"/login"} component={Login} />
       <Route path={"/signup"} component={Signup} />
+      <Route path={"/certificado/:numero"} component={CertificadoVerificar} />
       <Route path={"/verify-email"} component={VerifyEmail} />
       <Route path={"/forgot-password"} component={ForgotPassword} />
       <Route path={"/reset-password"} component={ResetPassword} />

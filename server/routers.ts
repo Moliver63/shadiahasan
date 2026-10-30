@@ -11,6 +11,8 @@ import { courseGroupsRouter } from "./routers/groups";
 import { contentCollectionsRouter } from "./routers/collections";
 import { trialRouter } from "./routers/trial";
 import { acessosRouter } from "./routers/acessos";
+import { certificadosRouter } from "./routers/certificados";
+import { emitirParaAulasConcluidas, lerConcluidas } from "./certificados";
 import { areaAlunoRouter } from "./routers/areaAluno";
 import { caixaEmailRouter } from "./routers/caixaEmail";
 import { publicProcedure, router, protectedProcedure, superAdminProcedure } from "./_core/trpc";
@@ -1213,12 +1215,21 @@ export const appRouter = router({
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Enrollment not found' });
         }
 
+        const jaConcluidas = new Set(lerConcluidas(enrollment.completedLessons));
         await db.updateEnrollment(enrollment.id, {
           progress: input.progress,
           completedLessons: input.completedLessons,
           lastAccessedAt: new Date(),
         });
-        return { success: true };
+
+        // Aulas que passaram a constar como concluídas agora: emite o certificado delas
+        // (e o geral do Programa, se fechou). Nunca derruba o salvamento do progresso.
+        const novas = lerConcluidas(input.completedLessons).filter((id) => !jaConcluidas.has(id));
+        const emitidos = novas.length ? await emitirParaAulasConcluidas(ctx.user.id, input.courseId, novas) : [];
+        return {
+          success: true,
+          certificadosNovos: emitidos.map((c) => ({ numero: c.numero, tipo: c.tipo, titulo: c.titulo })),
+        };
       }),
   }),
 
@@ -2071,6 +2082,8 @@ export const appRouter = router({
   trial: trialRouter,
   // Gráfico de acessos (GA4, Meta, Clarity) no painel Analytics
   acessos: acessosRouter,
+  // Certificados por aula e geral do Programa (PDF em /api/certificados/<numero>.pdf)
+  certificados: certificadosRouter,
   areaAluno: areaAlunoRouter,
   // Caixa de e-mail do admin (contato@)
   caixaEmail: caixaEmailRouter,

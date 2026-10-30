@@ -11,9 +11,10 @@
  */
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import * as db from "./db";
+import { listarDoAluno } from "./certificados";
 import { consertarAcentos } from "../shared/acentos";
 import {
-  certificates, courses, enrollments, lessons, paymentHistory, subscriptionPlans, subscriptions, trialPasses,
+  courses, enrollments, lessons, paymentHistory, subscriptionPlans, subscriptions, trialPasses,
 } from "../drizzle/schema";
 
 // ─── Linhas de entrada (o mínimo que o painel usa) ───────────────────────────
@@ -32,7 +33,7 @@ export type LinhaPagamento = {
   dueDate: string | null; paidAt: Date | null; refundedAmount: number; planSlug: string | null;
   description: string | null; createdAt: Date;
 };
-export type LinhaCertificado = { id: number; courseId: number; certificateNumber: string; pdfUrl: string | null; issuedAt: Date };
+export type LinhaCertificado = { id: number; tipo: "aula" | "programa"; courseId: number | null; numero: string; titulo: string; subtitulo: string | null; emitidoEm: Date };
 
 export type DadosAreaAluno = {
   assinaturas: LinhaAssinatura[];
@@ -72,7 +73,7 @@ export type AreaAluno = {
     linkPagamento: string | null; vencimento: string | null; pagoEm: Date | null;
   }>;
   pendencia: null | { descricao: string; valorCentavos: number; linkPagamento: string; vencimento: string | null };
-  certificados: Array<{ id: number; cursoId: number; cursoTitulo: string; numero: string; pdfUrl: string | null; emitidoEm: Date }>;
+  certificados: Array<{ id: number; tipo: "aula" | "programa"; titulo: string; subtitulo: string | null; numero: string; emitidoEm: Date }>;
 };
 
 const NOMES_PLANO: Record<string, string> = { free: "Gratuito", basic: "Básico", premium: "Premium", vip: "VIP" };
@@ -124,7 +125,7 @@ export function montarAreaAluno(d: DadosAreaAluno, agora = new Date()): AreaAlun
     lista.push(a);
     aulasDoCurso.set(a.courseId, lista);
   }
-  const certificadoPorCurso = new Map(d.certificados.map((c) => [c.courseId, c]));
+  const certificadoPorCurso = new Map(d.certificados.filter((c) => c.tipo === "aula" && c.courseId != null).map((c) => [c.courseId as number, c]));
 
   // Plano: a assinatura ativa de maior nível
   const ordem = ["free", "basic", "premium", "vip"];
@@ -215,10 +216,9 @@ export function montarAreaAluno(d: DadosAreaAluno, agora = new Date()): AreaAlun
     ? { descricao: aberta.descricao, valorCentavos: aberta.valorCentavos, linkPagamento: aberta.linkPagamento!, vencimento: aberta.vencimento }
     : null;
 
-  const certificadosSaida = d.certificados.map((c) => ({
-    id: c.id, cursoId: c.courseId, cursoTitulo: cursoPorId.get(c.courseId)?.title || "Curso",
-    numero: c.certificateNumber, pdfUrl: c.pdfUrl, emitidoEm: c.issuedAt,
-  }));
+  const certificadosSaida = [...d.certificados]
+    .sort((a, b) => (a.tipo === b.tipo ? b.emitidoEm.getTime() - a.emitidoEm.getTime() : a.tipo === "programa" ? -1 : 1))
+    .map((c) => ({ id: c.id, tipo: c.tipo, titulo: c.titulo, subtitulo: c.subtitulo, numero: c.numero, emitidoEm: c.emitidoEm }));
 
   return { plano, testes, cursos, compras, pendencia, certificados: certificadosSaida };
 }
@@ -245,11 +245,12 @@ export async function carregarAreaAluno(userId: number): Promise<AreaAluno> {
       .from(trialPasses).where(eq(trialPasses.userId, userId)), [] as LinhaTeste[]),
     seguro(d.select({ id: paymentHistory.id, amount: paymentHistory.amount, status: paymentHistory.status, providerStatus: paymentHistory.providerStatus, paymentUrl: paymentHistory.paymentUrl, dueDate: paymentHistory.dueDate, paidAt: paymentHistory.paidAt, refundedAmount: paymentHistory.refundedAmount, planSlug: paymentHistory.planSlug, description: paymentHistory.description, createdAt: paymentHistory.createdAt })
       .from(paymentHistory).where(eq(paymentHistory.userId, userId)).orderBy(desc(paymentHistory.createdAt)).limit(50), [] as LinhaPagamento[]),
-    seguro(d.select({ id: certificates.id, courseId: certificates.courseId, certificateNumber: certificates.certificateNumber, pdfUrl: certificates.pdfUrl, issuedAt: certificates.issuedAt })
-      .from(certificates).where(eq(certificates.userId, userId)), [] as LinhaCertificado[]),
+    seguro(listarDoAluno(userId).then((l) => l.map((c): LinhaCertificado => ({
+      id: c.id, tipo: c.tipo, courseId: c.courseId, numero: c.numero, titulo: c.titulo, subtitulo: c.subtitulo, emitidoEm: c.emitidoEm,
+    }))), [] as LinhaCertificado[]),
   ]);
 
-  const idsCursos = Array.from(new Set([...matriculas.map((m) => m.courseId), ...testes.map((t) => t.courseId), ...certificadosRows.map((c) => c.courseId)]));
+  const idsCursos = Array.from(new Set([...matriculas.map((m) => m.courseId), ...testes.map((t) => t.courseId), ...certificadosRows.map((c) => c.courseId).filter((id): id is number => id != null)]));
   const [cursosRows, aulasPublicadas, aulasDosTestes] = idsCursos.length
     ? await Promise.all([
         seguro(d.select({ id: courses.id, title: courses.title, slug: courses.slug, thumbnail: courses.thumbnail }).from(courses).where(inArray(courses.id, idsCursos)), [] as LinhaCurso[]),

@@ -317,15 +317,21 @@ export default function MinhaArea() {
               <Card>
                 <CardContent className="py-5 text-sm">
                   {area.certificados.length === 0 ? (
-                    <p className="text-muted-foreground">Ao concluir um curso, o certificado aparece aqui.</p>
+                    <p className="text-muted-foreground">Ao concluir uma aula, o certificado dela aparece aqui. Ao concluir todas as aulas de um Programa, você ganha também o certificado geral.</p>
                   ) : (
                     <ul className="space-y-2">
-                      {area.certificados.map((c) => (
+                      {area.certificados.slice(0, 5).map((c) => (
                         <li key={c.id} className="flex flex-wrap items-center justify-between gap-2">
-                          <span><span className="font-medium">{c.cursoTitulo}</span> <span className="text-muted-foreground">· emitido em {data(c.emitidoEm)}</span></span>
+                          <span>
+                            <span className="font-medium">{c.titulo}</span>{" "}
+                            <span className="text-muted-foreground">· {c.tipo === "programa" ? "certificado geral" : "certificado de aula"} · {data(c.emitidoEm)}</span>
+                          </span>
                           <Button asChild size="sm" variant="outline"><Link href="/certificates">Ver certificado</Link></Button>
                         </li>
                       ))}
+                      {area.certificados.length > 5 && (
+                        <li className="pt-1"><Link href="/certificates" className="text-sm text-primary underline">Ver os {area.certificados.length} certificados</Link></li>
+                      )}
                     </ul>
                   )}
                 </CardContent>

@@ -163,7 +163,7 @@ export async function buscarPorNumero(numero: string): Promise<CertificadoComAlu
     WHERE c."numero" = ${numero} LIMIT 1
   `);
   const l = linhasDe(r)[0];
-  return l ? { ...paraCertificado(l), nomeAluno: nomeValido(l.nomeAluno ? String(l.nomeAluno) : null) } : null;
+  return l ? { ...paraCertificado(l), nomeAluno: nomeParaCertificado(l.nomeAluno ? String(l.nomeAluno) : null) } : null;
 }
 
 // ─── Emissão ────────────────────────────────────────────────────────────────
@@ -219,6 +219,31 @@ async function programasDasAulas(lessonIds: number[]): Promise<Array<ProgramaCom
     mapa.set(i.programId, g);
   }
   return Array.from(mapa.values());
+}
+
+/**
+ * Carga horária do certificado, em segundos: duração da aula, ou soma das aulas publicadas do Programa.
+ * Devolve null se alguma aula não tem duração cadastrada (melhor omitir do que imprimir um total errado).
+ */
+export async function duracaoDoCertificado(c: Pick<CertificadoEmitido, "tipo" | "lessonId" | "programId">): Promise<number | null> {
+  try {
+    const d = await db.getDb();
+    if (!d) return null;
+    let linhas: Array<{ duration: number | null }> = [];
+    if (c.tipo === "aula" && c.lessonId) {
+      linhas = await d.select({ duration: lessons.duration }).from(lessons).where(eq(lessons.id, c.lessonId));
+    } else if (c.tipo === "programa" && c.programId) {
+      linhas = await d
+        .select({ duration: lessons.duration })
+        .from(contentCollectionItems)
+        .innerJoin(lessons, eq(lessons.id, contentCollectionItems.lessonId))
+        .where(and(eq(contentCollectionItems.collectionId, c.programId), eq(lessons.isPublished, 1)));
+    }
+    if (!linhas.length || linhas.some((l) => !l.duration || l.duration <= 0)) return null;
+    return linhas.reduce((t, l) => t + (l.duration as number), 0);
+  } catch {
+    return null;
+  }
 }
 
 async function inserir(d: NonNullable<Awaited<ReturnType<typeof db.getDb>>>, c: {
@@ -335,9 +360,60 @@ export function nomeValido(nome: string | null | undefined): string | null {
   return n && !n.includes("@") ? n : null;
 }
 
-export async function nomeDoAluno(userId: number): Promise<string | null> {
+// Construídos com RegExp() porque o tsconfig do projeto mira ES5 e rejeita as flags u/g em literais.
+const RE_NOME = new RegExp("^[\\p{L}][\\p{L} '.\\-]*$", "u");
+const RE_NAO_LETRA = new RegExp("[^\\p{L}]", "gu");
+const RE_INICIAL = new RegExp("(^|[\\-'])(\\p{L})", "gu");
+const PARTICULAS = new Set(["de", "da", "do", "das", "dos", "e", "di", "du"]);
+
+export type AnaliseNome = {
+  /** Nome pronto para imprimir (espaços limpos; maiúsculas/minúsculas corrigidas se estava tudo igual). */
+  nome: string | null;
+  /** Tem nome e sobrenome, só letras. Só nome completo vai para o certificado. */
+  completo: boolean;
+  /** Motivo, quando não é completo. */
+  problema: string | null;
+};
+
+/** Verifica e normaliza o nome do aluno. Não inventa nada: só limpa espaços e acerta a caixa (TUDO MAIÚSCULO ou tudo minúsculo). */
+export function analisarNome(bruto: string | null | undefined): AnaliseNome {
+  const limpo = (bruto || "").replace(/\s+/g, " ").trim();
+  if (!limpo) return { nome: null, completo: false, problema: "Informe seu nome completo." };
+  if (limpo.includes("@")) return { nome: null, completo: false, problema: "O nome não pode ser um e-mail." };
+  if (!RE_NOME.test(limpo)) return { nome: null, completo: false, problema: "Use apenas letras no nome, sem números ou símbolos." };
+  const palavras = limpo.split(" ");
+  const principais = palavras.filter((w) => !PARTICULAS.has(w.toLowerCase()) && w.replace(RE_NAO_LETRA, "").length >= 2);
+  if (principais.length < 2) return { nome: limpo, completo: false, problema: "Digite nome e sobrenome, como no seu documento." };
+  const tudoIgual = limpo === limpo.toUpperCase() || limpo === limpo.toLowerCase();
+  const nome = tudoIgual
+    ? palavras
+        .map((w, i) => {
+          const baixo = w.toLowerCase();
+          if (i > 0 && PARTICULAS.has(baixo)) return baixo;
+          return baixo.replace(RE_INICIAL, (_m, sep: string, c: string) => sep + c.toUpperCase());
+        })
+        .join(" ")
+    : limpo;
+  return { nome, completo: true, problema: null };
+}
+
+/** Nome que vai no certificado e na verificação pública: só se estiver completo. */
+export function nomeParaCertificado(nome: string | null | undefined): string | null {
+  const a = analisarNome(nome);
+  return a.completo ? a.nome : null;
+}
+
+export async function nomeDoAluno(userId: number): Promise<AnaliseNome> {
   const d = await db.getDb();
-  if (!d) return null;
+  if (!d) return analisarNome(null);
   const [u] = await d.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1);
-  return nomeValido(u?.name);
+  return analisarNome(u?.name);
+}
+
+/** Grava o nome do certificado no perfil do aluno (o mesmo nome do cadastro). Devolve a análise; só grava se estiver completo. */
+export async function salvarNomeDoAluno(userId: number, bruto: string): Promise<AnaliseNome> {
+  const a = analisarNome(bruto);
+  if (!a.completo || !a.nome) return a;
+  await db.updateUserData(userId, { name: a.nome });
+  return a;
 }

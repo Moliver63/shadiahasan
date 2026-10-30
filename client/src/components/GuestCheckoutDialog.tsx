@@ -40,10 +40,10 @@ export default function GuestCheckoutDialog({ open, onOpenChange, lessonId, pric
   const comprar = trpc.trial.guestCheckout.useMutation();
 
   const emailLimpo = email.trim().toLowerCase();
-  const pronto = nome.trim().length >= 3 && emailOk(emailLimpo) && isValidCpfCnpj(onlyDigits(cpf));
+  const pronto = nome.trim().length >= 3 && nome.trim().split(/\s+/).length >= 2 && emailOk(emailLimpo) && isValidCpfCnpj(onlyDigits(cpf));
 
   const confirmar = async () => {
-    if (nome.trim().length < 3) return toast.error("Digite seu nome completo.");
+    if (nome.trim().length < 3 || nome.trim().split(/\s+/).length < 2) return toast.error("Digite nome e sobrenome, como no seu documento.");
     if (!emailOk(emailLimpo)) return toast.error("Confira o e-mail digitado.");
     if (!isValidCpfCnpj(onlyDigits(cpf))) return toast.error("CPF inválido. Confira os números.");
     trackInitiateCheckout({ contentId: `lesson:${lessonId}`, contentName: "Teste de 1 aula", value: priceCents / 100 });
@@ -79,8 +79,9 @@ export default function GuestCheckoutDialog({ open, onOpenChange, lessonId, pric
           onSubmit={(e) => { e.preventDefault(); void confirmar(); }}
         >
           <div className="space-y-1.5">
-            <Label htmlFor="guestNome" className="text-base">Seu nome</Label>
-            <Input id="guestNome" data-clarity-mask="true" autoComplete="name" className="h-12 text-base" value={nome} onChange={(e) => setNome(e.target.value)} />
+            <Label htmlFor="guestNome" className="text-base">Nome completo</Label>
+            <Input id="guestNome" data-clarity-mask="true" autoComplete="name" placeholder="Nome e sobrenome" className="h-12 text-base" value={nome} onChange={(e) => setNome(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Como no seu documento. É o nome que sai no seu certificado.</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="guestEmail" className="text-base">Seu e-mail</Label>

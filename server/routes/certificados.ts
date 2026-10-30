@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { sdk } from "../_core/sdk";
 import { siteUrl } from "../_core/emailLayout";
-import { buscarPorNumero, nomeValido, numeroValido } from "../certificados";
+import { buscarPorNumero, duracaoDoCertificado, nomeParaCertificado, numeroValido } from "../certificados";
 import { gerarPdfCertificado } from "../certificadoPdf";
 
 const router = Router();
@@ -27,15 +27,15 @@ router.get("/certificados/:arquivo", async (req, res) => {
   const admin = usuario.role === "admin" || usuario.role === "superadmin";
   if (!c || (c.userId !== usuario.id && !admin)) return res.status(404).type("text/plain").send("Certificado não encontrado.");
 
-  const nome = nomeValido(c.nomeAluno);
+  const nome = nomeParaCertificado(c.nomeAluno);
   if (!nome) {
-    return res.status(409).type("text/plain").send("Complete seu nome no perfil para ele aparecer no certificado e baixe de novo.");
+    return res.status(409).type("text/plain").send("Confirme seu nome completo na página Meus certificados para ele aparecer no certificado e baixe de novo.");
   }
 
   try {
     const pdf = await gerarPdfCertificado({
       tipo: c.tipo, nomeAluno: nome, titulo: c.titulo, subtitulo: c.subtitulo, numero: c.numero,
-      emitidoEm: c.emitidoEm, urlVerificacao: `${siteUrl()}/certificado/${c.numero}`,
+      emitidoEm: c.emitidoEm, duracaoSegundos: await duracaoDoCertificado(c), urlVerificacao: `${siteUrl()}/certificado/${c.numero}`,
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="certificado-${c.numero}.pdf"`);

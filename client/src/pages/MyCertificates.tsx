@@ -1,16 +1,18 @@
 /**
  * Meus certificados: um por aula concluída e um geral por Programa.
  * Dados: trpc.certificados.meus (server/certificados.ts). O PDF sai de
- * /api/certificados/<numero>.pdf, gerado na hora com o nome do perfil.
+ * /api/certificados/<numero>.pdf, gerado na hora com o nome confirmado no cartão
+ * "Nome no certificado" (grava no perfil; só nome completo libera o PDF).
  */
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
-import { Award, Copy, Download, ExternalLink, Loader2, UserRound } from "lucide-react";
+import { Award, CheckCircle2, Copy, Download, ExternalLink, Loader2, Pencil, UserRound } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import PublicHeader from "@/components/PublicHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
@@ -45,7 +47,7 @@ function copiarLink(numero: string) {
   );
 }
 
-function Cartao({ c }: { c: Item }) {
+function Cartao({ c, nome }: { c: Item; nome: string | null }) {
   const [baixando, setBaixando] = useState(false);
   const geral = c.tipo === "programa";
   return (
@@ -68,8 +70,9 @@ function Cartao({ c }: { c: Item }) {
         <p className="text-sm text-muted-foreground">
           Emitido em {dataCurta(c.emitidoEm)} · <span className="font-mono">{c.numero}</span>
         </p>
+        {nome && <p className="text-sm">Sai impresso para <span className="font-medium">{nome}</span></p>}
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" disabled={baixando} onClick={async () => { setBaixando(true); await baixarPdf(c.numero); setBaixando(false); }}>
+          <Button size="sm" disabled={baixando || !nome} title={nome ? undefined : "Confirme seu nome completo acima para baixar"} onClick={async () => { setBaixando(true); await baixarPdf(c.numero); setBaixando(false); }}>
             {baixando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Baixar PDF
           </Button>
           <Button size="sm" variant="outline" onClick={() => copiarLink(c.numero)}>
@@ -79,6 +82,62 @@ function Cartao({ c }: { c: Item }) {
             <Link href={`/certificado/${c.numero}`}><ExternalLink className="mr-2 h-4 w-4" /> Ver verificação</Link>
           </Button>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function NomeCard({ nome, completo, problema }: { nome: string | null; completo: boolean; problema: string | null }) {
+  const utils = trpc.useUtils();
+  const [editando, setEditando] = useState(!completo);
+  const [valor, setValor] = useState(nome ?? "");
+  useEffect(() => { setValor(nome ?? ""); setEditando(!completo); }, [nome, completo]);
+  const salvar = trpc.certificados.salvarNome.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Nome confirmado: ${r.nome}`);
+      setEditando(false);
+      utils.certificados.meus.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const enviar = (e: React.FormEvent) => { e.preventDefault(); salvar.mutate({ nome: valor }); };
+
+  if (!editando && completo && nome) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden />
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Nome no certificado</p>
+              <p className="text-lg font-semibold leading-tight">{nome}</p>
+            </div>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setEditando(true)}><Pencil className="mr-2 h-4 w-4" /> Corrigir nome</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <Card className={completo ? undefined : "border-amber-200 bg-amber-50"}>
+      <CardContent className="space-y-3 py-4">
+        <div className="flex items-start gap-2 text-sm">
+          <UserRound className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <p>
+            <span className="font-medium">{completo ? "Corrigir o nome no certificado" : "Confirme seu nome completo para liberar o PDF."}</span>{" "}
+            Digite como está no seu documento. Esse é o nome que sai impresso e aparece na verificação pública.
+            {!completo && problema && <span className="mt-1 block text-amber-800">{problema}</span>}
+          </p>
+        </div>
+        <form onSubmit={enviar} className="flex flex-col gap-2 sm:flex-row">
+          <Input value={valor} onChange={(e) => setValor(e.target.value)} maxLength={120} autoComplete="name" placeholder="Nome e sobrenome" aria-label="Nome completo" className="bg-background sm:max-w-md" />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={salvar.isPending || valor.trim().length < 3}>
+              {salvar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirmar nome
+            </Button>
+            {completo && <Button type="button" variant="ghost" onClick={() => { setValor(nome ?? ""); setEditando(false); }}>Cancelar</Button>}
+          </div>
+        </form>
       </CardContent>
     </Card>
   );
@@ -136,17 +195,7 @@ export default function MyCertificates() {
           </p>
         </header>
 
-        {data?.semNome && (
-          <Card className="border-amber-200 bg-amber-50">
-            <CardContent className="flex flex-col gap-3 py-4 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
-              <span className="flex items-start gap-2">
-                <UserRound className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                Seu perfil ainda não tem nome. Ele é o nome que sai impresso no certificado.
-              </span>
-              <Button asChild size="sm" variant="outline"><Link href="/profile">Completar meu perfil</Link></Button>
-            </CardContent>
-          </Card>
-        )}
+        {data && <NomeCard nome={data.nome} completo={data.nomeCompleto} problema={data.problemaNome} />}
 
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2">{[1, 2].map((i) => <Skeleton key={i} className="h-44" />)}</div>
@@ -166,13 +215,13 @@ export default function MyCertificates() {
             {gerais.length > 0 && (
               <section className="space-y-3">
                 <h2 className="text-xl font-semibold">Certificados gerais</h2>
-                <div className="grid gap-4 md:grid-cols-2">{gerais.map((c) => <Cartao key={c.id} c={c} />)}</div>
+                <div className="grid gap-4 md:grid-cols-2">{gerais.map((c) => <Cartao key={c.id} c={c} nome={data?.nomeCompleto ? data.nome : null} />)}</div>
               </section>
             )}
             {aulas.length > 0 && (
               <section className="space-y-3">
                 <h2 className="text-xl font-semibold">Certificados por aula <span className="text-base font-normal text-muted-foreground">({aulas.length})</span></h2>
-                <div className="grid gap-4 md:grid-cols-2">{aulas.map((c) => <Cartao key={c.id} c={c} />)}</div>
+                <div className="grid gap-4 md:grid-cols-2">{aulas.map((c) => <Cartao key={c.id} c={c} nome={data?.nomeCompleto ? data.nome : null} />)}</div>
               </section>
             )}
           </>

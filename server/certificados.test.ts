@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decidirEmissoes, gerarNumero, lerConcluidas, nomeValido, numeroValido } from "./certificados";
-import { dataPorExtenso, gerarPdfCertificado } from "./certificadoPdf";
+import { analisarNome, decidirEmissoes, gerarNumero, lerConcluidas, nomeParaCertificado, nomeValido, numeroValido } from "./certificados";
+import { dataPorExtenso, formatarCarga, gerarPdfCertificado } from "./certificadoPdf";
 
 const vazio = new Set<number>();
 
@@ -70,7 +70,38 @@ describe("dados de entrada", () => {
   });
 });
 
+describe("nome do certificado", () => {
+  it("aceita nome e sobrenome e mantém a caixa quando já está certa", () => {
+    expect(analisarNome("  Maria   Aparecida de Souza ")).toEqual({ nome: "Maria Aparecida de Souza", completo: true, problema: null });
+    expect(analisarNome("Ana-Clara D'Ávila").completo).toBe(true);
+  });
+
+  it("corrige TUDO MAIÚSCULO e tudo minúsculo, com partículas em minúsculo", () => {
+    expect(analisarNome("MARIA APARECIDA DE SOUZA").nome).toBe("Maria Aparecida de Souza");
+    expect(analisarNome("joão dos santos e silva").nome).toBe("João dos Santos e Silva");
+    expect(analisarNome("ANA-CLARA D'ÁVILA").nome).toBe("Ana-Clara D'Ávila");
+  });
+
+  it("não deixa passar só um nome, e-mail, números ou vazio", () => {
+    expect(analisarNome("Maria").completo).toBe(false);
+    expect(analisarNome("Maria de").completo).toBe(false);
+    expect(analisarNome("maria@gmail.com").completo).toBe(false);
+    expect(analisarNome("Maria Souza 2").completo).toBe(false);
+    expect(analisarNome("   ").nome).toBeNull();
+    expect(nomeParaCertificado("Maria")).toBeNull();
+    expect(nomeParaCertificado("MARIA SOUZA")).toBe("Maria Souza");
+  });
+});
+
 describe("PDF", () => {
+  it("formata carga horária e omite quando não há duração confiável", () => {
+    expect(formatarCarga(45 * 60)).toBe("45 min");
+    expect(formatarCarga(2 * 3600)).toBe("2h");
+    expect(formatarCarga(4800)).toBe("1h 20min");
+    expect(formatarCarga(30)).toBeNull();
+    expect(formatarCarga(null)).toBeNull();
+  });
+
   const base = { numero: "SH-2026-K7M3QX9A", emitidoEm: new Date("2026-10-30T02:30:00Z"), urlVerificacao: "https://shadiahasan.com/certificado/SH-2026-K7M3QX9A" };
 
   it("data por extenso usa o dia de Brasília (23h30 de 29/10 em Brasília ainda é dia 29)", () => {
@@ -80,7 +111,7 @@ describe("PDF", () => {
   it("gera um PDF de uma página para aula e para Programa, inclusive com nome e título enormes", async () => {
     const casos = [
       { ...base, tipo: "aula" as const, nomeAluno: "Maria Aparecida de Souza", titulo: "Reconhecendo padrões", subtitulo: "Permita-se SER LIVRE" },
-      { ...base, tipo: "programa" as const, nomeAluno: "João", titulo: "Permita-se SER LIVRE", subtitulo: null },
+      { ...base, tipo: "programa" as const, nomeAluno: "João Pedro Lima", titulo: "Permita-se SER LIVRE", subtitulo: null, duracaoSegundos: 5400 },
       { ...base, tipo: "aula" as const, nomeAluno: "A".repeat(120), titulo: "T ".repeat(150), subtitulo: "P ".repeat(100) },
     ];
     for (const c of casos) {

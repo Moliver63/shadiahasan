@@ -531,20 +531,21 @@ Antes: existia só a tabela `certificates` e a mutation `certificates.generate`,
 - **Certificado geral:** emitido quando o aluno conclui TODAS as aulas publicadas de um Programa ativo (`contentCollections`). Programa com menos de 2 aulas não gera o geral. Um por aluno e Programa.
 - **Anti-fraude:** o servidor só aceita a aula se ela é publicada, é do curso informado e o aluno tem acesso hoje (`checkUserHasAccess`: assinatura, compra ou teste de 1 aula dentro da validade). Mandar ids de aulas que não pode assistir não gera certificado. Ainda é o navegador quem informa "assistiu", como já era para o progresso.
 - **Número** `SH-AAAA-XXXXXXXX` aleatório (não dá para adivinhar o de outro aluno). O formato antigo `SH-<data>-<aluno>-<curso>` é recusado.
-- **Nome impresso** é o do perfil na hora de baixar o PDF (o aluno corrige e baixa de novo). Perfil sem nome, ou com nome parecido com e-mail, recebe aviso na página e o PDF responde 409.
+- **Nome impresso** é o do perfil na hora de baixar o PDF. Só sai com nome completo (`analisarNome`: nome e sobrenome, só letras, sem e-mail ou número; TUDO MAIÚSCULO ou tudo minúsculo é corrigido para "Maria Aparecida de Souza"). Nome incompleto: o botão de baixar fica desligado, a página mostra o cartão "Confirme seu nome completo" e o PDF responde 409. O aluno confirma ou corrige em `/certificates` (`certificados.salvarNome` grava em `users.name`, o mesmo nome do perfil). Não imprimimos CPF (LGPD).
 
 **Onde dispara:** `enrollments.updateProgress` (server/routers.ts) compara as aulas concluídas antes e depois, emite e devolve `certificadosNovos`; `LessonView` mostra o aviso "Você ganhou o certificado desta aula" com botão para ver. Quem já tinha aulas concluídas antes recebe os atrasados ao abrir `/certificates` (`certificados.sincronizar`, idempotente, cada aula só vale no curso em que foi marcada).
 
 **Peças:**
-- PDF A4 paisagem (`server/certificadoPdf.ts`): logo e cores dos e-mails, Cormorant Garamond e Inter embutidas dos pacotes `@fontsource`, QR para a verificação. Sem carga horária nem registro profissional (o sistema não tem esses dados). Libs novas: `pdfkit`, `qrcode`.
+- PDF A4 paisagem (`server/certificadoPdf.ts`) no modelo de referência enviado pela Shadia (30/10/2026): fundo branco, moldura dupla azul vetorial, fita e árvore à esquerda e ramo no canto superior direito (`server/assets/certificado-arte.jpg`, extraída da referência), logo real com fundo transparente (`server/assets/logo-certificado.png`), título "Certificado de Conclusão", nome em azul, bloco de assinatura "Shadia Hasan" + identificação do certificado, shadiahasan.com e QR de verificação. Cormorant Garamond e Inter embutidas dos pacotes `@fontsource`. **Carga horária** só aparece quando todas as aulas envolvidas têm `lessons.duration` (segundos); aula = duração dela, Programa = soma das publicadas (`duracaoDoCertificado`). Sem registro profissional. Arquivos lidos de `process.cwd()/server/assets` (no Render o cwd é a raiz do repositório). Libs novas: `pdfkit`, `qrcode`.
 - `GET /api/certificados/<numero>.pdf` (`server/routes/certificados.ts`): só o dono ou admin; visitante 401, outro aluno 404.
 - `/certificado/<numero>` (`CertificadoVerificar.tsx`): pública, noindex, mostra aluno, aula ou Programa, data e número (nunca e-mail).
 - `/certificates` (`MyCertificates.tsx`): gerais primeiro, depois por aula; baixar PDF, copiar link, ver verificação. Minha Área lista os 5 mais recentes.
-- tRPC `certificados.meus | sincronizar | verificar`.
+- tRPC `certificados.meus | salvarNome | sincronizar | verificar`. Cadastro (`Signup`, compra sem conta) pede "Nome completo" e, na compra, exige nome e sobrenome.
 
 **Limites e pendências:**
 - A tabela e a mutation antigas (`certificates`, `certificates.generate`) continuam no código sem uso; a seção de certificados de `Profile.tsx` ainda lê a antiga e fica vazia.
 - Não há e-mail ao ganhar certificado (só o aviso na aula e a página).
 - Se o Programa mudar depois (aula nova publicada), quem já tem o geral continua com ele; quem não tem passa a precisar da aula nova.
-- Testes: `server/certificados.test.ts` (11, regras e PDF). O fluxo com banco e a rota do PDF foram testados à mão em Postgres local (emissão, fraude, backfill, dono/admin/visitante/outro aluno), não estão na suíte.
+- Mononímia: quem tem nome de uma palavra só não consegue baixar (o certificado exige nome e sobrenome). Se aparecer o caso, afrouxar `analisarNome`.
+- Testes: `server/certificados.test.ts` (15, regras, nome e PDF). O fluxo com banco e a rota do PDF foram testados à mão em Postgres local (emissão, fraude, backfill, dono/admin/visitante/outro aluno), não estão na suíte.
 

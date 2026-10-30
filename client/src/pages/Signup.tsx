@@ -182,12 +182,13 @@ export default function Signup() {
               <Input
                 id="name"
                 type="text"
-                placeholder="Seu nome"
+                placeholder="Nome e sobrenome"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
                 className="w-full"
               />
+              <p className="mt-1 text-xs text-gray-500">Como no seu documento. É o nome que sai no certificado.</p>
             </div>
 
             {/* Email Input */}

@@ -13,6 +13,7 @@ import {
   MARCA,
   p,
   pequeno,
+  blocoContatos,
   resumo,
   saudacao,
   siteUrl,
@@ -401,15 +402,9 @@ export function emailRespostaContato(params: {
   <div>${textoParaHtml(params.corpo)}</div>
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;border-top:1px solid ${MARCA.linha};">
     <tr><td style="padding-top:16px;">
-      <img src="${escapar(site)}/email/assinatura-email.png" width="200" alt="Shadia Hasan, Psicologia &amp; Desenvolvimento Humano" style="display:block;width:200px;height:auto;border:0;">
+      <a href="${escapar(site)}" target="_blank" style="text-decoration:none;"><img src="${escapar(site)}/email/assinatura-email.png" width="200" height="44" alt="Shadia Hasan · Psicologia &amp; Desenvolvimento Humano" style="display:block;width:200px;height:auto;border:0;font-family:Georgia,serif;font-size:16px;color:${MARCA.azul};"></a>
     </td></tr>
-    <tr><td style="padding-top:8px;font-size:13px;line-height:1.6;color:${MARCA.suave};">
-      ${params.setor ? `<strong style="color:${MARCA.azul};font-weight:600;">${escapar(params.setor)}</strong><br>` : "Psicóloga · CRP 12/27052<br>"}
-      ${params.endereco ? `<a href="mailto:${escapar(params.endereco)}" style="color:${MARCA.verde};text-decoration:none;">${escapar(params.endereco)}</a><br>` : ""}
-      <a href="${escapar(site)}" style="color:${MARCA.verde};text-decoration:none;">${escapar(site.replace(/^https?:\/\//, ""))}</a>
-      &nbsp;·&nbsp;
-      <a href="https://wa.me/5547991665536" style="color:${MARCA.verde};text-decoration:none;">WhatsApp</a>
-    </td></tr>
+    <tr><td style="padding-top:10px;">${blocoContatos({ setor: params.setor, email: params.endereco, semNome: true })}</td></tr>
   </table>
   ${
     params.citacao

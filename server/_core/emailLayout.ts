@@ -36,6 +36,46 @@ export function emailContato(): string {
 
 export const WHATSAPP_URL = "https://wa.me/5547991665536";
 
+/**
+ * Contatos que fecham todo e-mail. Boas práticas: quem envia (nome + registro
+ * profissional), canais escritos por extenso (o número aparece mesmo se o link
+ * não abrir ou o e-mail for impresso), site e política de privacidade (LGPD).
+ */
+export const CONTATOS = {
+  nome: "Shadia Hasan",
+  profissao: "Psicóloga · CRP 12/27052",
+  whatsappTexto: "(47) 99166-5536",
+  instagram: "@shadia_hasan",
+  instagramUrl: "https://www.instagram.com/shadia_hasan",
+} as const;
+
+/** Logo com largura e altura fixas (evita "pulo" do layout) e texto alternativo visível se a imagem for bloqueada. */
+export function logoEmail(largura = 150): string {
+  const site = siteUrl();
+  const altura = Math.round((largura * 361) / 440); // proporção do PNG (440x361)
+  return `<a href="${escapar(site)}" target="_blank" style="text-decoration:none;"><img src="${escapar(site)}/email/logo-email.png" width="${largura}" height="${altura}" alt="Shadia Hasan · Psicologia &amp; Desenvolvimento Humano" style="display:block;width:${largura}px;height:auto;max-width:100%;border:0;outline:none;font-family:${SERIFA};font-size:18px;line-height:1.3;color:${MARCA.azul};"></a>`;
+}
+
+/**
+ * Bloco de contatos (assinatura): nome, registro, WhatsApp, e-mail, site e Instagram.
+ * `setor` troca a linha do registro pelo setor que responde (ex.: "Financeiro").
+ */
+export function blocoContatos(params: { setor?: string | null; email?: string | null; semNome?: boolean } = {}): string {
+  const site = siteUrl();
+  const email = params.email || emailContato();
+  const dominio = site.replace(/^https?:\/\//, "");
+  const link = (href: string, texto: string) =>
+    `<a href="${escapar(href)}" target="_blank" style="color:${MARCA.verde};text-decoration:none;">${escapar(texto)}</a>`;
+  const cel = `font-family:${SANS};font-size:13px;line-height:1.7;color:${MARCA.suave};`;
+  return `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+    ${params.semNome ? "" : `<tr><td style="font-family:${SERIFA};font-size:16px;line-height:1.4;color:${MARCA.azul};">${escapar(CONTATOS.nome)}</td></tr>`}
+    <tr><td style="${cel}">${params.setor ? `<strong style="color:${MARCA.azul};font-weight:600;">${escapar(params.setor)}</strong> · ` : ""}${escapar(CONTATOS.profissao)}</td></tr>
+    <tr><td style="${cel}">WhatsApp ${link(WHATSAPP_URL, CONTATOS.whatsappTexto)} · ${link(`mailto:${email}`, email)}</td></tr>
+    <tr><td style="${cel}">${link(site, dominio)} · Instagram ${link(CONTATOS.instagramUrl, CONTATOS.instagram)}</td></tr>
+  </table>`;
+}
+
 export function escapar(texto: string): string {
   return String(texto ?? "")
     .replace(/&/g, "&amp;")
@@ -135,7 +175,6 @@ export function layoutEmail(params: {
   motivo?: string;
 }): string {
   const site = siteUrl();
-  const contato = emailContato();
   const dominio = site.replace(/^https?:\/\//, "");
 
   return `<!DOCTYPE html>
@@ -153,21 +192,22 @@ export function layoutEmail(params: {
   <tr><td align="center" style="padding:32px 16px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
       <tr><td align="center" style="padding:0 0 24px;">
-        <a href="${escapar(site)}" target="_blank"><img src="${escapar(site)}/email/logo-email.png" width="150" alt="Shadia Hasan, Psicologia &amp; Desenvolvimento Humano" style="display:block;width:150px;height:auto;border:0;"></a>
+        ${logoEmail(150)}
       </td></tr>
       <tr><td style="background:${MARCA.branco};border:1px solid ${MARCA.linha};border-radius:10px;padding:36px 32px 28px;">
         <h1 style="margin:0 0 20px;font-family:${SERIFA};font-weight:normal;font-size:26px;line-height:1.3;color:${MARCA.azul};">${escapar(params.titulo)}</h1>
         ${params.corpo}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;border-top:1px solid ${MARCA.linha};">
-          <tr><td style="padding-top:18px;font-family:${SERIFA};font-size:16px;color:${MARCA.azul};">Shadia Hasan</td></tr>
-          <tr><td style="font-family:${SANS};font-size:13px;line-height:1.5;color:${MARCA.suave};">Psicóloga · CRP 12/27052</td></tr>
+          <tr><td style="padding-top:18px;">${blocoContatos()}</td></tr>
         </table>
       </td></tr>
       <tr><td align="center" style="padding:22px 12px 0;font-family:${SANS};font-size:12px;line-height:1.7;color:${MARCA.suave};">
-        Dúvidas? Responda este e-mail, escreva para <a href="mailto:${escapar(contato)}" style="color:${MARCA.verde};text-decoration:none;">${escapar(contato)}</a>
-        ou fale pelo <a href="${WHATSAPP_URL}" style="color:${MARCA.verde};text-decoration:none;">WhatsApp</a>.<br>
-        <a href="${escapar(site)}" style="color:${MARCA.suave};text-decoration:none;">${escapar(dominio)}</a>
+        Ficou com dúvida? É só responder este e-mail: a resposta chega direto para a nossa equipe.<br>
+        <a href="${escapar(site)}/minha-area" style="color:${MARCA.verde};text-decoration:none;">Minha Área</a>
+        &nbsp;·&nbsp; <a href="${escapar(site)}/faq" style="color:${MARCA.verde};text-decoration:none;">Perguntas frequentes</a>
+        &nbsp;·&nbsp; <a href="${escapar(site)}/privacy" style="color:${MARCA.verde};text-decoration:none;">Política de privacidade</a>
         ${params.motivo ? `<br><span style="color:#8A939A;">${escapar(params.motivo)}</span>` : ""}
+        <br><span style="color:#8A939A;">© ${new Date().getFullYear()} ${escapar(CONTATOS.nome)} · ${escapar(dominio)}</span>
       </td></tr>
     </table>
   </td></tr>

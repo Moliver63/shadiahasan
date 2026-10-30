@@ -26,6 +26,27 @@ describe("layout dos e-mails", () => {
     expect(texto.startsWith("(")).toBe(false);
     expect(texto).not.toMatch(/<[a-z]/i);
   });
+
+  it("todo e-mail leva logo dimensionado e contatos completos (boas práticas)", () => {
+    const html = layoutEmail({ preheader: "p", titulo: "T", corpo: "" });
+    expect(html).toMatch(/logo-email\.png" width="150" height="123" alt="Shadia Hasan/);
+    for (const trecho of ["(47) 99166-5536", "https://wa.me/5547991665536", "mailto:contato@shadiahasan.com", "@shadia_hasan", "/privacy", "/minha-area"]) {
+      expect(html).toContain(trecho);
+    }
+    const texto = htmlParaTexto(html);
+    expect(texto).toContain("WhatsApp (47) 99166-5536");
+    expect(texto).toContain("Política de privacidade");
+  });
+
+  it("resposta da caixa de contato assina com o setor e os mesmos contatos", async () => {
+    const { emailRespostaContato } = await import("./_core/email");
+    const html = emailRespostaContato({ corpo: "Oi", setor: "Financeiro", endereco: "financeiro@shadiahasan.com" });
+    expect(html).toContain("assinatura-email.png");
+    expect(html).toContain("Financeiro");
+    expect(html).toContain("mailto:financeiro@shadiahasan.com");
+    expect(html).toContain("(47) 99166-5536");
+    expect(html).toContain("CRP 12/27052");
+  });
 });
 
 describe("envio", () => {

@@ -11,6 +11,18 @@ import "./index.css";
 
 // FIX: configurar o QueryClient com retry desativado para erros 4xx,
 // evitando que erros de autenticação/autorização gerem múltiplas requisições.
+// Versão nova do site: o service worker novo assume a aba e recarregamos uma vez, para
+// ninguém ficar vendo a versão antiga (sem as páginas novas) até apertar F5 sozinho.
+// Só recarrega se já havia um service worker controlando (na primeira visita, não).
+if (typeof window !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
+  let recarregou = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (recarregou) return;
+    recarregou = true;
+    window.location.reload();
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

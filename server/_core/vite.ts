@@ -72,7 +72,20 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // O service worker e o index.html nunca podem ficar em cache: são eles que dizem ao
+  // navegador qual versão do site usar. Cache aqui deixava gente presa numa versão
+  // antiga (ex.: /minha-area dando 404 depois de a página existir). Os arquivos com
+  // hash em /assets continuam com o cache normal.
+  app.use(
+    express.static(distPath, {
+      setHeaders(res, file) {
+        const nome = path.basename(file);
+        if (nome === "index.html" || nome === "sw.js" || nome === "registerSW.js" || nome === "manifest.webmanifest" || /^workbox-.*\.js$/.test(nome)) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        }
+      },
+    })
+  );
 
   app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));

@@ -17,9 +17,9 @@ describe("mesma caixa de entrada = mesma conta", () => {
 describe("destino depois do link de acesso", () => {
   it("só caminhos do próprio site", () => {
     expect(destinoSeguro("/lesson/3")).toBe("/lesson/3");
-    expect(destinoSeguro("https://evil.com")).toBe("/my-courses");
-    expect(destinoSeguro("//evil.com")).toBe("/my-courses");
-    expect(destinoSeguro("/\\evil.com")).toBe("/my-courses");
-    expect(destinoSeguro(undefined)).toBe("/my-courses");
+    expect(destinoSeguro("https://evil.com")).toBe("/minha-area");
+    expect(destinoSeguro("//evil.com")).toBe("/minha-area");
+    expect(destinoSeguro("/\\evil.com")).toBe("/minha-area");
+    expect(destinoSeguro(undefined)).toBe("/minha-area");
   });
 });

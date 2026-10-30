@@ -133,7 +133,7 @@ export async function sendWelcomeEmail(email: string, name: string) {
       p("Um bom começo é escolher um tema e assistir à primeira aula com calma, sem pressa de terminar. Cada aula foi pensada para ser vivida, não só assistida.") +
       botao("Ver os cursos", `${site}/courses`) +
       destaque(
-        `Em <a href="${escapar(site)}/my-courses" style="color:${MARCA.verde};">Meus cursos</a> você acompanha o progresso e, em <a href="${escapar(site)}/certificates" style="color:${MARCA.verde};">Certificados</a>, encontra os dos cursos concluídos.`,
+        `Em <a href="${escapar(site)}/minha-area" style="color:${MARCA.verde};">Minha Área</a> você acompanha o progresso e, em <a href="${escapar(site)}/certificates" style="color:${MARCA.verde};">Certificados</a>, encontra os dos cursos concluídos.`,
       ),
     motivo: "Você recebeu este e-mail porque criou uma conta em shadiahasan.com.",
   });
@@ -266,7 +266,7 @@ export async function sendPagamentoRecebidoEmail(
       ) +
       resumo(linhas) +
       (params.reciboUrl ? pequeno(`Comprovante: <a href="${escapar(params.reciboUrl)}" style="color:${MARCA.verde};">ver recibo</a>`) : "") +
-      botao("Ir para as aulas", `${siteUrl()}/my-courses`),
+      botao("Ir para as aulas", `${siteUrl()}/minha-area`),
     motivo: MOTIVO_ASSINATURA,
   });
   return enviarEmail({

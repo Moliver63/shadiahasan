@@ -200,9 +200,9 @@ descrever("compra sem conta → conta que já existe", () => {
 
   it("link de acesso não aceita destino fora do site", async () => {
     const links = await import("./linkDeAcesso");
-    expect(links.destinoSeguro("https://evil.com/x")).toBe("/my-courses");
-    expect(links.destinoSeguro("//evil.com")).toBe("/my-courses");
+    expect(links.destinoSeguro("https://evil.com/x")).toBe("/minha-area");
+    expect(links.destinoSeguro("//evil.com")).toBe("/minha-area");
     expect(links.destinoSeguro("/lesson/12")).toBe("/lesson/12");
-    expect(links.destinoSeguro("/\\evil.com")).toBe("/my-courses");
+    expect(links.destinoSeguro("/\\evil.com")).toBe("/minha-area");
   });
 });

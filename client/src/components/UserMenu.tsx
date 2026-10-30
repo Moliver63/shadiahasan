@@ -101,10 +101,10 @@ export default function UserMenu() {
               <span>Ver Perfil</span>
             </DropdownMenuItem>
           </Link>
-          <Link href="/my-courses">
+          <Link href="/minha-area">
             <DropdownMenuItem className="cursor-pointer">
               <BookOpen className="mr-2 h-4 w-4" />
-              <span>Meus Programas</span>
+              <span>Minha Área</span>
             </DropdownMenuItem>
           </Link>
           <Link href="/certificates">

@@ -69,7 +69,7 @@ export default function Login() {
       } else if (role === "admin" || role === "superadmin") {
         window.location.href = "/admin";
       } else {
-        window.location.href = "/courses";
+        window.location.href = "/minha-area";
       }
     },
     onError: (error) => {
@@ -96,7 +96,7 @@ export default function Login() {
       const r = await fetch('/api/auth/enviar-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailLink, next: destino || '/my-courses' }),
+        body: JSON.stringify({ email: emailLink, next: destino || '/minha-area' }),
       });
       const dados = await r.json().catch(() => ({}));
       setLinkEstado({ tipo: r.ok ? 'ok' : 'erro', texto: dados.mensagem || (r.ok ? 'Link enviado.' : 'Não foi possível enviar agora.') });

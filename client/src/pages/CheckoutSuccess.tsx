@@ -39,8 +39,8 @@ export default function CheckoutSuccess() {
                   <Button className="w-full" size="lg">Ir para a aula</Button>
                 </Link>
               )}
-              <Link href="/pricing" className="flex-1">
-                <Button variant="outline" className="w-full" size="lg">Ver planos de assinatura</Button>
+              <Link href="/minha-area" className="flex-1">
+                <Button variant="outline" className="w-full" size="lg">Ir para Minha Área</Button>
               </Link>
             </div>
             <p className="text-center text-sm text-gray-500">
@@ -113,9 +113,9 @@ export default function CheckoutSuccess() {
                 Explorar Programas
               </Button>
             </Link>
-            <Link href="/dashboard" className="flex-1">
+            <Link href="/minha-area" className="flex-1">
               <Button variant="outline" className="w-full" size="lg">
-                Ir para Dashboard
+                Ir para Minha Área
               </Button>
             </Link>
           </div>

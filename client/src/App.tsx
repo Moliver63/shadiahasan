@@ -33,6 +33,7 @@ const Courses = lazy(() => import("./pages/Courses"));
 const CourseDetail = lazy(() => import("./pages/CourseDetail"));
 const LessonView = lazy(() => import("./pages/LessonView"));
 const MyCourses = lazy(() => import("./pages/MyCourses"));
+const MinhaArea = lazy(() => import("./pages/MinhaArea"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const CheckoutSuccess = lazy(() => import("./pages/CheckoutSuccess"));
 const CompraAguardando = lazy(() => import("./pages/CompraAguardando"));
@@ -123,6 +124,7 @@ function Router() {
       <Route path={"/courses"} component={Courses} />
       <Route path={"/courses/:slug"} component={CourseDetail} />
       <ProtectedRoute path={"/lesson/:id"} component={LessonView} />
+      <ProtectedRoute path={"/minha-area"} component={MinhaArea} />
       <ProtectedRoute path={"/my-courses"} component={MyCourses} />
       <ProtectedRoute path={"/dashboard"} component={AdminDashboard} requireAdmin />
       <ProtectedRoute path={"/admin"} component={AdminDashboard} requireAdmin />

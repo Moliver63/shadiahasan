@@ -28,7 +28,7 @@ router.get('/google', (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('google', {
     session: false,
     scope: ['profile', 'email'],
-    ...(destino && destino !== '/my-courses' ? { state: destino } : {}),
+    ...(destino && destino !== '/minha-area' ? { state: destino } : {}),
   } as any)(req, res, next);
 });
 
@@ -94,7 +94,7 @@ router.get(
       };
 
       const pedido = typeof req.query.state === 'string' && req.query.state.startsWith('/') ? destinoSeguro(req.query.state) : null;
-      const redirectUrl = pedido ?? (user.role === 'admin' ? '/admin' : '/courses');
+      const redirectUrl = pedido ?? (user.role === 'admin' || user.role === 'superadmin' ? '/admin' : '/minha-area');
 
       // Google devolve no domínio técnico do Render (GOOGLE_CALLBACK_URL). A
       // sessão tem que nascer no domínio do site, senão o aluno fica logado
@@ -211,7 +211,7 @@ function permitirPedido(chave: string, limite: number, janelaMs: number) {
 
 router.post('/enviar-link', async (req: Request, res: Response) => {
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase().slice(0, 254) : '';
-  const destino = destinoSeguro(typeof req.body?.next === 'string' ? req.body.next : '/my-courses');
+  const destino = destinoSeguro(typeof req.body?.next === 'string' ? req.body.next : '/minha-area');
   const ip = String(req.headers['x-forwarded-for'] || req.ip || '?').split(',')[0].trim();
   const resposta = { ok: true, mensagem: 'Se este e-mail tiver conta, o link chega em instantes. Confira também o spam.' };
   if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) return res.status(400).json({ ok: false, mensagem: 'E-mail inválido.' });

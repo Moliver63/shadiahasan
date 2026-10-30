@@ -19,7 +19,7 @@ import * as db from "./db";
 import { users } from "../drizzle/schema";
 
 const SETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
-const DESTINO_PADRAO = "/my-courses";
+const DESTINO_PADRAO = "/minha-area";
 
 function hash(token: string) {
   return createHash("sha256").update(token).digest("hex");

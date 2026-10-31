@@ -16,6 +16,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { Link, useLocation, useParams } from "wouter";
 import LessonMaterials from "@/components/LessonMaterials";
+import CertificadoPassos from "@/components/CertificadoPassos";
 import TrialPassDialog, { formatBRL } from "@/components/TrialPassDialog";
 
 // Detecta se a URL é do YouTube
@@ -832,6 +833,8 @@ export default function LessonView() {
                 </CardContent>
               </Card>
             )}
+
+            {hasAccess && <CertificadoPassos lessonId={lessonId} aoGanhar={avisarCertificados} />}
 
             {/* Navigation */}
             <div className="flex justify-between gap-4">

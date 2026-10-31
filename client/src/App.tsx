@@ -40,6 +40,7 @@ const CompraAguardando = lazy(() => import("./pages/CompraAguardando"));
 const Ebooks = lazy(() => import("./pages/Ebooks"));
 const EbookReader = lazy(() => import("./pages/EbookReader"));
 const MyCertificates = lazy(() => import("./pages/MyCertificates"));
+const AdminPerguntas = lazy(() => import("./pages/AdminPerguntas"));
 const CertificadoVerificar = lazy(() => import("./pages/CertificadoVerificar"));
 const About = lazy(() => import("./pages/About"));
 const Contact = lazy(() => import("./pages/Contact"));
@@ -137,6 +138,7 @@ function Router() {
       <ProtectedRoute path={"/admin/courses"} component={AdminCourses} requireAdmin />
       <ProtectedRoute path={"/admin/plans"} component={AdminPlans} requireAdmin />
       <ProtectedRoute path={"/admin/testimonials"} component={AdminTestimonials} requireAdmin />
+      <ProtectedRoute path={"/admin/perguntas"} component={AdminPerguntas} requireAdmin />
       <ProtectedRoute path={"/admin/courses/:id/lessons"} component={AdminCourseLessons} requireAdmin />
       <ProtectedRoute path={"/admin/analytics"} component={AdminAnalytics} requireAdmin />
       <ProtectedRoute path={"/admin/settings"} component={AdminSettings} requireAdmin />

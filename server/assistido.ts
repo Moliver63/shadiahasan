@@ -168,3 +168,23 @@ export async function aulasAssistidas(userId: number, ids?: number[]): Promise<S
   }
   return ok;
 }
+
+/** Situação de uma aula para o aluno: quanto já foi assistido e se bateu os 80%. */
+export async function statusAssistido(userId: number, lessonId: number): Promise<{ fracao: number; assistida: boolean }> {
+  try {
+    if (!(await garantirTabelaAssistido())) return { fracao: 0, assistida: false };
+    const d = await db.getDb();
+    if (!d) return { fracao: 0, assistida: false };
+    const l = linhasDe(await d.execute(sql`
+      SELECT a."segundos", a."duracaoInformada", l."duration"
+      FROM "aulaAssistida" a JOIN "lessons" l ON l."id" = a."lessonId"
+      WHERE a."userId" = ${userId} AND a."lessonId" = ${lessonId}
+    `))[0];
+    if (!l) return { fracao: 0, assistida: false };
+    const dur = duracaoEfetiva(l.duration == null ? null : Number(l.duration), l.duracaoInformada == null ? null : Number(l.duracaoInformada));
+    const seg = Number(l.segundos);
+    return { fracao: dur ? Math.min(1, seg / (dur * MIN_FRACAO)) : 0, assistida: atingiuMinimo(seg, dur) };
+  } catch {
+    return { fracao: 0, assistida: false };
+  }
+}

@@ -26,7 +26,7 @@
 import { randomInt } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import * as db from "./db";
-import { aulasAssistidas } from "./assistido";
+import { aulasLiberadas } from "./requisitos";
 import { contentCollectionItems, contentCollections, courses, enrollments, lessons, users } from "../drizzle/schema";
 
 export type TipoCertificado = "aula" | "programa";
@@ -109,11 +109,29 @@ export function garantirTabela(): Promise<boolean> {
             "titulo" varchar(255) NOT NULL,
             "subtitulo" varchar(255),
             "numero" varchar(32) NOT NULL UNIQUE,
-            "emitidoEm" timestamp NOT NULL DEFAULT now()
+            "emitidoEm" timestamp NOT NULL DEFAULT now(),
+            "revogadoEm" timestamptz,
+            "motivoRevogacao" varchar(255)
           )
         `);
-        await d.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "certEmitidos_aula_uq" ON "certificadosEmitidos" ("userId", "lessonId") WHERE "tipo" = 'aula'`);
-        await d.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "certEmitidos_programa_uq" ON "certificadosEmitidos" ("userId", "programId") WHERE "tipo" = 'programa'`);
+        // Revogação (31/10/2026): os certificados emitidos antes da regra "assistir + 3 respostas + depoimento"
+        // saíram sem cumprir os requisitos. Quando a coluna ainda não existe (tabela da versão anterior),
+        // ela é criada e tudo que já estava emitido é revogado, uma única vez. A linha fica guardada
+        // (nada é apagado) e o aluno pode ganhar o certificado de novo cumprindo os requisitos.
+        await d.execute(sql`
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'certificadosEmitidos' AND column_name = 'revogadoEm') THEN
+              ALTER TABLE "certificadosEmitidos" ADD COLUMN "revogadoEm" timestamptz, ADD COLUMN "motivoRevogacao" varchar(255);
+              UPDATE "certificadosEmitidos" SET "revogadoEm" = now(),
+                "motivoRevogacao" = 'Emitido antes da regra de assistir, responder as perguntas e fazer o depoimento (31/10/2026)';
+            END IF;
+          END $$
+        `);
+        // Índices só olham certificados válidos: o revogado não impede de emitir de novo
+        await d.execute(sql`DROP INDEX IF EXISTS "certEmitidos_aula_uq"`);
+        await d.execute(sql`DROP INDEX IF EXISTS "certEmitidos_programa_uq"`);
+        await d.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "certEmitidos_aula_v2" ON "certificadosEmitidos" ("userId", "lessonId") WHERE "tipo" = 'aula' AND "revogadoEm" IS NULL`);
+        await d.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "certEmitidos_programa_v2" ON "certificadosEmitidos" ("userId", "programId") WHERE "tipo" = 'programa' AND "revogadoEm" IS NULL`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "certEmitidos_user_idx" ON "certificadosEmitidos" ("userId")`);
         return true;
       } catch (e) {
@@ -147,7 +165,7 @@ export async function listarDoAluno(userId: number): Promise<CertificadoEmitido[
   const d = await db.getDb();
   if (!d) return [];
   const r = await d.execute(sql`
-    SELECT * FROM "certificadosEmitidos" WHERE "userId" = ${userId}
+    SELECT * FROM "certificadosEmitidos" WHERE "userId" = ${userId} AND "revogadoEm" IS NULL
     ORDER BY CASE "tipo" WHEN 'programa' THEN 0 ELSE 1 END, "emitidoEm" DESC, "id" DESC
   `);
   return linhasDe(r).map(paraCertificado);
@@ -162,7 +180,7 @@ export async function buscarPorNumero(numero: string): Promise<CertificadoComAlu
   const r = await d.execute(sql`
     SELECT c.*, u."name" AS "nomeAluno" FROM "certificadosEmitidos" c
     LEFT JOIN "users" u ON u."id" = c."userId"
-    WHERE c."numero" = ${numero} LIMIT 1
+    WHERE c."numero" = ${numero} AND c."revogadoEm" IS NULL LIMIT 1
   `);
   const l = linhasDe(r)[0];
   return l ? { ...paraCertificado(l), nomeAluno: nomeParaCertificado(l.nomeAluno ? String(l.nomeAluno) : null) } : null;
@@ -263,7 +281,7 @@ async function inserir(d: NonNullable<Awaited<ReturnType<typeof db.getDb>>>, c: 
       const l = linhasDe(r)[0];
       if (l) return paraCertificado(l);
       // Nada devolvido: ou o aluno já tem este certificado, ou o número colidiu
-      const existe = await d.execute(sql`SELECT 1 FROM "certificadosEmitidos" WHERE "userId" = ${c.userId} AND "tipo" = ${c.tipo}
+      const existe = await d.execute(sql`SELECT 1 FROM "certificadosEmitidos" WHERE "userId" = ${c.userId} AND "tipo" = ${c.tipo} AND "revogadoEm" IS NULL
         AND ${c.tipo === "aula" ? sql`"lessonId" = ${c.lessonId}` : sql`"programId" = ${c.programId}`} LIMIT 1`);
       if (linhasDe(existe).length) return null;
     } catch (e) {
@@ -283,16 +301,16 @@ export async function emitirParaAulas(userId: number, candidatas: AulaValida[]):
   const d = await db.getDb();
   if (!d) return [];
 
-  // Só vale aula realmente assistida (tempo medido pelo servidor, ver server/assistido.ts).
-  // A lista de "concluídas" do navegador NÃO conta: ela é só o progresso na tela.
-  const assistidas = await aulasAssistidas(userId);
+  // Só vale aula com os três requisitos (assistida no servidor + 3 respostas + depoimento,
+  // ver server/requisitos.ts). A lista de "concluídas" do navegador NÃO conta: é só o progresso na tela.
+  const assistidas = await aulasLiberadas(userId);
   const aulas = candidatas.filter((a) => assistidas.has(a.id));
   if (!aulas.length) return [];
 
   const ids = aulas.map((a) => a.id);
   const programas = await programasDasAulas(ids);
 
-  // Concluídas para fechar o geral do Programa: apenas as assistidas
+  // Concluídas para fechar o geral do Programa: apenas as liberadas
   const concluidas = new Set<number>(assistidas);
 
   const existentes = await listarDoAluno(userId);

@@ -191,7 +191,7 @@ export default function MyCertificates() {
         <header>
           <h1 className="text-3xl font-bold sm:text-4xl">Meus certificados</h1>
           <p className="mt-1 text-lg text-muted-foreground">
-            Você ganha um certificado a cada aula que assiste (pelo menos 80% do vídeo) e um certificado geral ao assistir todas as aulas de um Programa.
+            Para ganhar o certificado de uma aula, assista (pelo menos 80%), responda a 3 perguntas e faça o depoimento. O certificado geral sai ao cumprir isso em todas as aulas de um Programa.
           </p>
         </header>
 
@@ -205,7 +205,7 @@ export default function MyCertificates() {
               <Award className="mx-auto mb-4 h-14 w-14 text-muted-foreground/50" aria-hidden />
               <h2 className="text-xl font-semibold">Seu primeiro certificado está a uma aula de distância</h2>
               <p className="mx-auto mt-2 max-w-md text-muted-foreground">
-                Assista uma aula (pelo menos 80% do vídeo) e o certificado dela aparece aqui, pronto para baixar em PDF. Pular trechos não conta.
+                Assista a uma aula, responda às 3 perguntas e faça o depoimento. O certificado dela aparece aqui, pronto para baixar em PDF.
               </p>
               <Button asChild className="mt-6"><Link href="/minha-area">Ir para Minha Área</Link></Button>
             </CardContent>

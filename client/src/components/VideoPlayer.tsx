@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { chaveDoManifesto } from "@/lib/videoChave";
 import {
   AlertCircle,
   Languages,
@@ -37,6 +38,8 @@ interface VideoPlayerProps {
    * `duracao` é a duração total do vídeo em segundos (0 se ainda desconhecida).
    */
   onWatchDelta?: (segundos: number, duracao: number) => void;
+  /** O vídeo falhou por link vencido/negado: o pai deve buscar um link novo (muda `src` sem recriar o player). */
+  onPrecisaNovaUrl?: () => void;
   // Countdown Netflix — passado pelo LessonView, renderizado dentro do player
   // para funcionar em fullscreen (elementos fixed fora do fullscreen são invisíveis)
   countdown?: number | null;
@@ -85,6 +88,7 @@ export default function VideoPlayer({
   onProgress,
   onComplete,
   onWatchDelta,
+  onPrecisaNovaUrl,
   countdown,
   nextLesson,
   onGoToNext,
@@ -97,6 +101,22 @@ export default function VideoPlayer({
   // Ref para o efeito do vídeo não reiniciar quando o pai troca a função
   const watchRef = useRef(onWatchDelta);
   watchRef.current = onWatchDelta;
+  // Funções e fonte atuais ficam em refs: o efeito do vídeo NÃO pode depender delas.
+  // Antes, onProgress/onComplete mudavam a cada renderização da aula (viravam novas funções) e
+  // cada mudança destruía e recriava o player: o vídeo voltava ao início ou parava de exibir.
+  const srcRef = useRef(src);
+  srcRef.current = src;
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const autoPlayRef = useRef(autoPlay);
+  autoPlayRef.current = autoPlay;
+  const idiomaRef = useRef(preferredLanguage);
+  idiomaRef.current = preferredLanguage;
+  const novaUrlRef = useRef(onPrecisaNovaUrl);
+  novaUrlRef.current = onPrecisaNovaUrl;
+  const fonteCarregadaRef = useRef<string | null>(null);
   const ytIframeRef = useRef<HTMLIFrameElement>(null);
   const ytTocando = useRef(false);
   const ytUltimoT = useRef<number | null>(null);
@@ -114,6 +134,7 @@ export default function VideoPlayer({
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const youtubeId = getYouTubeId(src);
+  const chaveVideo = chaveDoManifesto(src);
 
   // Silencia imediatamente quando countdown inicia — cobre todos os cenários
   // (vídeo terminado, aula já concluída com vídeo ainda tocando, etc.)
@@ -186,10 +207,12 @@ export default function VideoPlayer({
       }
     };
 
-    if (src.includes(".m3u8")) {
+    const srcInicial = srcRef.current;
+    fonteCarregadaRef.current = srcInicial;
+    if (srcInicial.includes(".m3u8")) {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = src;
-        if (autoPlay) video.addEventListener("canplay", () => {
+        video.src = srcInicial;
+        if (autoPlayRef.current) video.addEventListener("canplay", () => {
           void video.play()
             .then(() => fadeInAudio(video, () => setIsMuted(false)))
             .catch(() => { video.muted = false; video.volume = 1; setIsMuted(false); });
@@ -199,23 +222,48 @@ export default function VideoPlayer({
           const Hls = module.default;
           if (!Hls.isSupported()) return;
 
-          const hls = new Hls();
+          const hls = new Hls({ maxBufferLength: 30, manifestLoadingMaxRetry: 4, levelLoadingMaxRetry: 4, fragLoadingMaxRetry: 6 });
           hlsRef.current = hls;
-          hls.loadSource(src);
+          hls.loadSource(srcInicial);
           hls.attachMedia(video);
 
+          // Falha fatal não derruba mais o vídeo de cara: rede tenta de novo, mídia se recupera,
+          // link vencido (401/403) pede um link novo ao pai e continua do mesmo ponto.
+          let tentativasRede = 0;
+          let tentativasMidia = 0;
+          let pedidosNovaUrl = 0;
+          hls.on(Hls.Events.FRAG_LOADED, () => { tentativasRede = 0; tentativasMidia = 0; pedidosNovaUrl = 0; });
+          let ultimoPedidoUrl = 0;
           hls.on(Hls.Events.ERROR, (_event: unknown, data: any) => {
-            if (data.fatal) {
-              const msg = data.response?.code === 424
-                ? "Vídeo não disponível (foi removido ou está sendo processado)."
-                : data.response?.code === 403
-                ? "Acesso negado a este vídeo."
-                : "Erro ao carregar o vídeo. Tente novamente.";
-              setLoadError(msg);
-              hls.destroy();
+            const code = data.response?.code;
+            const desistir = (msg: string) => { setLoadError(msg); hls.destroy(); };
+            // Link vencido: reage na hora, sem esperar o hls.js esgotar as tentativas (leva ~1 min, e
+            // o vídeo ficava parado no fim do que já tinha carregado). Quando a recusa vem sem
+            // cabeçalho CORS o navegador não informa o código (fica vazio/0), então vazio também vale.
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR && (code === 401 || code === 403 || !code)) {
+              const agora = Date.now();
+              if (novaUrlRef.current && pedidosNovaUrl < 3) {
+                if (agora - ultimoPedidoUrl > 4000) { ultimoPedidoUrl = agora; pedidosNovaUrl++; novaUrlRef.current(); }
+                return;
+              }
+              if (data.fatal) return desistir("Acesso negado a este vídeo.");
+              return;
             }
+            if (!data.fatal) return;
+            if (code === 424) return desistir("Vídeo não disponível (foi removido ou está sendo processado).");
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              if (tentativasRede < 5) { tentativasRede++; setTimeout(() => hls.startLoad(), 800 * tentativasRede); return; }
+              return desistir("Erro de rede ao carregar o vídeo. Verifique sua conexão e tente novamente.");
+            }
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR && tentativasMidia < 3) {
+              tentativasMidia++;
+              if (tentativasMidia === 2) hls.swapAudioCodec();
+              hls.recoverMediaError();
+              return;
+            }
+            desistir("Erro ao carregar o vídeo. Tente novamente.");
           });
-          if (autoPlay) video.addEventListener("canplay", () => {
+          if (autoPlayRef.current) video.addEventListener("canplay", () => {
             void video.play()
               .then(() => fadeInAudio(video, () => setIsMuted(false)))
               .catch(() => { video.muted = false; video.volume = 1; setIsMuted(false); });
@@ -230,8 +278,8 @@ export default function VideoPlayer({
 
           // Tenta selecionar automaticamente a faixa que combina com o idioma preferido
           const autoSelectByLanguage = (tracks: AudioTrackOption[]): number => {
-            if (!preferredLanguage || tracks.length <= 1) return 0;
-            const lang = preferredLanguage.toLowerCase();
+            if (!idiomaRef.current || tracks.length <= 1) return 0;
+            const lang = (idiomaRef.current ?? "").toLowerCase();
             // Tenta match exato (ex: "pt-BR"), depois prefixo (ex: "pt"), depois padrão 0
             const exact = tracks.findIndex((t) => t.language.toLowerCase() === lang);
             if (exact >= 0) return exact;
@@ -269,8 +317,8 @@ export default function VideoPlayer({
         });
       }
     } else {
-      video.src = src;
-      if (autoPlay) video.addEventListener("canplay", () => {
+      video.src = srcInicial;
+      if (autoPlayRef.current) video.addEventListener("canplay", () => {
         void video.play()
           .then(() => fadeInAudio(video, () => setIsMuted(false)))
           .catch(() => { video.muted = false; video.volume = 1; setIsMuted(false); });
@@ -280,9 +328,9 @@ export default function VideoPlayer({
     let ultimoT: number | null = null;
     const handleTimeUpdate = () => {
       setCurrentTime(video.currentTime);
-      if (onProgress && video.duration > 0) {
+      if (onProgressRef.current && video.duration > 0) {
         const progress = (video.currentTime / video.duration) * 100;
-        onProgress(progress);
+        onProgressRef.current(progress);
       }
       // Tempo realmente assistido: só avanço contínuo com o vídeo tocando
       const t = video.currentTime;
@@ -311,6 +359,8 @@ export default function VideoPlayer({
         : err.code === MediaError.MEDIA_ERR_NETWORK
         ? "Erro de rede ao carregar o vídeo. Verifique sua conexão."
         : "Erro ao carregar o vídeo. Tente novamente.";
+      // Link vencido no player nativo (Safari): pede um novo antes de mostrar o erro
+      if (err.code === MediaError.MEDIA_ERR_NETWORK && novaUrlRef.current) { novaUrlRef.current(); return; }
       setLoadError(msg);
     };
 
@@ -322,9 +372,7 @@ export default function VideoPlayer({
       // Silencia via muted (consistente com toggleMute) — evita ruído durante countdown
       video.muted = true;
       setIsMuted(true);
-      if (onComplete) {
-        onComplete();
-      }
+      onCompleteRef.current?.();
     };
 
     video.addEventListener("timeupdate", handleTimeUpdate);
@@ -349,7 +397,30 @@ export default function VideoPlayer({
         clearTimeout(hideControlsTimeout.current);
       }
     };
-  }, [src, onProgress, onComplete, youtubeId, autoPlay]);
+  }, [chaveVideo, youtubeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Link novo do MESMO vídeo (token renovado): troca a fonte e continua do ponto atual, sem recriar o player
+  useEffect(() => {
+    const video = videoRef.current;
+    if (youtubeId || !video || !src.includes(".m3u8")) return;
+    if (fonteCarregadaRef.current === null || fonteCarregadaRef.current === src) return;
+    fonteCarregadaRef.current = src;
+    const t = video.currentTime;
+    const tocando = !video.paused && !video.ended;
+    const retomar = () => {
+      if (t > 0) video.currentTime = t;
+      if (tocando) void video.play().catch(() => {});
+    };
+    const hls = hlsRef.current;
+    if (hls) {
+      hls.once?.("hlsManifestParsed", retomar);
+      hls.loadSource(src);
+      hls.startLoad(t > 0 ? t : -1);
+    } else {
+      video.src = src;
+      video.addEventListener("loadedmetadata", retomar, { once: true });
+    }
+  }, [src, youtubeId]);
 
   const togglePlay = () => {
     const video = videoRef.current;

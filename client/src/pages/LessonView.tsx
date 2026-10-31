@@ -208,12 +208,19 @@ export default function LessonView() {
     (Boolean(lesson.videoPlaybackUrl) ||
       (lesson.videoProvider === "cloudflare" && Boolean(lesson.videoAssetId)));
 
-  const { data: playbackData, isLoading: playbackLoading } =
+  // O link de vídeo protegido vence em 1 h e muda a cada pedido (o token leva a validade).
+  // Por isso: não pedir de novo à toa (um link novo recriava o player), mas renovar de 40 em 40
+  // minutos, antes de vencer. O player troca a fonte sem perder o ponto da aula.
+  const { data: playbackData, isLoading: playbackLoading, refetch: refetchPlayback } =
     trpc.videos.getPlaybackUrl.useQuery(
       { lessonId },
       {
         enabled: shouldFetchPlaybackUrl,
         refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: 40 * 60 * 1000,
+        refetchInterval: (q) => (q.state.data?.isProtected ? 40 * 60 * 1000 : false),
+        refetchIntervalInBackground: true,
       }
     );
 
@@ -667,6 +674,7 @@ export default function LessonView() {
                         onProgress={handleProgress}
                         onComplete={handleComplete}
                         onWatchDelta={assistido.somar}
+                        onPrecisaNovaUrl={() => { void refetchPlayback(); }}
                         countdown={countdown}
                         nextLesson={(() => {
                           if (nextUnlockedLesson) return {

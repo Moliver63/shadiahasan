@@ -603,3 +603,28 @@ Antes: existia só a tabela `certificates` e a mutation `certificates.generate`,
 **Verificado:** testes `server/seo.test.ts` (7) e `client/src/lib/jsonld.test.ts` (7); sitemap contra Postgres local (curso rascunho e programa inativo ficam de fora); `<head>` real de /, /faq, /courses, /courses/:slug, /ebooks em Chromium (um título, uma descrição, um canonical, um og:image por página).
 
 **Limites:** o app é SPA, então WhatsApp/Facebook (que não executam JavaScript) sempre mostram as meta tags estáticas da home ao compartilhar um curso; só o Google vê as de cada página. Resolver isso exige injetar as tags no servidor por URL (não feito). Depois do deploy, enviar `https://shadiahasan.com/sitemap.xml` no Google Search Console e pedir inspeção da home. Se `SITE_URL` no Render ainda estiver com `.club`, e-mails e links que usam essa variável continuam com o domínio antigo (o código novo de SEO não depende dela).
+
+### E-mail marketing: autorização, cancelamento e campanhas (31/10/2026)
+
+**Achado:** o formulário da home (`LeadCapture`) prometia "acesso imediato a uma aula gratuita", mas só gravava o e-mail em `leads` (produção: 0 linhas): não enviava nada, não existe aula gratuita no site, não pedia autorização e não havia como sair da lista. Mandar oferta assim contraria a LGPD (a própria `/privacy` declara consentimento como base dos e-mails promocionais) e prejudica a reputação do domínio.
+
+**Regras (`server/marketing.ts`):**
+- Só entra quem marca a caixa "Quero receber novidades, conteúdos e ofertas..." (nunca vem marcada). Aparece na home, no cadastro (`Signup`) e na compra da aula experimental (`GuestCheckoutDialog`). Cliente antigo NÃO é importado: a autorização precisa ser da pessoa.
+- Dupla confirmação em toda origem: a pessoa só fica "ativa" depois de clicar no link enviado ao e-mail (nenhum formulário prova que o e-mail é de quem digitou). O link abre uma tela com botão; só o POST confirma (antivírus e leitores de e-mail abrem links sozinhos).
+- Tabela `marketingContatos` (criada em tempo de execução): e-mail único, origem (`home`/`cadastro`/`compra-aula`), token, `consentimentoEm`, `consentimentoTexto` (versão do texto lido, hoje `2026-10-31`), `confirmadoEm`, `descadastradoEm`. Ativo = confirmado e sem cancelamento. O texto da caixa existe no cliente (`client/src/lib/consentimento.ts`) e no servidor (`TEXTO_CONSENTIMENTO`); um teste garante que são iguais. Mudou o texto, mude a versão.
+- Cancelar: `GET /api/marketing/sair?t=` mostra botão, `POST` cancela (idempotente). O POST também aceita o cancelamento de um clique do Gmail/Apple Mail (cabeçalho `List-Unsubscribe-Post`). Quem cancelou e se inscreve de novo precisa confirmar de novo. Reenvio do e-mail de confirmação: 1 a cada 10 min por endereço, e 6/h por IP; a resposta da tela é igual exista o e-mail ou não.
+- E-mails de conta e pagamento (verificação, senha, cobrança) são transacionais e continuam saindo para quem cancelou o marketing.
+
+**Campanhas (`server/marketingEnvio.ts`, tela `/admin/campanhas`, menu "Campanhas"):** nome interno, assunto, texto (parágrafos por linha em branco; o e-mail já abre com "Olá, [primeiro nome]." e fecha com assinatura e link de cancelar), botão opcional (só http/https), público por origem e "somente quem ainda não assina" (olha `user_subscriptions` active/trialing/past_due e `subscriptions` com plano pago). Prévia ao vivo, "Enviar teste para mim" (assunto com [TESTE]) e confirmação antes do envio. Envio em segundo plano, lotes de 50 pela API batch do Resend (pausa de 700 ms), com `List-Unsubscribe` em cada mensagem. Cada destinatário é uma linha em `marketingEnvios` (chave campanha+contato): ninguém recebe duas vezes, quem cancela no meio do envio sai da fila (`ignorado`), lote que falha é refeito um a um, linha "processando" parada volta à fila ao retomar, "Parar envio", "Continuar envio" (servidor reiniciou) e "Tentar de novo" (erros). Só rascunho pode ser editado ou excluído. Status "Não enviada" quando todos deram erro e "Enviada com erros" quando parte falhou.
+
+**Testes:** `server/marketing.test.ts` (17) e `client/src/lib/consentimento.test.ts` (2). Fluxo completo em Postgres local (fora da suíte, passou): inscrição, confirmação, cancelamento, nova inscrição após cancelar, segmentos com e sem assinatura nos dois sistemas, envio sem repetir ninguém, cancelamento no meio do envio, queda de rede num lote, reenvio de erros, parar, retomada após reinício, público vazio e as páginas públicas (GET não muda nada, POST muda, token inválido). No navegador: caixa desmarcada e botão só libera com e-mail + autorização, confirmação em duas etapas, editor, prévia, teste, confirmação de envio e acompanhamento.
+
+**Pendências / limites:**
+- Falta a sequência automática (boas-vindas, aula, oferta com intervalos). A infraestrutura (lista, autorização, cancelamento, envio) já serve de base.
+- `leads.capture` (tRPC público) continua existindo e gravando em `leads`, mas nenhuma tela chama mais. Pode ser removido.
+- O limite diário do plano do Resend vale para as campanhas (erros aparecem na tela do envio). Conferir o plano antes de listas grandes.
+- Os 3 compradores de aula que já existem em `trialGuestCheckouts` não estão na lista (não houve autorização); entram se comprarem de novo marcando a caixa.
+- `users.marketingEmails` (preferência do perfil) continua sem uso; a fonte da verdade é `marketingContatos`.
+- WhatsApp: não implementado. Exige a API oficial da Meta (modelos aprovados, número validado, cobrança por conversa).
+- Para a home ter uma isca de verdade (aula gratuita ou e-book), alguém precisa definir qual conteúdo será entregue; hoje o formulário só promete novidades.
+

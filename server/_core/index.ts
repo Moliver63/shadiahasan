@@ -80,6 +80,10 @@ async function startServer() {
   const asaasWebhook = await import('../routes/asaas-webhook');
   app.use('/api', asaasWebhook.default);
 
+  // Confirmar e cancelar inscrição de e-mail marketing (páginas públicas com botão)
+  const marketingPublico = await import('../routes/marketing');
+  app.use('/api', marketingPublico.default);
+
   // PDF do certificado do aluno (exige sessão)
   const certificadosPdf = await import('../routes/certificados');
   app.use('/api', certificadosPdf.default);

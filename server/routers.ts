@@ -12,6 +12,7 @@ import { contentCollectionsRouter } from "./routers/collections";
 import { trialRouter } from "./routers/trial";
 import { acessosRouter } from "./routers/acessos";
 import { certificadosRouter } from "./routers/certificados";
+import { marketingRouter, registrarAutorizacao } from "./routers/marketing";
 import { emitirParaAulasConcluidas, lerConcluidas } from "./certificados";
 import { areaAlunoRouter } from "./routers/areaAluno";
 import { caixaEmailRouter } from "./routers/caixaEmail";
@@ -381,10 +382,16 @@ export const appRouter = router({
         email: z.string().email(),
         password: z.string().min(8),
         name: z.string().min(1),
+        /** Caixa "quero receber novidades e ofertas" (vem desmarcada). */
+        aceitaNovidades: z.boolean().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
           const result = await db.registerUser(input.email, input.password, input.name);
+          if (input.aceitaNovidades === true) {
+            // Em segundo plano: e-mail de confirmação nunca atrasa nem derruba o cadastro.
+            void registrarAutorizacao({ email: input.email, nome: input.name, origem: "cadastro" });
+          }
           return { success: true, ...result };
         } catch (error) {
           throw new TRPCError({
@@ -2085,6 +2092,7 @@ export const appRouter = router({
   acessos: acessosRouter,
   // Certificados por aula e geral do Programa (PDF em /api/certificados/<numero>.pdf)
   certificados: certificadosRouter,
+  marketing: marketingRouter,
   areaAluno: areaAlunoRouter,
   // Caixa de e-mail do admin (contato@)
   caixaEmail: caixaEmailRouter,

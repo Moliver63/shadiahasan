@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import SiteLogo from "@/components/SiteLogo";
+import { AutorizacaoEmail } from "@/components/AutorizacaoEmail";
 
 export default function Signup() {
   const [, setLocation] = useLocation();
@@ -11,6 +12,7 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [aceitaNovidades, setAceitaNovidades] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -39,7 +41,7 @@ export default function Signup() {
     }
 
     setIsLoading(true);
-    registerMutation.mutate({ email, password, name });
+    registerMutation.mutate({ email, password, name, aceitaNovidades });
   };
 
   const handleGoogleSignup = () => {
@@ -240,6 +242,8 @@ export default function Signup() {
                 className="w-full"
               />
             </div>
+
+            <AutorizacaoEmail id="signupNovidades" marcada={aceitaNovidades} onChange={setAceitaNovidades} />
 
             {/* Submit Button */}
             <Button

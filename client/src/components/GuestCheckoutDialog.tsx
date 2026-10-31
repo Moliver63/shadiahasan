@@ -13,6 +13,7 @@ import { formatBRL } from "@/components/TrialPassDialog";
 import { guardarCompra } from "@/lib/compraSemConta";
 import { getLoginUrl } from "@/const";
 import { guardarIntencao } from "@/lib/trialIntent";
+import { AutorizacaoEmail } from "@/components/AutorizacaoEmail";
 
 function formatCpf(value: string) {
   const d = onlyDigits(value).slice(0, 11);
@@ -37,6 +38,7 @@ export default function GuestCheckoutDialog({ open, onOpenChange, lessonId, pric
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [cpf, setCpf] = useState("");
+  const [aceitaNovidades, setAceitaNovidades] = useState(false);
   const comprar = trpc.trial.guestCheckout.useMutation();
 
   const emailLimpo = email.trim().toLowerCase();
@@ -53,6 +55,7 @@ export default function GuestCheckoutDialog({ open, onOpenChange, lessonId, pric
         nome: nome.trim(),
         email: emailLimpo,
         cpfCnpj: onlyDigits(cpf),
+        aceitaNovidades,
         atribuicao: atribuicaoAtual(),
       });
       trackEvent("checkout_created_pending", { provider: "asaas", item_type: "lesson_trial" });
@@ -116,6 +119,8 @@ export default function GuestCheckoutDialog({ open, onOpenChange, lessonId, pric
             />
             <p className="text-xs text-muted-foreground">O banco exige o CPF para emitir o Pix.</p>
           </div>
+
+          <AutorizacaoEmail id="guestNovidades" marcada={aceitaNovidades} onChange={setAceitaNovidades} />
 
           <Button type="submit" size="lg" className="h-14 w-full text-base" disabled={!pronto || comprar.isPending}>
             {comprar.isPending ? "Gerando o Pix..." : `Gerar Pix de ${formatBRL(priceCents)}`}

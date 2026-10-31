@@ -21,6 +21,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { assinarSessao } from "../_core/sessionCookie";
 import { ga4ServidorConfigurado } from "../ga4";
+import { registrarAutorizacao } from "./marketing";
 import { CompraSemContaError, compraSemContaLigada, criarCompraDeConvidado, normalizarEmail, reenviarLinkDaCompra, statusDaCompra } from "../trialGuest";
 
 const TRINTA_DIAS_S = 30 * 24 * 60 * 60;
@@ -116,12 +117,14 @@ export const trialRouter = router({
       nome: z.string().min(1).max(120),
       email: z.string().min(3).max(254),
       cpfCnpj: z.string().min(11).max(18),
+      /** Caixa "quero receber novidades e ofertas" (vem desmarcada). */
+      aceitaNovidades: z.boolean().optional(),
       atribuicao: atribuicaoSchema,
     }))
     .mutation(async ({ input, ctx }) => {
       const origin = (ctx.req.headers.origin as string | undefined) || "https://shadiahasan.com";
       try {
-        return await criarCompraDeConvidado({
+        const compra = await criarCompraDeConvidado({
           nome: input.nome,
           email: input.email,
           cpfCnpj: input.cpfCnpj,
@@ -148,6 +151,11 @@ export const trialRouter = router({
             clientUserAgent: (ctx.req.headers["user-agent"] as string | undefined) ?? null,
           },
         });
+        if (input.aceitaNovidades === true) {
+          // Em segundo plano: o link de confirmação nunca atrasa nem derruba a compra.
+          void registrarAutorizacao({ email: input.email, nome: input.nome, origem: "compra-aula" });
+        }
+        return compra;
       } catch (e) {
         erroDaCompraSemConta(e);
       }

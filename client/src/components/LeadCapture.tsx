@@ -1,46 +1,55 @@
 import { useState } from "react";
-import { Mail, Gift, CheckCircle2 } from "lucide-react";
+import { Mail, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AutorizacaoEmail } from "@/components/AutorizacaoEmail";
 import { trpc } from "@/lib/trpc";
 import { trackLead } from "@/components/Analytics";
 import { toast } from "sonner";
 
+const emailOk = (e: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(e.trim());
+
 /**
- * LeadCapture — captura de email na home (lead magnet)
- * Oferece a primeira aula gratuita em troca do email.
- * Leads ficam na tabela `leads` — exportáveis via trpc.leads.listAll (admin).
+ * LeadCapture: inscrição para receber novidades por e-mail (home).
+ *
+ * Antes (31/10/2026) o texto prometia "acesso imediato a uma aula gratuita", mas nada era
+ * enviado e não existe aula gratuita no site. Agora o texto diz o que a pessoa realmente
+ * recebe, exige a caixa de autorização (LGPD) e a inscrição só vale depois do clique no
+ * link enviado ao e-mail (dupla confirmação). Ver server/marketing.ts.
  */
 export default function LeadCapture() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [done, setDone] = useState(false);
+  const [aceita, setAceita] = useState(false);
+  const [enviadoPara, setEnviadoPara] = useState<string | null>(null);
 
-  const captureMutation = trpc.leads.capture.useMutation({
+  const inscrever = trpc.marketing.inscrever.useMutation({
     onSuccess: () => {
-      setDone(true);
-      trackLead("home-lead-magnet");
+      setEnviadoPara(email.trim().toLowerCase());
+      trackLead("home-newsletter");
     },
-    onError: () => {
-      toast.error("Não foi possível salvar seu email. Tente novamente em instantes.");
+    onError: (e) => {
+      toast.error(e.message || "Não foi possível concluir. Tente novamente em instantes.");
     },
   });
 
-  const handleSubmit = () => {
-    if (!email.includes("@")) return;
-    captureMutation.mutate({ email, name: name || undefined, source: "home" });
+  const pronto = emailOk(email) && aceita;
+
+  const enviar = () => {
+    if (!pronto || inscrever.isPending) return;
+    inscrever.mutate({ email: email.trim(), nome: name.trim() || undefined, aceito: true });
   };
 
-  if (done) {
+  if (enviadoPara) {
     return (
       <section className="py-16 bg-primary/5">
         <div className="container">
           <div className="max-w-xl mx-auto text-center space-y-3">
-            <CheckCircle2 className="h-12 w-12 text-primary mx-auto" />
-            <h3 className="text-2xl font-bold">Pronto! Verifique seu email</h3>
+            <MailCheck className="h-12 w-12 text-primary mx-auto" />
+            <h3 className="text-2xl font-bold">Falta só um passo</h3>
             <p className="text-muted-foreground">
-              Enviamos o acesso à sua aula gratuita. Se não encontrar, confira a
-              caixa de spam.
+              Enviamos um link para <strong className="[overflow-wrap:anywhere]">{enviadoPara}</strong>. Clique nele para ativar sua inscrição.
+              Se não encontrar, olhe a caixa de spam.
             </p>
           </div>
         </div>
@@ -53,46 +62,52 @@ export default function LeadCapture() {
       <div className="container">
         <div className="max-w-2xl mx-auto text-center space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 text-primary px-4 py-1.5 text-sm font-medium">
-            <Gift className="h-4 w-4" />
-            Presente de boas-vindas
+            <Mail className="h-4 w-4" />
+            Novidades da Shadia
           </div>
 
-          <h2 className="text-3xl md:text-4xl font-bold">
-            Experimente uma aula completa, grátis
-          </h2>
+          <h2 className="text-3xl md:text-4xl font-bold">Receba conteúdos da Shadia no seu e-mail</h2>
           <p className="text-lg text-muted-foreground">
-            Deixe seu email e receba acesso imediato a uma aula da Shadia —
-            sem cartão de crédito, sem compromisso.
+            Reflexões sobre maturidade emocional, aviso de novos programas e condições especiais, direto na sua caixa de entrada.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 max-w-lg mx-auto">
-            <Input
-              type="text"
-              placeholder="Seu nome (opcional)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="sm:max-w-[160px]"
-            />
-            <Input
-              type="email"
-              placeholder="Seu melhor email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              className="flex-1"
-            />
-            <Button
-              onClick={handleSubmit}
-              disabled={captureMutation.isPending || !email.includes("@")}
-              className="shrink-0"
-            >
+          <form
+            className="max-w-lg mx-auto space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              enviar();
+            }}
+          >
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Input
+                type="text"
+                autoComplete="given-name"
+                placeholder="Seu nome (opcional)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="sm:max-w-[160px]"
+              />
+              <Input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="Seu melhor e-mail"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="flex-1"
+              />
+            </div>
+
+            <AutorizacaoEmail id="homeNovidades" marcada={aceita} onChange={setAceita} />
+
+            <Button type="submit" disabled={!pronto || inscrever.isPending} className="w-full sm:w-auto">
               <Mail className="h-4 w-4 mr-2" />
-              {captureMutation.isPending ? "Enviando..." : "Quero minha aula"}
+              {inscrever.isPending ? "Enviando..." : "Quero receber"}
             </Button>
-          </div>
+          </form>
 
           <p className="text-xs text-muted-foreground">
-            Sem spam. Você pode cancelar quando quiser.
+            Você confirma a inscrição por um link que enviamos ao seu e-mail. Sem spam.
           </p>
         </div>
       </div>

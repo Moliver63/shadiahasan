@@ -10,6 +10,7 @@ import {
   criarLimitador, emailValido, ORIGENS, registrarContato, resumoContatos, ROTULO_ORIGEM, TEXTO_CONSENTIMENTO,
 } from "../marketing";
 import { montarEmailCampanha, montarEmailConfirmacao } from "../marketingEmail";
+import { calcularResultado, PERFIS } from "../../shared/autoavaliacao";
 import { definirAtiva, descreverIntervalo, estatisticasSequencia, JANELA_FIM_H, JANELA_INICIO_H, MAX_DIAS, MAX_PASSOS, obterSequencia, salvarPassos } from "../marketingSequencia";
 import {
   campanhaEmAndamento, cancelarCampanha, contarSegmento, enviarTeste, errosDaCampanha, excluirRascunho, iniciarEnvio, listarCampanhas,
@@ -26,9 +27,9 @@ function ipDe(req: any): string {
 }
 
 /** Manda o e-mail de confirmação sem nunca falhar a chamada (a tela responde igual de qualquer jeito). */
-export async function mandarConfirmacao(email: string, nome: string | null | undefined, token: string) {
+export async function mandarConfirmacao(email: string, nome: string | null | undefined, token: string, resultado?: { titulo: string; resumo: string }) {
   try {
-    const m = montarEmailConfirmacao({ email, nome, token });
+    const m = montarEmailConfirmacao({ email, nome, token, resultado });
     await enviarEmail({ para: email, assunto: m.assunto, html: m.html, texto: m.texto, departamento: "psicologa" });
   } catch (e) {
     console.warn("[Marketing] confirmação não enviada:", e instanceof Error ? e.message : e);
@@ -76,6 +77,37 @@ export const marketingRouter = router({
       if (!limitePorIp(ipDe(ctx.req))) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente de novo mais tarde." });
       const r = await registrarContato({ email: input.email, nome: input.nome, origem: "home" });
       if (r.enviarConfirmacao && r.token) await mandarConfirmacao(input.email.trim().toLowerCase(), input.nome, r.token);
+      return { ok: true };
+    }),
+
+  /**
+   * Autoavaliação (página de anúncios). O resultado já apareceu na tela sem pedir nada; aqui a
+   * pessoa escolhe receber por e-mail e autoriza novidades. O perfil é recalculado das respostas
+   * (não se confia no que o navegador diz) e a origem do clique serve para medir cada campanha.
+   */
+  inscreverAutoavaliacao: publicProcedure
+    .input(z.object({
+      email: z.string().max(254),
+      nome: z.string().max(120).optional(),
+      aceito: z.literal(true),
+      respostas: z.array(z.number().int().min(0).max(3)).length(8),
+      utmSource: z.string().max(100).optional(),
+      utmCampaign: z.string().max(150).optional(),
+      utmTerm: z.string().max(200).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (!emailValido(input.email)) throw new TRPCError({ code: "BAD_REQUEST", message: "Confira o e-mail digitado." });
+      if (!limitePorIp(ipDe(ctx.req))) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Tente de novo mais tarde." });
+      const r = calcularResultado(input.respostas);
+      if (!r) throw new TRPCError({ code: "BAD_REQUEST", message: "Respostas inválidas. Refaça a autoavaliação." });
+      const reg = await registrarContato({
+        email: input.email, nome: input.nome, origem: "autoavaliacao", perfil: r.principal,
+        utmSource: input.utmSource, utmCampaign: input.utmCampaign, utmTerm: input.utmTerm,
+      });
+      if (reg.enviarConfirmacao && reg.token) {
+        const perfil = PERFIS[r.principal];
+        await mandarConfirmacao(input.email.trim().toLowerCase(), input.nome, reg.token, { titulo: perfil.titulo, resumo: perfil.resumo });
+      }
       return { ok: true };
     }),
 

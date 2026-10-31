@@ -27,6 +27,7 @@ export const PAGINAS_FIXAS: ItemSitemap[] = [
   { path: "/", changefreq: "weekly", priority: 1.0 },
   { path: "/courses", changefreq: "weekly", priority: 0.9 },
   { path: "/pricing", changefreq: "monthly", priority: 0.9 },
+  { path: "/autoavaliacao", changefreq: "monthly", priority: 0.7 },
   { path: "/about", changefreq: "monthly", priority: 0.8 },
   { path: "/faq", changefreq: "monthly", priority: 0.6 },
   { path: "/contact", changefreq: "yearly", priority: 0.5 },

@@ -661,3 +661,41 @@ Conferido com consulta somente leitura no Postgres de produção e nos logs do R
 **Sobras de teste (sem efeito prático):** 4 linhas de `payment_history` (R$ 79,60 no total) seguem `pending` com `providerStatus = OVERDUE`; o financeiro as mostra como "Atrasado". Passes 1 e 2 (23 e 24/10) seguem `pending` por terem sido criados antes do roteamento do teste; a compra nova cancela passes pendentes antigos, então não bloqueiam ninguém. Desenho atual: cobrança vencida fica `pending` e só `PAYMENT_DELETED` vira `failed`.
 
 **Indisponibilidade em 29/10:** o último log do serviço antes da parada foi `ELIFECYCLE Command failed` às 06:39 (UTC); de 07:54 a 11:54 o Asaas recebeu 503 em 8 tentativas do webhook (reenvio de hora em hora, sem perda: a cobrança vencida de 28/10 foi processada às 12:54) e o serviço só voltou às 12:08 com deploy de gatilho `service_resumed`. Plano Starter (sempre ligado), hoje sem suspensão. Sem `healthCheckPath` configurado no Render, um processo travado não é reiniciado sozinho. Recomendação (feita no painel do Render, não no código): definir um health check apontando para uma rota leve que consulte o banco.
+
+### Funil Google Ads + autoavaliação + lista de e-mails (31/10/2026)
+
+**Ideia:** o Google não entrega o e-mail de quem pesquisou. O caminho é anúncio de Pesquisa, página com uma isca, cadastro com autorização e acompanhamento por e-mail. Os passos de cadastro, confirmação, cancelamento e sequência já existiam; faltavam a isca e a página de entrada. A campanha no Google Ads NÃO foi criada (a conta não está conectada e envolve verba): está planejada abaixo.
+
+**Página `/autoavaliacao`** (`client/src/pages/Autoavaliacao.tsx`, conteúdo e cálculo em `shared/autoavaliacao.ts`, endpoint `marketing.inscreverAutoavaliacao`):
+- 8 situações do dia a dia, 4 respostas cada, uma por padrão de comunicação: guarda para si, fala com clareza, fala com força, diz sem dizer. A posição da resposta de cada padrão varia entre as perguntas. Resultado principal (empate desempata na ordem claro, evita, indireto, forte) e um segundo padrão só se tiver 3 respostas ou mais.
+- O resultado aparece NA HORA, sem pedir e-mail. O convite de receber por e-mail vem depois. A autorização de marketing nunca é condição para ver o resultado (consentimento amarrado a benefício não é livre, LGPD). Custo: converte menos que travar o resultado atrás do e-mail; em troca, o contato que chega é de melhor qualidade e o risco jurídico é menor.
+- Não é teste psicológico nem diagnóstico, e o texto diz isso. Teste psicológico é instrumento validado e de uso do profissional, então a página evita chamar isto de teste. Vale a Shadia conferir com o CRP se a forma como a página e os anúncios se apresentam está de acordo com as regras de publicidade da profissão (não verificado aqui). Os 8 cenários e os 4 textos de resultado são RASCUNHOS escritos por mim para a Shadia revisar.
+- O servidor recalcula o perfil das respostas (não confia no que o navegador manda) e grava só o perfil, não as respostas. Nova origem `autoavaliacao` em `marketingContatos` ("Autoavaliação (anúncios)" nas campanhas), mesma dupla confirmação das outras.
+- Colunas novas em `marketingContatos` (criadas por `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` na subida, sem mexer nos dados): `perfil`, `utmSource`, `utmCampaign`, `utmTerm`, gravadas só na primeira vez. Servem para medir quanto cada campanha e palavra-chave do Google traz de contatos. O e-mail de confirmação desta origem leva o resultado e o assunto "Seu resultado e a confirmação da sua inscrição".
+- `/autoavaliacao` está no sitemap. A home (`LeadCapture`) ganhou um link para a página.
+- Testes: `server/autoavaliacao.test.ts` (8). No navegador contra Postgres local com a tabela ANTIGA de contatos: colunas criadas, 8 perguntas, resultado, botão travado sem a caixa (que vem desmarcada), contato gravado com perfil e UTMs, pendente de confirmação.
+
+**Medir custo por contato (SQL, somente leitura):**
+```sql
+SELECT "utmCampaign", "utmTerm", COUNT(*) AS cadastros, COUNT("confirmadoEm") AS confirmados
+FROM "marketingContatos" WHERE "origem" = 'autoavaliacao'
+GROUP BY 1, 2 ORDER BY confirmados DESC;
+```
+Custo por contato confirmado = gasto da campanha no Google Ads dividido por `confirmados`. Contato que não confirma não recebe nada e não conta.
+
+**Plano da campanha (a criar no Google Ads, não criada):**
+- Tipo: Pesquisa, objetivo Leads, rede de pesquisa sem parceiros de exibição, localização Brasil, idioma português.
+- URL final: `https://shadiahasan.com/autoavaliacao?utm_source=google&utm_medium=cpc&utm_campaign=comunicacao-pesquisa&utm_term={keyword}`.
+- Conversão: importar do GA4 o evento `generate_lead` (já disparado em `trackLead("autoavaliacao")`, depende de o GA4 estar vinculado ao Google Ads). Contar uma conversão por clique.
+- Palavras-chave, começar em correspondência de frase e exata (sem ampla): "como se comunicar melhor", "comunicação assertiva", "como falar sem brigar", "dificuldade de comunicação no relacionamento", "como dizer não sem culpa", "como conversar sobre assuntos difíceis", "comunicação emocional".
+- Negativas de partida: pdf, download, emprego, vaga, faculdade, tcc, resumo, slides, frases, memes, imagens, wikipedia, gratuito certificado, apostila, redação.
+- Anúncio responsivo (limites 30 e 90 caracteres conferidos). Títulos: "Como Falar Sem Brigar", "Comunicação Assertiva", "Seu Jeito de Se Comunicar", "Autoavaliação em 2 Minutos", "Resultado na Hora", "Psicóloga Shadia Hasan", "Conversas Difíceis", "Aprenda a Dizer o que Sente", "Dizer Não Sem Culpa", "Descubra Seu Padrão". Descrições: "Responda 8 situações do dia a dia e veja como você age em conflitos. Resultado na hora." / "Elaborada pela psicóloga Shadia Hasan. Sem cadastro para ver o resultado." / "Entenda se você guarda, explode ou dá indiretas. E veja um primeiro passo prático." / "Convite à reflexão, não é diagnóstico. Leva 2 minutos e funciona no celular."
+- Sem promessa de resultado nem de tratamento nos anúncios. Conferir as regras de publicidade do CRP e a política de serviços de saúde do Google antes de ativar.
+- Verba: começar baixa, com teto diário, e olhar custo por contato confirmado depois de uns 7 a 10 dias. Não há valor recomendado aqui porque o custo por clique real só se conhece depois de rodar.
+
+**Pendências:**
+- A Shadia revisar as 8 situações e os 4 resultados; ela pode mudar tudo em `shared/autoavaliacao.ts`.
+- A sequência de boas-vindas (ainda pausada) vale para quem confirmar vindo daqui. O primeiro e-mail dela não menciona o resultado da autoavaliação; dá para criar uma sequência por perfil usando a coluna `perfil`.
+- Quem já está na lista e refaz a autoavaliação não recebe e-mail com o resultado (só vê na tela), porque a confirmação só é enviada a quem ainda não está ativo.
+- Conectar a conta do Google Ads (Windsor ou outro) para acompanhar o gasto junto dos cadastros.
+

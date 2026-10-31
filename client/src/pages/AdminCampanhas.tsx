@@ -22,7 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import SequenciaEmail from "@/components/SequenciaEmail";
 import { trpc } from "@/lib/trpc";
 
-type Origem = "home" | "cadastro" | "compra-aula";
+type Origem = "home" | "cadastro" | "compra-aula" | "autoavaliacao";
 
 const STATUS: Record<string, { rotulo: string; classe: string }> = {
   rascunho: { rotulo: "Rascunho", classe: "bg-slate-100 text-slate-700 border-slate-200" },

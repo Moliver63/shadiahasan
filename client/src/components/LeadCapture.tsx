@@ -109,6 +109,14 @@ export default function LeadCapture() {
           <p className="text-xs text-muted-foreground">
             Você confirma a inscrição por um link que enviamos ao seu e-mail. Sem spam.
           </p>
+
+          <p className="text-sm text-muted-foreground">
+            Prefere começar pela prática?{" "}
+            <a href="/autoavaliacao" className="font-medium text-primary underline underline-offset-4">
+              Descubra como você se comunica quando o assunto é difícil
+            </a>
+            .
+          </p>
         </div>
       </div>
     </section>

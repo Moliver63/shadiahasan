@@ -27,12 +27,13 @@ import * as db from "./db";
 export const TEXTO_CONSENTIMENTO_VERSAO = "2026-10-31";
 export const TEXTO_CONSENTIMENTO = "Quero receber novidades, conteúdos e ofertas da Shadia Hasan por e-mail. Posso cancelar quando quiser.";
 
-export const ORIGENS = ["home", "cadastro", "compra-aula"] as const;
+export const ORIGENS = ["home", "cadastro", "compra-aula", "autoavaliacao"] as const;
 export type Origem = (typeof ORIGENS)[number];
 export const ROTULO_ORIGEM: Record<Origem, string> = {
   home: "Formulário da home",
   cadastro: "Cadastro no site",
   "compra-aula": "Compra da aula experimental",
+  autoavaliacao: "Autoavaliação (anúncios)",
 };
 
 /**
@@ -124,6 +125,11 @@ export function garantirTabelasMarketing(): Promise<boolean> {
             "criadoEm" timestamptz NOT NULL DEFAULT now()
           )
         `);
+        // Perfil da autoavaliação e origem do clique (anúncio). Só informação de campanha, gravada na primeira vez.
+        for (const coluna of ["perfil varchar(40)", "utmSource varchar(100)", "utmCampaign varchar(150)", "utmTerm varchar(200)"]) {
+          const [nome, tipo] = coluna.split(" ");
+          await d.execute(sql.raw(`ALTER TABLE "marketingContatos" ADD COLUMN IF NOT EXISTS "${nome}" ${tipo}`));
+        }
         await d.execute(sql`
           CREATE TABLE IF NOT EXISTS "marketingCampanhas" (
             "id" serial PRIMARY KEY,
@@ -181,7 +187,11 @@ export type ResultadoRegistro = {
  * Registra a autorização de uma pessoa. Chamar só depois de a caixa ter sido marcada.
  * Nunca revela ao chamador se o e-mail já existia (a tela responde igual).
  */
-export async function registrarContato(p: { email: string; nome?: string | null; origem: Origem; userId?: number | null }): Promise<ResultadoRegistro> {
+export type OrigemDoClique = { perfil?: string | null; utmSource?: string | null; utmCampaign?: string | null; utmTerm?: string | null };
+
+const limpar = (v: string | null | undefined, max: number) => (v ?? "").trim().slice(0, max) || null;
+
+export async function registrarContato(p: { email: string; nome?: string | null; origem: Origem; userId?: number | null } & OrigemDoClique): Promise<ResultadoRegistro> {
   const vazio: ResultadoRegistro = { enviarConfirmacao: false, jaAtivo: false, token: null };
   const email = normalizarEmail(p.email);
   if (!emailValido(email)) return vazio;
@@ -191,6 +201,10 @@ export async function registrarContato(p: { email: string; nome?: string | null;
 
   const nome = (p.nome ?? "").trim().slice(0, 255) || null;
   const dupla = exigeConfirmacaoPorEmail(p.origem);
+  const perfil = limpar(p.perfil, 40);
+  const utmSource = limpar(p.utmSource, 100);
+  const utmCampaign = limpar(p.utmCampaign, 150);
+  const utmTerm = limpar(p.utmTerm, 200);
 
   return await d.transaction(async (tx) => {
     const atual = linhasDe(await tx.execute(sql`SELECT * FROM "marketingContatos" WHERE "email" = ${email} FOR UPDATE`))[0];
@@ -198,9 +212,9 @@ export async function registrarContato(p: { email: string; nome?: string | null;
     if (!atual) {
       const token = novoToken();
       await tx.execute(sql`
-        INSERT INTO "marketingContatos" ("email","nome","origem","token","userId","consentimentoTexto","confirmadoEm","confirmacaoEnviadaEm")
+        INSERT INTO "marketingContatos" ("email","nome","origem","token","userId","consentimentoTexto","confirmadoEm","confirmacaoEnviadaEm","perfil","utmSource","utmCampaign","utmTerm")
         VALUES (${email}, ${nome}, ${p.origem}, ${token}, ${p.userId ?? null}, ${TEXTO_CONSENTIMENTO_VERSAO},
-                ${dupla ? null : sql`now()`}, ${dupla ? sql`now()` : null})
+                ${dupla ? null : sql`now()`}, ${dupla ? sql`now()` : null}, ${perfil}, ${utmSource}, ${utmCampaign}, ${utmTerm})
       `);
       return { enviarConfirmacao: dupla, jaAtivo: !dupla, token };
     }
@@ -208,7 +222,7 @@ export async function registrarContato(p: { email: string; nome?: string | null;
     const ativo = contatoAtivo({ confirmadoEm: atual.confirmadoEm, descadastradoEm: atual.descadastradoEm });
     if (ativo) {
       // Já recebe: só completa nome e vínculo com a conta, se faltavam.
-      await tx.execute(sql`UPDATE "marketingContatos" SET "nome" = COALESCE("nome", ${nome}), "userId" = COALESCE("userId", ${p.userId ?? null}) WHERE "id" = ${atual.id}`);
+      await tx.execute(sql`UPDATE "marketingContatos" SET "nome" = COALESCE("nome", ${nome}), "userId" = COALESCE("userId", ${p.userId ?? null}), "perfil" = COALESCE("perfil", ${perfil}) WHERE "id" = ${atual.id}`);
       return { enviarConfirmacao: false, jaAtivo: true, token: atual.token };
     }
 
@@ -218,7 +232,8 @@ export async function registrarContato(p: { email: string; nome?: string | null;
       await tx.execute(sql`
         UPDATE "marketingContatos"
         SET "nome" = COALESCE(${nome}, "nome"), "consentimentoEm" = now(), "consentimentoTexto" = ${TEXTO_CONSENTIMENTO_VERSAO},
-            "confirmadoEm" = NULL, "origem" = ${p.origem},
+            "confirmadoEm" = NULL, "origem" = ${p.origem}, "perfil" = COALESCE(${perfil}, "perfil"),
+            "utmSource" = COALESCE("utmSource", ${utmSource}), "utmCampaign" = COALESCE("utmCampaign", ${utmCampaign}), "utmTerm" = COALESCE("utmTerm", ${utmTerm}),
             "confirmacaoEnviadaEm" = ${podeEnviar ? sql`now()` : sql`"confirmacaoEnviadaEm"`}
         WHERE "id" = ${atual.id}
       `);

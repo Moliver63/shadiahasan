@@ -46,6 +46,7 @@ const CertificadoVerificar = lazy(() => import("./pages/CertificadoVerificar"));
 const About = lazy(() => import("./pages/About"));
 const Contact = lazy(() => import("./pages/Contact"));
 const FAQ = lazy(() => import("./pages/FAQ"));
+const Autoavaliacao = lazy(() => import("./pages/Autoavaliacao"));
 const Profile = lazy(() => import("./pages/Profile"));
 const CommunityExplore = lazy(() => import("./pages/CommunityExplore"));
 const CommunityConnections = lazy(() => import("./pages/CommunityConnections"));
@@ -156,6 +157,7 @@ function Router() {
       <Route path={"/about"} component={About} />
       <Route path={"/contact"} component={Contact} />
       <Route path={"/faq"} component={FAQ} />
+      <Route path={"/autoavaliacao"} component={Autoavaliacao} />
       <ProtectedRoute path={"/profile"} component={Profile} />
       <ProtectedRoute path={"/community/explore"} component={CommunityExplore} />
       <ProtectedRoute path={"/community/connections"} component={CommunityConnections} />

@@ -31,17 +31,20 @@ export function preheaderDe(texto: string): string {
   return limpo.length > 100 ? `${limpo.slice(0, 99).trimEnd()}…` : limpo;
 }
 
-export function montarEmailConfirmacao(p0: { email: string; nome?: string | null; token: string; base?: string }): EmailMontado {
+export function montarEmailConfirmacao(p0: { email: string; nome?: string | null; token: string; base?: string; resultado?: { titulo: string; resumo: string } }): EmailMontado {
   const base = p0.base ?? siteUrl();
   const link = urlConfirmar(base, p0.token);
   const corpo =
     p(saudacao(p0.nome)) +
-    p(`Alguém pediu para receber as novidades da Shadia Hasan em <strong>${escapar(p0.email)}</strong>. Se foi você, confirme abaixo.`) +
+    (p0.resultado
+      ? p(`Seu resultado na autoavaliação de comunicação: <strong>${escapar(p0.resultado.titulo)}</strong>. ${escapar(p0.resultado.resumo)}`) +
+        p(`Para receber os próximos conteúdos da Shadia em <strong>${escapar(p0.email)}</strong>, confirme abaixo.`)
+      : p(`Alguém pediu para receber as novidades da Shadia Hasan em <strong>${escapar(p0.email)}</strong>. Se foi você, confirme abaixo.`)) +
     botao("Confirmar minha inscrição", link) +
     linkReserva(link) +
     pequeno("Se não foi você, ignore este e-mail. Sem a confirmação, nada será enviado.");
-  const assunto = "Confirme sua inscrição para receber as novidades da Shadia";
-  const preheader = "Falta só um clique para confirmar.";
+  const assunto = p0.resultado ? "Seu resultado e a confirmação da sua inscrição" : "Confirme sua inscrição para receber as novidades da Shadia";
+  const preheader = p0.resultado ? "Seu resultado está aqui. Falta só um clique para confirmar." : "Falta só um clique para confirmar.";
   const html = layoutEmail({ preheader, titulo: "Confirme sua inscrição", corpo, departamento: "psicologa", motivo: "Você recebeu este e-mail porque este endereço foi informado em shadiahasan.com." });
   return { assunto, html, texto: htmlParaTexto(html), preheader };
 }

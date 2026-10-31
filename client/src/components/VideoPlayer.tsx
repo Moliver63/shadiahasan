@@ -31,6 +31,12 @@ interface VideoPlayerProps {
   autoPlay?: boolean; // inicia automaticamente (usado ao navegar pelo countdown)
   onProgress?: (progress: number) => void;
   onComplete?: () => void;
+  /**
+   * Segundos de vídeo realmente tocados desde a última chamada (avanço contínuo; pular a
+   * barra, pausar ou voltar não conta). Base do certificado: o servidor soma e confere.
+   * `duracao` é a duração total do vídeo em segundos (0 se ainda desconhecida).
+   */
+  onWatchDelta?: (segundos: number, duracao: number) => void;
   // Countdown Netflix — passado pelo LessonView, renderizado dentro do player
   // para funcionar em fullscreen (elementos fixed fora do fullscreen são invisíveis)
   countdown?: number | null;
@@ -78,6 +84,7 @@ export default function VideoPlayer({
   autoPlay = false,
   onProgress,
   onComplete,
+  onWatchDelta,
   countdown,
   nextLesson,
   onGoToNext,
@@ -87,6 +94,12 @@ export default function VideoPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<any>(null);
   const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref para o efeito do vídeo não reiniciar quando o pai troca a função
+  const watchRef = useRef(onWatchDelta);
+  watchRef.current = onWatchDelta;
+  const ytIframeRef = useRef<HTMLIFrameElement>(null);
+  const ytTocando = useRef(false);
+  const ytUltimoT = useRef<number | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -264,13 +277,22 @@ export default function VideoPlayer({
       }, { once: true });
     }
 
+    let ultimoT: number | null = null;
     const handleTimeUpdate = () => {
       setCurrentTime(video.currentTime);
       if (onProgress && video.duration > 0) {
         const progress = (video.currentTime / video.duration) * 100;
         onProgress(progress);
       }
+      // Tempo realmente assistido: só avanço contínuo com o vídeo tocando
+      const t = video.currentTime;
+      if (watchRef.current && !video.paused && !video.seeking && ultimoT != null) {
+        const delta = t - ultimoT;
+        if (delta > 0 && delta <= 3) watchRef.current(delta, Number.isFinite(video.duration) ? video.duration : 0);
+      }
+      ultimoT = t;
     };
+    const handleSeeking = () => { ultimoT = null; };
 
     const handleLoadedMetadata = () => {
       setDuration(video.duration || 0);
@@ -306,6 +328,7 @@ export default function VideoPlayer({
     };
 
     video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("seeking", handleSeeking);
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
     video.addEventListener("error", handleVideoError);
     video.addEventListener("play", handlePlay);
@@ -314,6 +337,7 @@ export default function VideoPlayer({
 
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.removeEventListener("seeking", handleSeeking);
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       video.removeEventListener("error", handleVideoError);
       video.removeEventListener("play", handlePlay);
@@ -459,13 +483,24 @@ export default function VideoPlayer({
       try {
         const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
         // YT.PlayerState.ENDED = 0
-        if (data?.event === "onStateChange" && data?.info === 0) {
-          if (onComplete) onComplete();
+        if (data?.event === "onStateChange") {
+          ytTocando.current = data.info === 1;
+          ytUltimoT.current = null;
+          if (data.info === 0 && onComplete) onComplete();
         }
         // Progresso: YT não expõe currentTime via postMessage nativamente
         // Usamos o evento onVideoProgress customizado quando disponível
+        if (data?.event === "infoDelivery" && data?.info?.playerState != null) {
+          ytTocando.current = data.info.playerState === 1;
+        }
         if (data?.event === "infoDelivery" && data?.info?.currentTime != null) {
           const yt = data.info;
+          // Tempo realmente assistido (mesma regra do player nativo)
+          if (ytTocando.current && ytUltimoT.current != null && watchRef.current) {
+            const delta = yt.currentTime - ytUltimoT.current;
+            if (delta > 0 && delta <= 3) watchRef.current(delta, Number(yt.duration) > 0 ? Number(yt.duration) : 0);
+          }
+          ytUltimoT.current = yt.currentTime;
           if (yt.duration > 0 && onProgress) {
             onProgress((yt.currentTime / yt.duration) * 100);
           }
@@ -488,6 +523,13 @@ export default function VideoPlayer({
         style={{ paddingTop: "56.25%" }}
       >
         <iframe
+          ref={ytIframeRef}
+          // Handshake da API do YouTube: sem ele o iframe não envia currentTime/estado
+          onLoad={() => {
+            try {
+              ytIframeRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "https://www.youtube.com");
+            } catch { /* sem handshake, o certificado dessa aula não é liberado */ }
+          }}
           className="absolute top-0 left-0 w-full h-full"
           src={`https://www.youtube.com/embed/${youtubeId}?rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}${autoPlay ? "&autoplay=1&mute=0" : ""}`}
           title={title || "YouTube Video"}

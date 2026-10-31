@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
 import { formatDuration } from "@/lib/formatDuration";
 import { trpc } from "@/lib/trpc";
+import { useAssistido } from "@/hooks/useAssistido";
 import { ArrowLeft, Globe, Lock, Maximize2, Layers, CheckCircle2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -114,18 +115,21 @@ export default function LessonView() {
     { enabled: !!lesson && isAuthenticated }
   );
 
+  // Certificado ganho nesta aula (e o geral do Programa, se fechou)
+  const avisarCertificados = (novos: Array<{ tipo: string }>) => {
+    if (novos.length === 0) return;
+    const geral = novos.some((c) => c.tipo === "programa");
+    toast.success(geral ? "Você concluiu o Programa e ganhou o certificado geral!" : "Você ganhou o certificado desta aula!", {
+      duration: 9000,
+      action: { label: "Ver certificado", onClick: () => setLocation("/certificates") },
+    });
+    utils.certificados.meus.invalidate();
+  };
+
   const updateProgressMutation = trpc.enrollments.updateProgress.useMutation({
     onSuccess: async (resultado) => {
       // Certificado ganho nesta aula (e o geral do Programa, se fechou)
-      const novos = resultado?.certificadosNovos ?? [];
-      if (novos.length > 0) {
-        const geral = novos.some((c) => c.tipo === "programa");
-        toast.success(geral ? "Você concluiu o Programa e ganhou o certificado geral!" : "Você ganhou o certificado desta aula!", {
-          duration: 9000,
-          action: { label: "Ver certificado", onClick: () => setLocation("/certificates") },
-        });
-        utils.certificados.meus.invalidate();
-      }
+      avisarCertificados(resultado?.certificadosNovos ?? []);
       await Promise.all([
         utils.enrollments.checkEnrollment.invalidate({
           courseId: lesson?.courseId || 0,
@@ -136,6 +140,9 @@ export default function LessonView() {
   });
 
   const hasAccess = accessData?.hasAccess ?? false;
+
+  // Tempo realmente assistido, medido e conferido no servidor: é o que libera o certificado
+  const assistido = useAssistido(lessonId > 0 ? lessonId : undefined, hasAccess && isAuthenticated, avisarCertificados);
 
   // Idiomas de dublagem — após lesson e hasAccess estarem disponíveis
   const { data: languagesData } = trpc.videos.getAvailableLanguages.useQuery(
@@ -445,10 +452,11 @@ export default function LessonView() {
   }, [lesson, hasAccess, markCompletionSilent]);
 
   const handleComplete = useCallback(() => {
+    assistido.fechar();
     if (lesson && hasAccess) {
       startCompletionFlow();
     }
-  }, [lesson, hasAccess, startCompletionFlow]);
+  }, [lesson, hasAccess, startCompletionFlow, assistido]);
 
   // Derivadas de playback — depois de playbackData, antes dos early returns
   const playbackUrl = playbackData?.url || lesson?.videoPlaybackUrl || null;
@@ -657,6 +665,7 @@ export default function LessonView() {
                         autoPlay={autoPlay}
                         onProgress={handleProgress}
                         onComplete={handleComplete}
+                        onWatchDelta={assistido.somar}
                         countdown={countdown}
                         nextLesson={(() => {
                           if (nextUnlockedLesson) return {

@@ -527,9 +527,9 @@ Continua por desenho: quem digita o e-mail de OUTRA pessoa paga a aula para a co
 Antes: existia só a tabela `certificates` e a mutation `certificates.generate`, que nenhuma tela chamava; não havia PDF nem página de verificação, e o link "Compartilhar" dava erro. Pedido do Michel: "um por aula e um geral".
 
 **Regras** (`server/certificados.ts`, tabela nova `certificadosEmitidos`, criada em tempo de execução):
-- **Certificado de aula:** emitido quando a aula passa a constar em `enrollments.completedLessons`. Um por aluno e aula.
-- **Certificado geral:** emitido quando o aluno conclui TODAS as aulas publicadas de um Programa ativo (`contentCollections`). Programa com menos de 2 aulas não gera o geral. Um por aluno e Programa.
-- **Anti-fraude:** o servidor só aceita a aula se ela é publicada, é do curso informado e o aluno tem acesso hoje (`checkUserHasAccess`: assinatura, compra ou teste de 1 aula dentro da validade). Mandar ids de aulas que não pode assistir não gera certificado. Ainda é o navegador quem informa "assistiu", como já era para o progresso.
+- **Certificado de aula:** emitido quando o aluno ASSISTIU a aula (80% do tempo, medido pelo servidor, ver "Auditoria 31/10" abaixo). Um por aluno e aula.
+- **Certificado geral:** emitido quando o aluno assistiu TODAS as aulas publicadas de um Programa ativo (`contentCollections`). Programa com menos de 2 aulas não gera o geral. Um por aluno e Programa.
+- **Anti-fraude (acesso):** o servidor só aceita a aula se ela é publicada, é do curso informado e o aluno tem acesso hoje (`checkUserHasAccess`: assinatura, compra ou teste de 1 aula dentro da validade). Mandar ids de aulas que não pode assistir não gera certificado. 
 - **Número** `SH-AAAA-XXXXXXXX` aleatório (não dá para adivinhar o de outro aluno). O formato antigo `SH-<data>-<aluno>-<curso>` é recusado.
 - **Nome impresso** é o do perfil na hora de baixar o PDF. Só sai com nome completo (`analisarNome`: nome e sobrenome, só letras, sem e-mail ou número; TUDO MAIÚSCULO ou tudo minúsculo é corrigido para "Maria Aparecida de Souza"). Nome incompleto: o botão de baixar fica desligado, a página mostra o cartão "Confirme seu nome completo" e o PDF responde 409. O aluno confirma ou corrige em `/certificates` (`certificados.salvarNome` grava em `users.name`, o mesmo nome do perfil). Não imprimimos CPF (LGPD).
 
@@ -549,3 +549,16 @@ Antes: existia só a tabela `certificates` e a mutation `certificates.generate`,
 - Mononímia: quem tem nome de uma palavra só não consegue baixar (o certificado exige nome e sobrenome). Se aparecer o caso, afrouxar `analisarNome`.
 - Testes: `server/certificados.test.ts` (15, regras, nome e PDF). O fluxo com banco e a rota do PDF foram testados à mão em Postgres local (emissão, fraude, backfill, dono/admin/visitante/outro aluno), não estão na suíte.
 
+### Auditoria 31/10/2026: certificado só depois de assistir
+
+**Achado:** o certificado era emitido a partir de `enrollments.completedLessons`, lista enviada pelo navegador em `enrollments.updateProgress`. Dava para ganhar certificado (de aula e geral do Programa) sem assistir: (1) arrastando a barra do vídeo até o fim (o player marca conclusão com posição > 90%), ou (2) chamando a API na mão com os ids de todas as aulas a que o aluno tem acesso. O geral também usava a lista do navegador para decidir se o Programa fechou.
+
+**Correção (`server/assistido.ts`, tabela `aulaAssistida`, criada em tempo de execução):**
+- O player (`VideoPlayer` nativo/HLS e YouTube, com handshake `listening`) conta só avanço contínuo de reprodução (pular a barra, pausar e voltar não contam) e `useAssistido` manda o total a cada ~15 s (`certificados.registrarAssistido`).
+- O servidor limita cada envio pelo tempo real desde o anterior (até 2,1x de velocidade), teto de 40 s por envio e 20 s no primeiro. Rajada de chamadas rende ~0. Linha travada na transação: duas abas não contam em dobro.
+- A aula só vale com 80% da duração acumulada (`MIN_FRACAO`). Duração = `lessons.duration`; sem ela usa a informada pelo player, entre 30 s e 6 h.
+- `emitirParaAulas` filtra pelas aulas assistidas e o geral do Programa só fecha com todas assistidas. `completedLessons` continua existindo, mas só para o progresso na tela. O envio que fecha os 80% já emite e avisa na aula.
+- Acesso: `registrarAssistido` exige acesso à aula (`validarAulas`), senão FORBIDDEN.
+
+**Limites conhecidos:** quem automatizar um navegador e esperar o tempo real (>= ~38% da duração a 2x) ainda passa; não há prova de atenção, só de tempo tocado. Aula sem `duration` cadastrada depende da duração que o player informa (preencher `duration` fecha esse buraco). Quem concluiu aulas antes desta regra não recebe certificado retroativo: precisa assistir de novo (80%). Certificados emitidos antes de 31/10 pelo backfill (`sincronizar`) continuam no banco; em 31/10 eram 6 de aula, de 1 aluno, emitidos no mesmo segundo. Revogar é decisão do Michel.
+**Testes:** `server/assistido.test.ts` (6, regras puras). O fluxo com banco (forja via updateProgress/sincronizar, rajada, sem acesso, aula sem duração, geral do Programa) foi testado em Postgres local, não está na suíte.

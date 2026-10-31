@@ -5,7 +5,8 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
-import { buscarPorNumero, listarDoAluno, nomeDoAluno, numeroValido, salvarNomeDoAluno, sincronizarDoAluno } from "../certificados";
+import { registrarPulso } from "../assistido";
+import { buscarPorNumero, emitirParaAulas, validarAulas, listarDoAluno, nomeDoAluno, numeroValido, salvarNomeDoAluno, sincronizarDoAluno } from "../certificados";
 
 export const certificadosRouter = router({
   /**
@@ -16,6 +17,33 @@ export const certificadosRouter = router({
     const [lista, nome] = await Promise.all([listarDoAluno(ctx.user.id), nomeDoAluno(ctx.user.id)]);
     return { certificados: lista, nome: nome.nome, nomeCompleto: nome.completo, problemaNome: nome.problema, semNome: !nome.completo };
   }),
+
+  /**
+   * Pulso do player (a cada ~15 s): quantos segundos do vídeo foram tocados de verdade.
+   * O servidor limita pelo tempo real e só libera o certificado com 80% da aula acumulados.
+   * Quando este envio fecha os 80%, já emite e devolve os certificados novos.
+   */
+  registrarAssistido: protectedProcedure
+    .input(z.object({
+      lessonId: z.number().int().positive(),
+      segundos: z.number().min(0).max(120),
+      duracao: z.number().min(0).max(86400).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [aula] = await validarAulas(ctx.user.id, [input.lessonId]);
+      if (!aula) throw new TRPCError({ code: "FORBIDDEN", message: "Sem acesso a esta aula." });
+      const r = await registrarPulso({ userId: ctx.user.id, lessonId: aula.id, reportado: input.segundos, duracaoInformada: input.duracao });
+      if (!r) return { assistida: false, certificadosNovos: [] as Array<{ numero: string; tipo: string; titulo: string }> };
+      let novos: Array<{ numero: string; tipo: string; titulo: string }> = [];
+      if (r.novaConclusao) {
+        try {
+          novos = (await emitirParaAulas(ctx.user.id, [aula])).map((c) => ({ numero: c.numero, tipo: c.tipo, titulo: c.titulo }));
+        } catch (e) {
+          console.warn("[Certificados] emissão pós-pulso falhou:", e instanceof Error ? e.message : e);
+        }
+      }
+      return { assistida: r.assistida, certificadosNovos: novos };
+    }),
 
   /** Confirma ou corrige o nome que sai no certificado (grava no perfil). */
   salvarNome: protectedProcedure

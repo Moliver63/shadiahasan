@@ -11,10 +11,11 @@
  *  - Certificado GERAL: emitido quando o aluno conclui TODAS as aulas publicadas de
  *    um Programa ativo. Programa com menos de 2 aulas não gera o geral (seria igual
  *    ao da aula). Um por aluno e Programa.
- *  - "Concluída" é o que o aluno marcou em `enrollments.completedLessons`. O servidor
- *    só aceita a aula se ela é publicada, é do curso informado e o aluno tem acesso
- *    (assinatura, compra ou teste de 1 aula dentro da validade). Quem fosse mandar
- *    ids de aulas que não pode assistir não ganha certificado.
+ *  - "Concluída" = ASSISTIDA: o servidor mede o tempo realmente tocado (server/assistido.ts) e
+ *    só conta com 80% da aula. A lista `enrollments.completedLessons` vem do navegador e é só
+ *    o progresso na tela: NÃO libera certificado. Além disso o servidor só aceita a aula se
+ *    ela é publicada, é do curso informado e o aluno tem acesso (assinatura, compra ou teste
+ *    de 1 aula dentro da validade).
  *  - O número (SH-AAAA-XXXXXXXX) é aleatório: não dá para adivinhar o de outro aluno.
  *  - O nome no certificado é o do perfil NA HORA de gerar o PDF; assim o aluno corrige
  *    um nome errado e baixa de novo.
@@ -25,6 +26,7 @@
 import { randomInt } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import * as db from "./db";
+import { aulasAssistidas } from "./assistido";
 import { contentCollectionItems, contentCollections, courses, enrollments, lessons, users } from "../drizzle/schema";
 
 export type TipoCertificado = "aula" | "programa";
@@ -276,18 +278,22 @@ async function inserir(d: NonNullable<Awaited<ReturnType<typeof db.getDb>>>, c: 
  * Emite o que couber para estas aulas JÁ validadas (ver `validarAulas`).
  * Devolve só os certificados criados agora, para avisar o aluno.
  */
-export async function emitirParaAulas(userId: number, aulas: AulaValida[]): Promise<CertificadoEmitido[]> {
-  if (!aulas.length || !(await garantirTabela())) return [];
+export async function emitirParaAulas(userId: number, candidatas: AulaValida[]): Promise<CertificadoEmitido[]> {
+  if (!candidatas.length || !(await garantirTabela())) return [];
   const d = await db.getDb();
   if (!d) return [];
+
+  // Só vale aula realmente assistida (tempo medido pelo servidor, ver server/assistido.ts).
+  // A lista de "concluídas" do navegador NÃO conta: ela é só o progresso na tela.
+  const assistidas = await aulasAssistidas(userId);
+  const aulas = candidatas.filter((a) => assistidas.has(a.id));
+  if (!aulas.length) return [];
 
   const ids = aulas.map((a) => a.id);
   const programas = await programasDasAulas(ids);
 
-  // Tudo que o aluno já concluiu, em qualquer curso, mais as aulas novas
-  const matriculas = await d.select({ completedLessons: enrollments.completedLessons }).from(enrollments).where(eq(enrollments.userId, userId));
-  const concluidas = new Set<number>(ids);
-  for (const m of matriculas) for (const id of lerConcluidas(m.completedLessons)) concluidas.add(id);
+  // Concluídas para fechar o geral do Programa: apenas as assistidas
+  const concluidas = new Set<number>(assistidas);
 
   const existentes = await listarDoAluno(userId);
   const decisao = decidirEmissoes({

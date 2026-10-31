@@ -12,6 +12,7 @@ import {
 } from "../db";
 import { createCheckoutSession, createCustomerPortalSession, isStripeConfigured } from "../stripe";
 import { getStripePriceId, isPlanStripeConfigured } from "../../shared/stripe-config";
+import { urlCanonica } from "../_core/seo";
 
 function ensureAdminAccess(role?: string) {
   if (role !== "admin" && role !== "superadmin") {
@@ -154,7 +155,7 @@ export const subscriptionsRouter = router({
         });
       }
 
-      const origin = ctx.req.headers.origin || "https://shadiahasan.club";
+      const origin = ctx.req.headers.origin || urlCanonica();
 
       const session = await createCheckoutSession({
         priceId,
@@ -194,7 +195,7 @@ export const subscriptionsRouter = router({
       });
     }
 
-    const origin = ctx.req.headers.origin || "https://shadiahasan.club";
+    const origin = ctx.req.headers.origin || urlCanonica();
     const portalUrl = await createCustomerPortalSession(
       subscription.stripeCustomerId,
       `${origin}/dashboard`

@@ -19,6 +19,7 @@ import { publicProcedure, router, protectedProcedure, superAdminProcedure } from
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "./db";
+import { urlCanonica } from "./_core/seo";
 
 // Admin-only procedure helper
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -1031,7 +1032,7 @@ export const appRouter = router({
           });
         }
 
-        const origin = ctx.req.headers.origin || 'https://shadiahasan.club';
+        const origin = ctx.req.headers.origin || urlCanonica();
         
         const session = await createCheckoutSession({
           priceId,
@@ -1077,7 +1078,7 @@ export const appRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "CPF/CNPJ inválido. Confira os números e tente de novo." });
         }
 
-        const origin = ctx.req.headers.origin || 'https://shadiahasan.club';
+        const origin = ctx.req.headers.origin || urlCanonica();
         try {
           const result = await createAsaasCheckout({
             userId: ctx.user.id,
@@ -1138,7 +1139,7 @@ export const appRouter = router({
         });
       }
 
-      const origin = ctx.req.headers.origin || 'https://shadiahasan.club';
+      const origin = ctx.req.headers.origin || urlCanonica();
       const portalUrl = await createCustomerPortalSession(
         subscription.stripeCustomerId,
         `${origin}/dashboard`

@@ -502,7 +502,7 @@ Chargeback não gera e-mail. Opcional: `EMAIL_AVISOS_ADMIN` recebe "[Painel] Nov
 
 Variáveis: `RESEND_API_KEY` (obrigatória), `RESEND_WEBHOOK_SECRET` (signing secret do webhook no Resend), `EMAIL_CONTATO`, `EMAIL_CONTATO_REMETENTE`, `EMAIL_AVISOS_ADMIN`, `EMAIL_CAIXA_DOMINIO`, `FROM_EMAIL`, `SITE_URL` (padrão agora `https://shadiahasan.com`).
 
-Pendências vistas: `SEOHead.tsx`/`Breadcrumbs.tsx`/`AdminSettings.tsx` ainda usam `shadiahasan.club`; FAQ cita WhatsApp 47 99142-6662 e o resto do site 47 99166-5536.
+Pendência vista: FAQ cita WhatsApp 47 99142-6662 e o resto do site 47 99166-5536. (O `shadiahasan.club` do SEO foi corrigido em 31/10, ver "SEO e domínio".)
 
 ### Caixas por setor (27/10/2026)
 
@@ -588,3 +588,18 @@ Antes: existia só a tabela `certificates` e a mutation `certificates.generate`,
 
 **Não coberto:** YouTube (iframe, outro caminho); Safari/iOS (player HLS nativo): só a renovação por erro de rede foi tratada, não testei em Safari; não verifiquei se as chaves `CLOUDFLARE_SIGNING_KEY_*` estão no Render (sem elas o código cai no manifesto público e, com "Require signed URLs" ligado no Stream, o vídeo nem iniciaria).
 
+### SEO e domínio (31/10/2026)
+
+**Achado:** `sitemap.xml` e `robots.txt` eram arquivos estáticos de `client/public` apontando para `shadiahasan.club` (domínio antigo), com só 7 páginas fixas (sem cursos nem programas). `SEOHead` e `Breadcrumbs` usavam `.club` em canonical, og:url e trilha, o `og:image` apontava para um arquivo que não existia, e só a home tinha título/descrição próprios (todas as outras páginas herdavam o título do `index.html`). Fallbacks de origem do checkout (`routers.ts` x3, `subscriptions.ts` x2, `admin.ts` x1) também usavam `.club`.
+
+**Correção:**
+- `server/_core/seo.ts`: `GET /robots.txt` e `GET /sitemap.xml` gerados na hora, montados antes do `serveStatic` (os arquivos estáticos foram removidos). Endereço base = `urlCanonica()` (`CANONICAL_HOST`, padrão `shadiahasan.com`; de propósito NÃO usa `SITE_URL`, que em produção pode ainda estar com o domínio antigo). O sitemap lista as páginas fixas (home, courses, pricing, about, faq, contact, privacy, terms; sem login/cadastro) + cursos com `isPublished = 1` + programas (`contentCollections`) com `isActive = 1`. Cache de 10 min em memória; se o banco falhar, sai só com as fixas. `robots.txt` bloqueia admin, área logada, aulas, checkout e `/api/`.
+- Os fallbacks de origem usam `urlCanonica()`. Mantido de propósito: `admin@shadiahasan.club` em `seed-superadmin.ts` (é identidade de conta, trocar quebraria login).
+- Cliente: `client/src/lib/site.ts` (`SITE_URL`, `OG_IMAGE`, `urlAbsoluta`), `SEOHead` com canonical da própria página (antes sempre a home) e prop `noindex`, `SEOHead` agora em Courses, Pricing, About, Contact, FAQ, Terms, Privacy, CourseDetail (título e descrição do curso) e CollectionDetail. Mapa de textos: `client/src/lib/seo-meta-tags.ts` (entradas novas /pricing, /terms, /privacy).
+- Dados estruturados (`client/src/lib/jsonld.ts`): Organization + WebSite no `index.html` estático (o teste `jsonld.test.ts` garante que bate com as funções), Course em cada curso (só emite com nome e descrição), FAQPage em /faq, BreadcrumbList já existente. `JsonLd.tsx` usa `<script>` direto, sem Helmet.
+- Meta tags estáticas do `index.html` ganharam `data-rh="true"`: o Helmet substitui em vez de duplicar (antes saíam duas `description` e duas `og:image`). Páginas sem SEOHead (ex.: /ebooks) mantêm as estáticas.
+- `client/public/og-image.jpg` (1200x630, logo oficial sobre fundo branco). `vite.config.ts`: `/sitemap.xml` e `/robots.txt` fora do `navigateFallback` do service worker.
+
+**Verificado:** testes `server/seo.test.ts` (7) e `client/src/lib/jsonld.test.ts` (7); sitemap contra Postgres local (curso rascunho e programa inativo ficam de fora); `<head>` real de /, /faq, /courses, /courses/:slug, /ebooks em Chromium (um título, uma descrição, um canonical, um og:image por página).
+
+**Limites:** o app é SPA, então WhatsApp/Facebook (que não executam JavaScript) sempre mostram as meta tags estáticas da home ao compartilhar um curso; só o Google vê as de cada página. Resolver isso exige injetar as tags no servidor por URL (não feito). Depois do deploy, enviar `https://shadiahasan.com/sitemap.xml` no Google Search Console e pedir inspeção da home. Se `SITE_URL` no Render ainda estiver com `.club`, e-mails e links que usam essa variável continuam com o domínio antigo (o código novo de SEO não depende dela).

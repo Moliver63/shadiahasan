@@ -2,6 +2,7 @@ import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "../db";
+import { urlCanonica } from "../_core/seo";
 
 // Admin-only procedure helper
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -118,7 +119,7 @@ export const adminRouter = router({
       );
       
       // Generate invite URL
-      const origin = ctx.req.headers.origin || "https://shadiahasan.club";
+      const origin = ctx.req.headers.origin || urlCanonica();
       const inviteUrl = `${origin}/admin/accept-invite?token=${result.token}`;
       
       console.log(`[Admin Invite] Invite created for ${input.email}`);

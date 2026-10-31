@@ -42,6 +42,22 @@ export const SEO_META_TAGS: Record<string, PageSEO> = {
     keywords: 'FAQ, perguntas frequentes, dúvidas, ajuda, suporte',
   },
   
+  '/pricing': {
+    title: 'Planos e Preços',
+    description: 'Compare os planos Gratuito, Básico, Premium e VIP e escolha como acessar os programas de psicologia e desenvolvimento humano de Shadia Hasan. Cancele quando quiser.',
+    keywords: 'planos, preços, assinatura, cursos de psicologia online, desenvolvimento humano',
+  },
+
+  '/terms': {
+    title: 'Termos de Uso',
+    description: 'Termos de uso da plataforma Shadia Hasan: regras de acesso, assinaturas, pagamentos e uso do conteúdo.',
+  },
+
+  '/privacy': {
+    title: 'Política de Privacidade',
+    description: 'Como a plataforma Shadia Hasan coleta, usa e protege seus dados pessoais, em conformidade com a LGPD.',
+  },
+
   '/login': {
     title: 'Entrar na Plataforma',
     description: 'Acesse sua conta na plataforma Shadia Hasan e continue sua jornada de transformação interior.',

@@ -11,6 +11,8 @@ import { BookOpen, PlayCircle, Lock, ArrowLeft, Clock, Layers } from "lucide-rea
 import { Link, useParams, useLocation } from "wouter";
 import PublicHeader from "@/components/PublicHeader";
 import { toast } from "sonner";
+import { SEOHead } from "@/components/SEOHead";
+import { textoLimpo } from "@/lib/jsonld";
 
 export default function CollectionDetail() {
   const params = useParams();
@@ -55,6 +57,12 @@ export default function CollectionDetail() {
 
   return (
     <div className="min-h-screen bg-background">
+      {collection && (
+        <SEOHead
+          title={collection.title}
+          description={textoLimpo(collection.description || collection.subtitle, 160) || `Programa ${collection.title}, de Shadia Hasan.`}
+        />
+      )}
       <PublicHeader
         items={[
           { label: "Programas", href: "/courses" },

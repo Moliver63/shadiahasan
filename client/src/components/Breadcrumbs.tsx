@@ -1,6 +1,7 @@
 import { ChevronRight, Home } from "lucide-react";
 import { Link } from "wouter";
-import { Helmet } from "react-helmet-async";
+import { JsonLd } from "./JsonLd";
+import { urlAbsoluta } from "@/lib/site";
 
 export interface BreadcrumbItem {
   label: string;
@@ -12,8 +13,6 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ items }: BreadcrumbsProps) {
-  const SITE_URL = "https://shadiahasan.club";
-
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -21,17 +20,13 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
       "@type": "ListItem",
       "position": index + 1,
       "name": item.label,
-      "item": `${SITE_URL}${item.href}`
+      "item": urlAbsoluta(item.href)
     }))
   };
 
   return (
     <>
-      <Helmet>
-        <script type="application/ld+json">
-          {JSON.stringify(breadcrumbSchema)}
-        </script>
-      </Helmet>
+      <JsonLd dados={breadcrumbSchema} />
 
       <nav aria-label="Breadcrumb" className="mb-6">
         <ol className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">

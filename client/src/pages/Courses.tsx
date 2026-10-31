@@ -6,6 +6,8 @@ import PublicHeader from "@/components/PublicHeader";
 import { Link } from "wouter";
 import { formatDuration } from "@/lib/formatDuration";
 import { useState } from "react";
+import { SEOHead } from "@/components/SEOHead";
+import { getSEOMetaTags } from "@/lib/seo-meta-tags";
 
 type Filter = "all" | "collections" | "courses";
 
@@ -69,6 +71,7 @@ export default function Courses() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead {...getSEOMetaTags("/courses")} />
       <PublicHeader
         items={[
           { label: "Programas", href: "/courses" },

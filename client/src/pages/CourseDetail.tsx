@@ -12,6 +12,9 @@ import PublicHeader from "@/components/PublicHeader";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { getBreadcrumbs } from "@/lib/breadcrumbs";
+import { SEOHead } from "@/components/SEOHead";
+import { JsonLd } from "@/components/JsonLd";
+import { cursoSchema, textoLimpo } from "@/lib/jsonld";
 
 
 // ── Componentes auxiliares ────────────────────────────────────────────────────
@@ -197,6 +200,17 @@ export default function CourseDetail() {
 
   return (
     <div className="min-h-screen bg-background">
+      {course && (
+        <>
+          <SEOHead
+            title={course.title}
+            description={textoLimpo(course.description, 160) || `Conheça o curso ${course.title}, de Shadia Hasan.`}
+            ogImage={course.thumbnail && /^https?:\/\//.test(course.thumbnail) ? course.thumbnail : undefined}
+            ogType="article"
+          />
+          <JsonLd dados={cursoSchema(course)} />
+        </>
+      )}
       <PublicHeader
         items={[
           { label: "Programas", href: "/courses", match: "prefix" },

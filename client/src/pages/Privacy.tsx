@@ -1,9 +1,12 @@
 import { Link } from "wouter";
 import SiteLogo from "@/components/SiteLogo";
+import { SEOHead } from "@/components/SEOHead";
+import { getSEOMetaTags } from "@/lib/seo-meta-tags";
 
 export default function Privacy() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-purple-100">
+      <SEOHead {...getSEOMetaTags("/privacy")} />
       {/* Header */}
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -41,7 +44,7 @@ export default function Privacy() {
                 <p className="text-gray-700 mb-2">CRP: 12/27052</p>
                 <p className="text-gray-700 mb-2">E-mail: contato@shadiahasan.com</p>
                 <p className="text-gray-700 mb-2">WhatsApp: +55 47 99142-6662</p>
-                <p className="text-gray-700">Website: shadiahasan.club</p>
+                <p className="text-gray-700">Website: shadiahasan.com</p>
               </div>
               <p className="text-gray-700 leading-relaxed">
                 Você pode entrar em contato conosco para exercer seus direitos de titular de dados ou esclarecer dúvidas sobre esta Política.
@@ -268,7 +271,7 @@ export default function Privacy() {
                 <p className="text-gray-700 mb-2">CRP: 12/27052</p>
                 <p className="text-gray-700 mb-2">E-mail: contato@shadiahasan.com</p>
                 <p className="text-gray-700 mb-2">WhatsApp: +55 47 99142-6662</p>
-                <p className="text-gray-700">Website: shadiahasan.club</p>
+                <p className="text-gray-700">Website: shadiahasan.com</p>
               </div>
             </section>
           </div>

@@ -52,6 +52,11 @@ async function startServer() {
   const { middlewareDominioCanonico } = await import('./canonicalHost');
   app.use(middlewareDominioCanonico());
 
+  // robots.txt e sitemap.xml gerados na hora (cursos e programas entram sozinhos).
+  // Vêm antes do serveStatic, então não dependem de arquivo em client/public.
+  const { rotasSeo } = await import('./seo');
+  app.use(rotasSeo());
+
   const stripeWebhook = await import('../routes/stripe-webhook');
   app.use('/api', stripeWebhook.default);
 

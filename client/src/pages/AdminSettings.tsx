@@ -149,7 +149,7 @@ export default function AdminSettings() {
                 <Label htmlFor="domain">Domínio Atual</Label>
                 <Input
                   id="domain"
-                  defaultValue="shadiahasan.club"
+                  defaultValue="shadiahasan.com"
                   disabled
                 />
                 <p className="text-sm text-muted-foreground">

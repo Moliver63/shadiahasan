@@ -9,6 +9,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { HelpCircle, MessageCircle } from "lucide-react";
 import { Link } from "wouter";
 import PublicHeader from "@/components/PublicHeader";
+import { SEOHead } from "@/components/SEOHead";
+import { JsonLd } from "@/components/JsonLd";
+import { getSEOMetaTags } from "@/lib/seo-meta-tags";
+import { faqSchema } from "@/lib/jsonld";
 
 export default function FAQ() {
   const faqs = [
@@ -117,6 +121,8 @@ export default function FAQ() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <SEOHead {...getSEOMetaTags("/faq")} />
+      <JsonLd dados={faqSchema(faqs.flatMap((g) => g.questions))} />
       <PublicHeader
         items={[
           { label: "Programas", href: "/courses" },

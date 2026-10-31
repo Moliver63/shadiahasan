@@ -3,10 +3,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Award, BookOpen, Heart, Sparkles, Target, Users } from "lucide-react";
 import PublicHeader from "@/components/PublicHeader";
 import { Link } from "wouter";
+import { SEOHead } from "@/components/SEOHead";
+import { getSEOMetaTags } from "@/lib/seo-meta-tags";
 
 export default function About() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <SEOHead {...getSEOMetaTags("/about")} />
       <PublicHeader
         items={[
           { label: "Programas", href: "/courses" },

@@ -8,6 +8,8 @@ import { useState } from "react";
 import PublicHeader from "@/components/PublicHeader";
 import { toast } from "sonner";
 import { Link } from "wouter";
+import { SEOHead } from "@/components/SEOHead";
+import { getSEOMetaTags } from "@/lib/seo-meta-tags";
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -36,6 +38,7 @@ export default function Contact() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <SEOHead {...getSEOMetaTags("/contact")} />
       <PublicHeader
         items={[
           { label: "Programas", href: "/courses" },

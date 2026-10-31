@@ -13,6 +13,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import PublicHeader from "@/components/PublicHeader";
 import { trackCheckoutStart, trackEvent } from "@/components/Analytics";
+import { SEOHead } from "@/components/SEOHead";
+import { getSEOMetaTags } from "@/lib/seo-meta-tags";
 
 export default function Pricing() {
   const { user, isAuthenticated } = useAuth();
@@ -191,6 +193,7 @@ export default function Pricing() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+      <SEOHead {...getSEOMetaTags("/pricing")} />
       <PublicHeader
         items={[
           { label: "Programas", href: "/courses" },

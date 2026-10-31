@@ -620,7 +620,7 @@ Antes: existia só a tabela `certificates` e a mutation `certificates.generate`,
 **Testes:** `server/marketing.test.ts` (17) e `client/src/lib/consentimento.test.ts` (2). Fluxo completo em Postgres local (fora da suíte, passou): inscrição, confirmação, cancelamento, nova inscrição após cancelar, segmentos com e sem assinatura nos dois sistemas, envio sem repetir ninguém, cancelamento no meio do envio, queda de rede num lote, reenvio de erros, parar, retomada após reinício, público vazio e as páginas públicas (GET não muda nada, POST muda, token inválido). No navegador: caixa desmarcada e botão só libera com e-mail + autorização, confirmação em duas etapas, editor, prévia, teste, confirmação de envio e acompanhamento.
 
 **Pendências / limites:**
-- Falta a sequência automática (boas-vindas, aula, oferta com intervalos). A infraestrutura (lista, autorização, cancelamento, envio) já serve de base.
+- A sequência automática de boas-vindas existe (seção abaixo). Falta apenas uma segunda sequência, se a Shadia quiser (ex.: pós-compra).
 - `leads.capture` (tRPC público) continua existindo e gravando em `leads`, mas nenhuma tela chama mais. Pode ser removido.
 - O limite diário do plano do Resend vale para as campanhas (erros aparecem na tela do envio). Conferir o plano antes de listas grandes.
 - Os 3 compradores de aula que já existem em `trialGuestCheckouts` não estão na lista (não houve autorização); entram se comprarem de novo marcando a caixa.
@@ -628,3 +628,21 @@ Antes: existia só a tabela `certificates` e a mutation `certificates.generate`,
 - WhatsApp: não implementado. Exige a API oficial da Meta (modelos aprovados, número validado, cobrança por conversa).
 - Para a home ter uma isca de verdade (aula gratuita ou e-book), alguém precisa definir qual conteúdo será entregue; hoje o formulário só promete novidades.
 
+### Sequência automática de boas-vindas (31/10/2026)
+
+**O que é:** série de e-mails enviada sozinha a quem confirma a inscrição, em intervalos de dias. Aba "Sequência de boas-vindas" em `/admin/campanhas`. Código: `server/marketingSequencia.ts`, router `marketing.sequencia / salvarSequencia / ativarSequencia`, tela `client/src/components/SequenciaEmail.tsx`.
+
+**Regras (todas cobertas por teste):**
+- Nasce PAUSADA, com 3 rascunhos escritos para a Shadia revisar (boas-vindas no mesmo dia; "uma forma de começar" +3 dias; "qual plano combina" +4 dias). Sem preços e sem prometer gratuidade. Nada sai até alguém clicar em "Ativar sequência" (há confirmação na tela).
+- Só entra quem confirmou a inscrição DEPOIS da primeira ativação (`confirmadoEm >= ativadaEm`). Quem já estava na lista nunca recebe a série: a autorização foi dada para novidades, não para uma sequência. Pausar e reativar mantém a data da primeira ativação; quem confirmou durante a pausa entra ao retomar.
+- Cada e-mail sai `diasDepois` dias depois do anterior (o primeiro, depois da confirmação). Só entre 8h e 20h de Brasília; fora disso espera.
+- Cancelou a inscrição: a série dela para na hora. Cada e-mail leva o link de cancelar e o `List-Unsubscribe` de um clique.
+- E-mail marcado "não enviar a quem já assina" é registrado como `ignorado` e a série segue para o próximo; os rascunhos 2 e 3 usam isso.
+- Falha de envio: nova tentativa depois de 1 h, até 3 tentativas; na terceira vira `falhou` e a série daquela pessoa para (não manda os próximos).
+- Sem duplicidade: a reserva do envio é um `INSERT ... ON CONFLICT DO UPDATE WHERE` que só retoma `erro` com mais de 1 h ou `processando` com mais de 10 min. Três rodadas simultâneas enviam uma única vez. Roda a cada 5 min (primeira após 90 s) a partir de `server/_core/index.ts`.
+- Edição: dá para mudar assunto, texto, botão, intervalo e a marca de "já assina", adicionar até 8 e-mails e remover. Apagar um e-mail que já foi enviado a alguém é recusado (o histórico não some). Mudança vale para quem ainda não recebeu aquele e-mail.
+- Tabelas criadas em tempo de execução: `marketingSequencias`, `marketingSequenciaPassos`, `marketingSequenciaEnvios` (chave contato+passo).
+
+**Testes:** `server/marketingSequencia.test.ts` (10: janela de horário, validação, rascunhos, descrição dos prazos). Fluxo com tempo simulado em Postgres local (fora da suíte, 30 verificações, passou): criação idempotente, pausada não envia, lista antiga não entra, intervalos de 3 e 4 dias, janela 8h-20h, cancelamento, pulo para quem assina, erro/nova tentativa/parada, rodadas simultâneas, edição, bloqueio de remoção, pausa e retomada. Tela no Chromium (desktop e celular): editar, prévia, adicionar, remover, ativar, pausar.
+
+**Antes de ativar em produção:** a Shadia lê os 3 textos, manda um teste de cada para si e confere botões e links. Observação sobre a ativação: o relógio da série começa na confirmação de cada pessoa, então ativar de manhã ou à noite não muda nada para quem já se inscreveu antes.

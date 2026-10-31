@@ -17,7 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import SequenciaEmail from "@/components/SequenciaEmail";
 import { trpc } from "@/lib/trpc";
 
 type Origem = "home" | "cadastro" | "compra-aula";
@@ -317,6 +319,7 @@ export default function AdminCampanhas() {
   const resumo = trpc.marketing.resumo.useQuery();
   const campanhas = trpc.marketing.campanhas.useQuery(undefined, { refetchInterval: (q) => (q.state.data?.some((c) => c.status === "enviando") ? 4000 : false) });
   const utils = trpc.useUtils();
+  const [aba, setAba] = useState("campanhas");
   const [editando, setEditando] = useState<{ id: number | null } | null>(null);
   const [vendo, setVendo] = useState<number | null>(null);
   const [excluir, setExcluir] = useState<number | null>(null);
@@ -332,9 +335,18 @@ export default function AdminCampanhas() {
             <h1 className="text-2xl font-semibold">Campanhas de e-mail</h1>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">Novidades e ofertas para quem autorizou receber. Cada mensagem leva o link para cancelar a inscrição.</p>
           </div>
-          <Button onClick={() => setEditando({ id: null })}><Plus className="mr-2 h-4 w-4" />Nova campanha</Button>
+          {aba === "campanhas" && <Button onClick={() => setEditando({ id: null })}><Plus className="mr-2 h-4 w-4" />Nova campanha</Button>}
         </div>
 
+        <Tabs value={aba} onValueChange={setAba} className="space-y-8">
+          <TabsList>
+            <TabsTrigger value="campanhas">Campanhas</TabsTrigger>
+            <TabsTrigger value="sequencia">Sequência de boas-vindas</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="sequencia" className="mt-0"><SequenciaEmail /></TabsContent>
+
+          <TabsContent value="campanhas" className="mt-0 space-y-8">
         <div className="grid gap-4 sm:grid-cols-3">
           <Indicador icone={<UserCheck className="h-5 w-5" />} titulo="Recebem suas ofertas" valor={r?.ativos ?? 0} ajuda="Autorizaram e confirmaram o e-mail" />
           <Indicador icone={<Clock className="h-5 w-5" />} titulo="Aguardando confirmação" valor={r?.pendentes ?? 0} ajuda="Ainda não clicaram no link do e-mail" />
@@ -398,6 +410,8 @@ export default function AdminCampanhas() {
             </div>
           )}
         </section>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {editando && <Editor id={editando.id} onClose={() => setEditando(null)} />}

@@ -51,7 +51,7 @@ export function validarConteudo(c: { nome: string; assunto: string; corpo: strin
 // ─── Público ────────────────────────────────────────────────────────────────
 
 /** Trecho SQL "tem assinatura": nos dois sistemas de assinatura do site. */
-const temAssinatura = sql`
+export const temAssinatura = sql`
   EXISTS (
     SELECT 1 FROM "users" u WHERE lower(u."email") = c."email" AND (
       EXISTS (SELECT 1 FROM "user_subscriptions" us WHERE us."userId" = u."id" AND us."status" IN ('active','trialing','past_due'))

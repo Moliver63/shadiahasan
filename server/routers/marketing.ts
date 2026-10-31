@@ -10,6 +10,7 @@ import {
   criarLimitador, emailValido, ORIGENS, registrarContato, resumoContatos, ROTULO_ORIGEM, TEXTO_CONSENTIMENTO,
 } from "../marketing";
 import { montarEmailCampanha, montarEmailConfirmacao } from "../marketingEmail";
+import { definirAtiva, descreverIntervalo, estatisticasSequencia, JANELA_FIM_H, JANELA_INICIO_H, MAX_DIAS, MAX_PASSOS, obterSequencia, salvarPassos } from "../marketingSequencia";
 import {
   campanhaEmAndamento, cancelarCampanha, contarSegmento, enviarTeste, errosDaCampanha, excluirRascunho, iniciarEnvio, listarCampanhas,
   obterCampanha, reenviarErros, salvarCampanha, validarConteudo,
@@ -157,6 +158,46 @@ export const marketingRouter = router({
     const ok = await cancelarCampanha(input.id);
     if (!ok) throw new TRPCError({ code: "BAD_REQUEST", message: "Só dá para parar uma campanha que está enviando." });
     return { ok: true };
+  }),
+
+  // ── Sequência automática ─────────────────────────────────────────────────
+  sequencia: adminProcedure.query(async () => {
+    const sequencia = await obterSequencia();
+    if (!sequencia) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível." });
+    const est = await estatisticasSequencia();
+    return {
+      sequencia: { ...sequencia, passos: sequencia.passos.map((p) => ({ ...p, quando: descreverIntervalo(p.ordem, p.diasDepois) })) },
+      estatisticas: est.passos,
+      naSequencia: est.naSequencia,
+      janela: { inicio: JANELA_INICIO_H, fim: JANELA_FIM_H },
+      limites: { maxPassos: MAX_PASSOS, maxDias: MAX_DIAS },
+    };
+  }),
+
+  salvarSequencia: adminProcedure
+    .input(z.object({
+      passos: z.array(conteudoSchema.omit({ nome: true }).extend({
+        id: z.number().int().positive().nullish(),
+        diasDepois: z.number().int().min(0).max(MAX_DIAS),
+        pularSeAssina: z.boolean(),
+      })).min(1).max(MAX_PASSOS),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        await salvarPassos(input.passos);
+        return { ok: true };
+      } catch (e) {
+        return paraTrpc(e);
+      }
+    }),
+
+  ativarSequencia: adminProcedure.input(z.object({ ativa: z.boolean() })).mutation(async ({ input }) => {
+    try {
+      await definirAtiva(input.ativa);
+      return { ok: true };
+    } catch (e) {
+      return paraTrpc(e);
+    }
   }),
 
   validar: adminProcedure.input(conteudoSchema).query(({ input }) => ({ erro: validarConteudo(input) })),

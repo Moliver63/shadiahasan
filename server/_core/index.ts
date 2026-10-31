@@ -126,6 +126,9 @@ async function startServer() {
       import('../asaas').then((m) => m.recoverAsaasEvents()).catch(() => undefined);
     }, 20_000);
 
+    // Sequência de e-mails de boas-vindas (a cada 5 min; só envia entre 8h e 20h e só se estiver ativa)
+    import('../marketingSequencia').then((m) => m.iniciarAgendadorSequencia()).catch(() => undefined);
+
     // Rotina de cobrança: carência no atraso, fim do período cancelado e lembretes de pagamento
     setTimeout(() => {
       const run = () => { import('../asaas').then((m) => m.runBillingMaintenance()).catch(() => undefined); };

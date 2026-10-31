@@ -414,7 +414,7 @@ Limites que o gráfico não esconde:
 ## 11. Problemas conhecidos (abertos em 2026-10-23)
 
 1. ~~Webhook do Stripe nunca validava~~ **Corrigido em 2026-10-23.** O `express.json()` rodava antes da rota `/api/stripe/webhook`, que precisa do corpo cru (resposta 400 "payload must be provided as a string or a Buffer"). Agora a rota é montada **antes** do `express.json()` em `server/_core/index.ts`. Não mover de volta. Verificado no servidor real: evento assinado → 200; assinatura inválida ou ausente → 400.
-2. **Valores no webhook do Stripe:** a ativação grava `amount: 0`; a falha divide por 100 sendo que o financeiro já divide (valor sai 100x menor).
+2. ~~Valores no webhook do Stripe~~ **Já corrigido** (commits 1dfef5f de 24/10 e 5fa7428 de 27/10): `invoice.paid` grava `invoice.amount_paid` e a falha grava `invoice.amount_due`, ambos em centavos e sem dividir; o checkout concluído grava `amount_total`. Conferido no código em 31/10/2026. O `amount: 0` que ainda aparece em `stripe-webhook.ts` é de transação de pontos de indicação, não de pagamento.
 3. **`pnpm check` com 17 erros de tipo no `main`** (Analytics, AdminAppointments, AdminCollections, CourseDetail, Courses, LessonView, materials). Parte das correções feitas localmente pode não ter sido publicada. Não barra o build.
 4. **Capas cinza no desktop:** confirmar em produção após publicar o `Courses.tsx` atualizado.
 5. **Render:** houve quedas cerca de 60s depois da subida (`ELIFECYCLE`). Falta o stack trace anterior à linha do `ELIFECYCLE` para diagnosticar.
@@ -462,8 +462,8 @@ Estado em produção: `ASAAS_API_KEY` já está no Render. **Ainda conferir:** `
 
 ## 13. Ordem recomendada para próximas manutenções
 
-1. corrigir os valores gravados pelo webhook do Stripe (11.2) e validar uma assinatura real de ponta a ponta (o webhook só passou a validar em 2026-10-23, então pode haver assinaturas pagas antes disso sem ativação: conferir no painel do Stripe e ativar no admin);
-2. definir `ASAAS_WEBHOOK_TOKEN`, cadastrar o webhook no Asaas, testar uma compra de R$ 19,90 no sandbox (incluindo se o cartão renova sozinho) e só então usar a chave de produção;
+1. ~~valores do webhook do Stripe~~ (corrigido, ver 11.2). **Continua em aberto:** nenhuma assinatura de plano foi paga em produção até hoje (ver "Validação de pagamentos em produção (31/10/2026)"); a primeira cobrança real de plano precisa ser acompanhada de ponta a ponta;
+2. ~~Asaas~~ **validado em produção em 29/10/2026** (webhook com token, chave de produção, compra de R$ 19,90 por PIX ativando o passe). Detalhes na seção abaixo.
 3. publicar o `Courses.tsx` com `OptimizedImage` (`motion`/`priority`) e conferir as capas no desktop;
 4. fechar os erros de `pnpm check` e deixar o comando em zero;
 5. compra avulsa (UI + checkout);
@@ -646,3 +646,18 @@ Antes: existia só a tabela `certificates` e a mutation `certificates.generate`,
 **Testes:** `server/marketingSequencia.test.ts` (10: janela de horário, validação, rascunhos, descrição dos prazos). Fluxo com tempo simulado em Postgres local (fora da suíte, 30 verificações, passou): criação idempotente, pausada não envia, lista antiga não entra, intervalos de 3 e 4 dias, janela 8h-20h, cancelamento, pulo para quem assina, erro/nova tentativa/parada, rodadas simultâneas, edição, bloqueio de remoção, pausa e retomada. Tela no Chromium (desktop e celular): editar, prévia, adicionar, remover, ativar, pausar.
 
 **Antes de ativar em produção:** a Shadia lê os 3 textos, manda um teste de cada para si e confere botões e links. Observação sobre a ativação: o relógio da série começa na confirmação de cada pessoa, então ativar de manhã ou à noite não muda nada para quem já se inscreveu antes.
+
+### Validação de pagamentos em produção (31/10/2026)
+
+Conferido com consulta somente leitura no Postgres de produção e nos logs do Render.
+
+**Asaas (teste de 1 aula, R$ 19,90): funciona de ponta a ponta.**
+- Compra por PIX em 29/10 (cobrança paga às 16:20): `trialGuestCheckouts` = paid, `trialPasses` = active (7 dias), `payment_history` = completed, R$ 19,90.
+- O webhook `POST /api/webhooks/asaas` responde 200 para o agente `Asaas_Prod` (chave de produção) em 28 e 29/10. A confirmação das 16:20:56 chegou por ele e ativou o passe na sequência. Logo `ASAAS_WEBHOOK_TOKEN` e o cadastro do webhook estão certos.
+- Uma venda real, uma só. Cartão e boleto ainda não passaram por compra real.
+
+**Assinaturas de plano: nunca foram pagas em produção.** `user_subscriptions` está vazia e não há linha de Stripe em `payment_history`. As 3 linhas ativas em `subscriptions` são antigas (jun a ago), sem Stripe. Portanto não existe assinatura paga "órfã" de antes de 23/10 para ativar. A primeira cobrança real de plano (Stripe ou Asaas) deve ser acompanhada: financeiro, e-mail de aviso, ativação.
+
+**Sobras de teste (sem efeito prático):** 4 linhas de `payment_history` (R$ 79,60 no total) seguem `pending` com `providerStatus = OVERDUE`; o financeiro as mostra como "Atrasado". Passes 1 e 2 (23 e 24/10) seguem `pending` por terem sido criados antes do roteamento do teste; a compra nova cancela passes pendentes antigos, então não bloqueiam ninguém. Desenho atual: cobrança vencida fica `pending` e só `PAYMENT_DELETED` vira `failed`.
+
+**Indisponibilidade em 29/10:** o último log do serviço antes da parada foi `ELIFECYCLE Command failed` às 06:39 (UTC); de 07:54 a 11:54 o Asaas recebeu 503 em 8 tentativas do webhook (reenvio de hora em hora, sem perda: a cobrança vencida de 28/10 foi processada às 12:54) e o serviço só voltou às 12:08 com deploy de gatilho `service_resumed`. Plano Starter (sempre ligado), hoje sem suspensão. Sem `healthCheckPath` configurado no Render, um processo travado não é reiniciado sozinho. Recomendação (feita no painel do Render, não no código): definir um health check apontando para uma rota leve que consulte o banco.

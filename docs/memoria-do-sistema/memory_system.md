@@ -433,7 +433,7 @@ Limites que o gráfico não esconde:
 | `2e93a6e` | lembretes de pagamento com nova tentativa em falha de envio |
 | `1cc8480` | janela de pagamento do teste não é mais bloqueada pelo navegador |
 
-Estado em produção: `ASAAS_API_KEY` já está no Render. **Ainda conferir:** `ASAAS_WEBHOOK_TOKEN`, cadastro do webhook no Asaas e se a chave é de sandbox ou produção (`ASAAS_BASE_URL`). Uma compra de teste de R$ 19,90 de ponta a ponta (fatura, webhook, aula liberada) ainda não foi validada.
+Estado em produção (atualizado em 01/11/2026): `ASAAS_API_KEY` e `ASAAS_WEBHOOK_TOKEN` estão no Render, o webhook está cadastrado e a chave é de produção (agente `Asaas_Prod`). Uma compra real de R$ 19,90 por PIX em 29/10 foi validada de ponta a ponta (ver "Validação de pagamentos em produção (31/10/2026)").
 
 ### Já concluído
 
@@ -447,7 +447,9 @@ Estado em produção: `ASAAS_API_KEY` já está no Render. **Ainda conferir:** `
 
 ### Ainda pendente
 
-- [ ] corrigir valores gravados pelo webhook do Stripe (item 11.2)
+- [x] valores gravados pelo webhook do Stripe (item 11.2): já corrigido em 24/10 e conferido em 31/10
+- [ ] primeira assinatura de plano paga de verdade em produção, acompanhada de ponta a ponta (nenhuma existe até hoje)
+- [ ] vídeos: ligar URL assinada, fechar o vazamento do endereço nas listas de aulas e marca d'água com o e-mail (ver "Auditoria 01/11/2026")
 - [ ] UI no admin para `courses.allowIndividualPurchase` e preço avulso
 - [ ] checkout de pagamento único (Stripe e/ou Asaas) para compra avulsa de curso
 - [ ] revisar aula 1 com `videoProvider` inconsistente (`cloudflare` vs YouTube)
@@ -698,4 +700,37 @@ Custo por contato confirmado = gasto da campanha no Google Ads dividido por `con
 - A sequência de boas-vindas (ainda pausada) vale para quem confirmar vindo daqui. O primeiro e-mail dela não menciona o resultado da autoavaliação; dá para criar uma sequência por perfil usando a coluna `perfil`.
 - Quem já está na lista e refaz a autoavaliação não recebe e-mail com o resultado (só vê na tela), porque a confirmação só é enviada a quem ainda não está ativo.
 - Conectar a conta do Google Ads (Windsor ou outro) para acompanhar o gasto junto dos cadastros.
+
+### Auditoria 01/11/2026: link da aula vinculado ao e-mail logado
+
+**Pergunta:** dá para vincular o link da aula ao e-mail de quem está logado? Resultado de leitura do código, dados de produção (somente leitura) e logs do Render. Nada foi alterado no código.
+
+**Já vinculado à conta:**
+- A página `/lesson/ID` não libera nada por si: o servidor decide por usuário (`videos.getPlaybackUrl` aplica `checkUserHasAccess`, passe de 1 aula e liberação da trilha).
+- O link de acesso por e-mail (`server/linkDeAcesso.ts`) tem `userId`, token guardado só como hash, uso único, validade de 7 dias e destino só interno. O GET mostra um botão e só o POST entra (antivírus de e-mail não gasta o link). Limite conhecido: quem tiver o e-mail encaminhado e usar o link antes da dona entra na conta dela, como em qualquer link mágico; e o POST substitui a sessão que já estiver aberta.
+
+**Não vinculado (achados):**
+1. Em produção NÃO há `CLOUDFLARE_SIGNING_KEY_ID`/`PEM`: o log repete "não configurados, retornando manifest público". `generateSignedStreamUrl` cai no fallback e devolve o manifest público (não expira, não exige login). Das 42 aulas em Cloudflare, 41 são restritas (`isAccessRestricted = 1`) e 1 é livre; todas têm `videoPlaybackUrl` público gravado.
+2. Os vídeos aceitam endereço sem assinatura (inferido: tocam hoje por ele). `setSignedUrlRequired` (`cloudflare-stream.ts`) existe, mas nada a chama.
+3. `lessons.listByCourse` e `lessons.getById` (`server/routers.ts`) devolvem `videoPlaybackUrl` a quem tem acesso comercial ao curso, SEM olhar a liberação da trilha (essa checagem só existe em `getPlaybackUrl`). Quem abre o inspetor consegue o endereço de aulas ainda bloqueadas e o link vale para sempre. O player (`LessonView.tsx`) usa `playbackData?.url || lesson?.videoPlaybackUrl`, e o cadeado da lista de aulas usa `!l.videoPlaybackUrl`: fechar o vazamento exige mexer nesses dois pontos.
+
+**O que o Cloudflare permite:** o token (JWT RS256 com `sub`, `kid`, `exp`) não valida e-mail. Dá para limitar expiração e, com `accessRules`, país ou IP. IP é arriscado (IPv4/IPv6 ou Wi-Fi/4G mudam o IP e o aluno fica sem vídeo; testar antes). O vínculo que funciona na prática é visível: marca d'água com o e-mail do aluno no player.
+
+**Plano recomendado (não executado):** (1) criar a Signing Key no Cloudflare e colocar `CLOUDFLARE_SIGNING_KEY_ID` e `CLOUDFLARE_SIGNING_KEY_PEM` no Render, testar uma aula e só então ligar a exigência de assinatura nos 41 vídeos (o endereço antigo deixa de funcionar); (2) parar de devolver `videoPlaybackUrl` nas duas listas e fazer o player usar só `getPlaybackUrl`, trocando o cadeado por `videos.hasAccess`; (3) marca d'água com o e-mail em posição que muda. Outras opções: limite de sessões simultâneas por conta (hoje a sessão é um cookie assinado de 1 ano, sem registro no servidor).
+
+### Minha Área do aluno (30/10/2026, commit 7c90a1f)
+
+Rota `/minha-area` (`client/src/pages/MinhaArea.tsx`, `server/areaAluno.ts`, router `areaAluno`, atalho em `UserMenu`). Junta o que o aluno comprou e pode assistir: **acesso** (plano ativo e testes de 1 aula: ativos, aguardando pagamento, vencidos, expirados), **cursos** (matrículas e o curso de cada teste, com progresso e "continuar"), **compras** (histórico de pagamentos com status legível e link quando ainda dá para pagar) e **certificados**. `montarAreaAluno` é pura e testada (`server/areaAluno.test.ts`); `carregarAreaAluno` só lê o banco. Nada nessa tela libera acesso: quem libera é o webhook do Asaas e `checkUserHasAccess`. É o destino padrão do link de acesso por e-mail (`DESTINO_PADRAO = "/minha-area"`) e da volta do checkout.
+
+### E-mails por setor: Atendimento, Financeiro e Psicóloga (30/10/2026, commits 4699d9b e 214f9b8)
+
+Cada e-mail automático diz quem fala (`server/_core/emailLayout.ts`, tipo `Departamento`): **Psicóloga** (só a Shadia, 1ª pessoa, com CRP: boas-vindas e conteúdo, incluindo as mensagens de marketing), **Atendimento ao aluno** (conta e acesso: confirmar e-mail, senha, link de acesso, aula liberada) e **Financeiro** (cobrança, pagamento, assinatura, atraso, pausa, cancelamento, estorno). O setor define o nome do remetente ("Shadia Hasan · Financeiro"), a etiqueta acima do título, a assinatura, o rodapé e o responder-para (`financeiro@` para o Financeiro). Setores falam no plural ("recebemos") e nunca levam o CRP. Assinatura única com nome, CRP, WhatsApp, e-mail, site e Instagram (`CONTATOS`); logo com largura e altura fixas e texto alternativo estilizado; rodapé com Minha Área, perguntas frequentes e política de privacidade. Testes em `server/email.templates.test.ts`.
+
+### Acentos quebrados nos planos (30/10/2026, commit d96694b)
+
+Os planos estavam gravados com UTF-8 lido como Latin-1 ("BÃ¡sico"). `shared/acentos.ts` (`consertarAcentos`, `consertarPlano`, `temAcentoQuebrado`) conserta só sequências de mojibake (texto correto, como "COMUNICAÇÃO", passa intacto). Os planos saem corrigidos na leitura (`server/db.ts`) e o banco é corrigido de vez na subida do servidor (`consertarPlanosNoBanco` em `server/textoCorrigido.ts`, idempotente). Minha Área também passa os textos por `consertarAcentos`. Testes em `server/textoCorrigido.test.ts`.
+
+### Login: contraste no celular e Google em destaque (01/11/2026, commit 3cf13ba, PR #15)
+
+`client/src/pages/Login.tsx`: campos e botões com fundo claro fixo no modo escuro do celular (antes ficavam ilegíveis), botão do Google em destaque e o botão "Continuar com Apple" removido da tela. Só a tela mudou; a rota do servidor `/api/auth/apple` não foi tocada neste commit. O acesso por link enviado ao e-mail continua disponível na mesma tela.
 

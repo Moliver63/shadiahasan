@@ -1,7 +1,7 @@
 # Shadia Hasan — Memória do Sistema (Manutenção)
 
 > Resumo para manutenções futuras (humanas ou IA).
-> Última atualização: 2026-10-23.
+> Última atualização: 2026-11-01. Este resumo parou em 23/10; tudo que veio depois está em `memory_system.md` (ver índice abaixo).
 > **Arquivo canônico: [`memory_system.md`](./memory_system.md)** (detalhes, tabelas e decisões). Em caso de divergência, vale ele.
 
 ---
@@ -119,3 +119,12 @@ Detalhes (eventos, decisões, cadastro do webhook): seção 7 do `memory_system.
 - Nunca colar nem commitar tokens, senhas, JWTs ou chaves neste repositório ou em documentos.
 - Conexão ao banco (`psql`, `pnpm db:push`) usa a **External Database URL** do Render com `?sslmode=require`, em `.env` local.
 - Evitar versionar arquivos com credenciais, dumps ou chaves.
+
+---
+
+## Atualizações depois de 23/10/2026 (detalhes em `memory_system.md`)
+
+Seções do arquivo canônico, em ordem de data: sessão de login assinada e domínio único (24/10), funil do teste de 1 aula e campanha 804 (24 a 28/10), teste sem conta (25/10), GA4, Clarity e gráfico de acessos (26 a 28/10), e-mails da marca, caixas por setor e e-mails por setor (27 e 30/10), Minha Área e acentos (30/10), certificados e suas auditorias, vídeo que parava, SEO, e-mail marketing, sequência de boas-vindas, validação de pagamentos, funil Google Ads + autoavaliação (31/10), auditoria do link da aula e login (01/11).
+
+Pendências que valem para a próxima manutenção: URLs assinadas dos vídeos e vazamento do endereço nas listas de aulas (auditoria 01/11); primeira assinatura de plano paga em produção; health check no Render; revisão da autoavaliação pela Shadia e ativação da sequência de boas-vindas.
+

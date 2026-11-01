@@ -5,7 +5,6 @@ import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Mail, CheckCircle2 } from "lucide-react";
-import SiteLogo from "@/components/SiteLogo";
 
 
 /** Só caminho interno ("/lesson/12"); qualquer outra coisa é ignorada. */
@@ -107,28 +106,28 @@ export default function Login() {
     }
   };
 
-  const handleAppleLogin = () => {
-    window.location.href = '/api/auth/apple';
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-100 via-pink-50 to-white">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-100 via-pink-50 to-white px-4 py-8 text-gray-900">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/">
-            <SiteLogo className="h-32 mx-auto mb-4 cursor-pointer hover:opacity-90 transition" />
+            <img
+              src="/logo.png"
+              alt="Shadia Hasan - Psicologia & Desenvolvimento Humano"
+              className="h-32 mx-auto mb-4 cursor-pointer hover:opacity-90 transition"
+            />
           </Link>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
             Bem-vindo de Volta
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-gray-600 mt-2">
             Continue sua jornada de transformação interior
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-purple-100">
+        <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 border border-purple-200">
           {/* OAuth Error Alert */}
           {oauthError && (
             <Alert variant="destructive" className="mb-6">
@@ -147,15 +146,15 @@ export default function Login() {
           )}
 
           {/* Entrar sem senha: link de uso único no e-mail */}
-          <div className="mb-6 rounded-xl border border-purple-100 bg-purple-50/50 p-4">
+          <div className="mb-6 rounded-xl border border-purple-200 bg-purple-50 p-4">
             {!linkAberto ? (
-              <Button type="button" variant="outline" className="h-11 w-full bg-white" onClick={() => setLinkAberto(true)}>
+              <Button type="button" variant="outline" className="h-12 w-full border-2 border-purple-500 bg-white text-base font-semibold text-purple-700 hover:bg-purple-100 hover:text-purple-800 dark:border-purple-500 dark:bg-white dark:hover:bg-purple-100" onClick={() => setLinkAberto(true)}>
                 <Mail className="mr-2 h-5 w-5" /> Entrar sem senha (link no e-mail)
               </Button>
             ) : linkEstado?.tipo === "ok" ? (
               <div className="flex items-start gap-3 text-sm">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
-                <p>{linkEstado.texto}</p>
+                <p className="text-gray-800">{linkEstado.texto}</p>
               </div>
             ) : (
               <form onSubmit={pedirLink} className="space-y-3">
@@ -171,10 +170,10 @@ export default function Login() {
                   value={emailLink}
                   onChange={(e) => setEmailLink(e.target.value)}
                   required
-                  className="h-11"
+                  className="h-12 border-gray-300 bg-white text-base text-gray-900 placeholder:text-gray-400 dark:bg-white"
                 />
                 {linkEstado?.tipo === "erro" && <p className="text-sm text-red-600">{linkEstado.texto}</p>}
-                <Button type="submit" className="h-11 w-full" disabled={enviandoLink}>
+                <Button type="submit" className="h-12 w-full bg-purple-600 text-base font-semibold text-white hover:bg-purple-700" disabled={enviandoLink}>
                   {enviandoLink ? "Enviando..." : "Receber link de acesso"}
                 </Button>
               </form>
@@ -186,50 +185,38 @@ export default function Login() {
             <Button
               type="button"
               variant="outline"
-              className="w-full"
+              className="h-12 w-full border-2 border-gray-300 bg-white text-base font-semibold text-gray-800 shadow-sm hover:bg-gray-50 hover:text-gray-900 dark:border-gray-300 dark:bg-white dark:hover:bg-gray-50"
               onClick={handleGoogleLogin}
             >
               <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
                 <path
-                  fill="currentColor"
+                  fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                 />
                 <path
-                  fill="currentColor"
+                  fill="#34A853"
                   d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
                 />
                 <path
-                  fill="currentColor"
+                  fill="#FBBC05"
                   d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
                 />
                 <path
-                  fill="currentColor"
+                  fill="#EA4335"
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
               Continuar com Google
             </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleAppleLogin}
-            >
-              <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-              </svg>
-              Continuar com Apple
-            </Button>
           </div>
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
+              <span className="w-full border-t border-gray-300" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-muted-foreground">
-                Ou continue com email
+              <span className="bg-white px-3 font-medium text-gray-600">
+                Ou entre com e-mail e senha
               </span>
             </div>
           </div>
@@ -237,7 +224,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email Input */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-semibold text-gray-800 mb-2">
                 Email
               </label>
               <Input
@@ -247,13 +234,13 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full"
+                className="h-12 w-full border-gray-300 bg-white text-base text-gray-900 placeholder:text-gray-400 dark:bg-white focus-visible:border-purple-500 focus-visible:ring-purple-200"
               />
             </div>
 
             {/* Password Input */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-semibold text-gray-800 mb-2">
                 Senha
               </label>
               <Input
@@ -263,13 +250,13 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full"
+                className="h-12 w-full border-gray-300 bg-white text-base text-gray-900 placeholder:text-gray-400 dark:bg-white focus-visible:border-purple-500 focus-visible:ring-purple-200"
               />
             </div>
 
             {/* Forgot Password Link */}
             <div className="text-right">
-              <Link href="/forgot-password" className="text-sm text-purple-600 hover:underline">
+              <Link href="/forgot-password" className="text-sm font-medium text-purple-700 hover:underline">
                 Esqueceu sua senha?
               </Link>
             </div>
@@ -278,7 +265,7 @@ export default function Login() {
             <Button
               type="submit"
               disabled={isLoading || loginMutation.isPending}
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3"
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 h-12 text-base text-white font-semibold shadow-md"
             >
               {isLoading || loginMutation.isPending ? "Entrando..." : "Entrar"}
             </Button>
@@ -286,25 +273,25 @@ export default function Login() {
             {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
+                <div className="w-full border-t border-gray-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-muted-foreground">
+                <span className="px-4 bg-white text-gray-500">
                   Acesso rápido e seguro
                 </span>
               </div>
             </div>
 
             {/* Info */}
-            <div className="text-center text-sm text-muted-foreground">
+            <div className="text-center text-sm text-gray-600">
               <p>
                 Ao continuar, você concorda com nossos{" "}
                 <Link href="/terms">
-                  <a className="text-purple-600 hover:underline">Termos de Uso</a>
+                  <a className="font-medium text-purple-700 hover:underline">Termos de Uso</a>
                 </Link>{" "}
                 e{" "}
                 <Link href="/privacy">
-                  <a className="text-purple-600 hover:underline">Política de Privacidade</a>
+                  <a className="font-medium text-purple-700 hover:underline">Política de Privacidade</a>
                 </Link>
               </p>
             </div>
@@ -312,11 +299,11 @@ export default function Login() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-6 text-sm text-muted-foreground">
+        <div className="text-center mt-6 text-sm text-gray-700">
           <p>
             Primeira vez aqui?{" "}
             <Link href="/signup">
-              <a className="text-purple-600 font-semibold hover:underline">
+              <a className="text-purple-700 font-semibold hover:underline">
                 Criar conta gratuita
               </a>
             </Link>
@@ -326,7 +313,7 @@ export default function Login() {
         {/* Back to Home */}
         <div className="text-center mt-4">
           <Link href="/">
-            <a className="text-sm text-muted-foreground hover:text-purple-600 transition">
+            <a className="text-sm text-gray-600 hover:text-purple-700 transition">
               ← Voltar para o site
             </a>
           </Link>

@@ -1,0 +1,59 @@
+name: Documentação
+
+# 1) Avisa quando há código sem documentação (não bloqueia).
+# 2) Em push no main, regenera docs/memoria-do-sistema/REFERENCIA_GERADA.md.
+#
+# Sem laço: o commit do robô só altera docs/**, e este workflow ignora pushes que
+# só mexem em docs/** ou *.md. O commit também leva [skip ci] [skip render], para
+# não disparar outras automações nem um deploy no Render.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  documentacao:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Conferir se a documentação acompanha o código
+        run: node scripts/docs/conferir-docs.mjs
+
+      - name: Gerar a referência a partir do código
+        run: node scripts/docs/gerar-referencia.mjs
+
+      - name: Gravar a referência no main
+        if: github.event_name == 'push'
+        continue-on-error: true
+        run: |
+          if git diff --quiet -- docs/memoria-do-sistema/REFERENCIA_GERADA.md; then
+            echo "Referência já estava em dia."
+            exit 0
+          fi
+          git config user.name "docs-bot"
+          git config user.email "docs-bot@users.noreply.github.com"
+          git add docs/memoria-do-sistema/REFERENCIA_GERADA.md
+          git commit -m "docs: atualiza referência gerada [skip ci] [skip render]"
+          git pull --rebase origin main
+          git push origin HEAD:main

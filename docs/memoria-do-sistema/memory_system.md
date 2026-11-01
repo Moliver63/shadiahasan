@@ -734,3 +734,29 @@ Os planos estavam gravados com UTF-8 lido como Latin-1 ("BÃ¡sico"). `shared/ac
 
 `client/src/pages/Login.tsx`: campos e botões com fundo claro fixo no modo escuro do celular (antes ficavam ilegíveis), botão do Google em destaque e o botão "Continuar com Apple" removido da tela. Só a tela mudou; a rota do servidor `/api/auth/apple` não foi tocada neste commit. O acesso por link enviado ao e-mail continua disponível na mesma tela.
 
+
+### Mecanismo que mantém a documentação em dia (01/11/2026)
+
+**Por que existe:** documentação escrita só "quando lembra" foi o que deixou lacunas na auditoria de 01/11. Agora há duas camadas, uma que lembra e outra que gera sozinha. **Nenhuma das duas escreve o contexto e as decisões**: isso continua sendo registrado aqui, à mão (ou pela IA), no fim de cada tarefa.
+
+**1. Guarda (avisa, não bloqueia).** `scripts/docs/conferir-docs.mjs`
+- Acha o último commit que tocou em `memory_system.md` e lista os commits de código (`server/`, `client/src`, `shared/`, `drizzle/`, sem testes) feitos depois. Ignora commits `chore|test|style|ci|build|docs`.
+- Local: `pnpm docs:conferir` (`--strict` sai com erro se houver pendência; `--base <commit>` muda o ponto de partida).
+- Automático ao enviar: `pnpm docs:hooks` (uma vez por clone) liga `.githooks/pre-push`, que só mostra o aviso.
+- No GitHub: `.github/workflows/docs.yml` roda no push para `main` e em PR, e escreve o aviso no resumo da execução (`::warning`). Não reprova a execução.
+
+**2. Referência gerada.** `docs/memoria-do-sistema/REFERENCIA_GERADA.md` (**não editar à mão**)
+- Gerada por `pnpm docs:referencia` (`scripts/docs/gerar-referencia.mjs`) a partir do código: variáveis de ambiente lidas (e quais faltam no `.env.example`), tabelas criadas em tempo de execução, routers tRPC, rotas Express, telas e contagem de testes.
+- **Só nomes, nunca valores.** Saída determinística (sem data nem hash): só muda quando o código muda, para não gerar commits de ruído.
+- No push para `main`, o workflow regenera e, se mudou, o robô `docs-bot` commita `docs: atualiza referência gerada [skip ci] [skip render]`.
+
+**Como evita laço e deploy extra:** o workflow tem `paths-ignore` para `docs/**` e `**.md`; o commit do robô só toca em `docs/`; leva `[skip ci] [skip render]` (o Render não faz deploy desse commit); o passo do robô usa `continue-on-error`, então uma falha de permissão não derruba nada.
+
+**Consequência prática:** depois que o robô commitar, o `main` remoto fica um commit à frente. Antes de enviar do computador, rode `git pull --rebase` (senão o push é recusado).
+
+**Limites (honestos):**
+- O workflow **não foi executado ainda no GitHub**: só foi validado localmente (YAML válido, scripts e testes passando). Confirmar na aba Actions após o primeiro push em `main`. Se o repositório restringir a escrita do `GITHUB_TOKEN` ou proteger o `main`, o commit do robô falha em silêncio e a referência pode ser gerada localmente com `pnpm docs:referencia`.
+- A guarda mede "código depois da última edição do `memory_system.md`", não se o texto cobre a mudança. Ajuste visual ou correção pontual pode não pedir registro; o aviso é para olhar, não para obedecer.
+- Variáveis que existem só no painel do Render (sem uso no código) e o conteúdo do banco **não** entram na referência.
+
+**Regra para quem mexer no sistema (pessoa ou IA):** no fim de cada tarefa, registrar aqui o que mudou, por quê e como reverter; rodar `pnpm docs:referencia` se tocou em variáveis, tabelas, rotas ou telas. Testes: `server/docsMecanismo.test.ts` (9).

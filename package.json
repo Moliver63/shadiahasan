@@ -10,7 +10,10 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "docs:referencia": "node scripts/docs/gerar-referencia.mjs",
+    "docs:conferir": "node scripts/docs/conferir-docs.mjs",
+    "docs:hooks": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

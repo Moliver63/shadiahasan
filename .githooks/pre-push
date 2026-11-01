@@ -1,0 +1,5 @@
+#!/bin/sh
+# Aviso (não bloqueia) antes de enviar: lista commits de código sem documentação.
+# Ativar uma vez por clone: pnpm docs:hooks
+node scripts/docs/conferir-docs.mjs || true
+exit 0

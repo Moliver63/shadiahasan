@@ -262,7 +262,8 @@ async function depsPadrao(): Promise<Required<Deps>> {
       }
       return mapa;
     },
-    gravar: (linha) => db.upsertProviderPayment(linha),
+    // Sincronização retroativa não dispara push de venda (já foi avisada ou é antiga).
+    gravar: (linha) => db.upsertProviderPayment(linha, { avisar: false }),
   };
 }
 

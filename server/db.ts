@@ -2619,12 +2619,15 @@ type ProviderPaymentInput = {
 };
 
 /** Upsert por cobrança do provedor; lock transacional evita duplicatas em webhooks concorrentes. */
-export async function upsertProviderPayment(data: ProviderPaymentInput) {
+export async function upsertProviderPayment(data: ProviderPaymentInput, opcoes: { avisar?: boolean } = {}) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (!(await ensureFinancialSchema())) throw new Error("Financial database schema unavailable");
 
-  return db.transaction(async (tx) => {
+  // Marca se esta chamada levou o pagamento a "completed" pela primeira vez.
+  let virouPago = false;
+  let valorPago: number | undefined;
+  const resultado = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${data.stripeInvoiceId}))`);
     let [existing] = await tx.select({ id: paymentHistory.id, status: paymentHistory.status, refundedAmount: paymentHistory.refundedAmount, providerStatus: paymentHistory.providerStatus, paidAt: paymentHistory.paidAt }).from(paymentHistory)
       .where(eq(paymentHistory.stripeInvoiceId, data.stripeInvoiceId)).limit(1);
@@ -2689,12 +2692,23 @@ export async function upsertProviderPayment(data: ProviderPaymentInput) {
         values.refundedAmount = existing.refundedAmount;
       }
       const [updated] = await tx.update(paymentHistory).set(values)
-        .where(eq(paymentHistory.id, existing.id)).returning({ id: paymentHistory.id });
+        .where(eq(paymentHistory.id, existing.id)).returning({ id: paymentHistory.id, amount: paymentHistory.amount });
+      valorPago = updated?.amount;
+      virouPago = values.status === "completed" && existing.status !== "completed" && existing.status !== "refunded";
       return updated;
     }
     const [created] = await tx.insert(paymentHistory).values({ ...values, amount: data.amount ?? 0, ...(data.createdAt ? { createdAt: data.createdAt } : {}) }).returning({ id: paymentHistory.id });
+    virouPago = values.status === "completed";
     return created;
   });
+
+  // Depois do commit, para não avisar venda que sofreu rollback. Não bloqueia nem lança.
+  if (virouPago && opcoes.avisar !== false) {
+    void import("./avisoVenda").then((m) => m.avisarVenda({
+      amount: data.amount ?? valorPago, planSlug: data.planSlug, paymentMethod: data.paymentMethod, paidAt: data.paidAt,
+    })).catch(() => {});
+  }
+  return resultado;
 }
 
 export async function updateStripePaymentRefund(paymentIntentId: string, refundedAmount: number, amount: number) {

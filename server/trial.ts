@@ -32,6 +32,7 @@ import {
   type AsaasWebhookBody,
 } from "./asaas";
 import { isValidCpfCnpj, onlyDigits } from "../shared/br-document";
+import { momentoDoPagamento } from "./pagamentoData";
 
 // ─── Configuração ────────────────────────────────────────────────────────────
 
@@ -694,7 +695,7 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
         providerStatus: body.event,
         paymentUrl: payment.invoiceUrl || pass.invoiceUrl,
         dueDate: payment.dueDate || pass.dueDate,
-        paidAt: payment.paymentDate ? new Date(payment.paymentDate) : new Date(),
+        paidAt: momentoDoPagamento(payment.paymentDate),
         refundedAmount: 0,
         planSlug: "trial",
         description: `Teste de 1 aula (Asaas) — aula ${pass.lessonId}`,
@@ -803,13 +804,17 @@ async function avisarVendaAoAdmin(passId: number, paymentId: string, billingType
 async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<void> {
   try {
     const { capiConfigurado, enviarCompra } = await import("./metaCapi");
-    if (!capiConfigurado()) return;
+    if (!capiConfigurado()) {
+      // Antes era silencioso, e uma venda real passou sem a Meta saber.
+      console.warn(`[Trial→Meta] Purchase NÃO enviado para ${paymentId}: META_PIXEL_ID ou META_CAPI_ACCESS_TOKEN ausente`);
+      return;
+    }
 
     const d = await db.getDb();
     if (!d) return;
 
     const { rows } = (await d.execute(sql`
-      SELECT p."lessonId", p."userId", p."amountCents", p."fbp", p."fbc",
+      SELECT p."lessonId", p."userId", p."amountCents", p."fbp", p."fbc", p."paidAt",
              p."landingUrl", p."clientIp", p."clientUserAgent", p."capiPurchaseSentAt",
              l."title" AS "lessonTitle", u."email" AS "userEmail"
         FROM "trialPasses" p
@@ -827,6 +832,8 @@ async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<
 
     const resultado = await enviarCompra({
       eventId: paymentId,
+      // Quando pagou, não quando enviamos: importa no reenvio de compras antigas.
+      eventTime: linha.paidAt ? Math.floor(new Date(linha.paidAt).getTime() / 1000) : undefined,
       value: Number(linha.amountCents || 0) / 100,
       currency: "BRL",
       contentIds: [`lesson:${linha.lessonId}`],
@@ -849,11 +856,50 @@ async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<
           `${linha.fbp || linha.fbc ? "" : " (sem _fbp/_fbc: pode não ser atribuído à campanha)"}`,
       );
     } else {
-      // Sem marcar como enviado: o reprocessamento na subida tenta de novo.
+      // Sem marcar como enviado: reenviarComprasPendentesParaMeta tenta de novo na subida.
       console.warn(`[Trial→Meta] Purchase recusado (${resultado.status ?? "sem status"}): ${resultado.erro}`);
     }
   } catch (e) {
     console.warn("[Trial→Meta] falha ao enviar Purchase:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Reenvia à Meta as compras pagas que ainda não têm `capiPurchaseSentAt`.
+ *
+ * O envio normal só acontece na primeira ativação do passe. Se naquela hora
+ * a CAPI estava desligada (variável ausente) ou a Meta recusou, a compra
+ * ficava fora para sempre. Roda na subida do servidor.
+ *
+ * Só os últimos 7 dias: a Meta recusa eventos mais antigos que isso. Fica uma
+ * hora de folga para não esbarrar no limite durante o envio.
+ */
+export async function reenviarComprasPendentesParaMeta(): Promise<number> {
+  try {
+    const { capiConfigurado } = await import("./metaCapi");
+    if (!capiConfigurado()) {
+      console.warn("[Trial→Meta] CAPI desligada: defina META_PIXEL_ID e META_CAPI_ACCESS_TOKEN no Render para a Meta receber as compras");
+      return 0;
+    }
+    if (!(await ensureTrialSchema())) return 0;
+    const d = await db.getDb();
+    if (!d) return 0;
+    const { rows } = (await d.execute(sql`
+      SELECT "id", "asaasPaymentId"
+        FROM "trialPasses"
+       WHERE "paidAt" IS NOT NULL
+         AND "capiPurchaseSentAt" IS NULL
+         AND "status" NOT IN ('pending', 'cancelled', 'refunded')
+         AND "paidAt" > now() - interval '7 days' + interval '1 hour'
+       ORDER BY "paidAt"
+       LIMIT 50
+    `)) as unknown as { rows: { id: number; asaasPaymentId: string }[] };
+    for (const r of rows || []) await enviarCompraParaMeta(r.id, r.asaasPaymentId);
+    if (rows?.length) console.log(`[Trial→Meta] ${rows.length} compra(s) pendente(s) reenviada(s)`);
+    return rows?.length || 0;
+  } catch (e) {
+    console.warn("[Trial→Meta] reenvio de compras falhou:", e instanceof Error ? e.message : e);
+    return 0;
   }
 }
 

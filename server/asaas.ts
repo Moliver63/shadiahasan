@@ -16,6 +16,7 @@
  * O acesso só é liberado pelo webhook — nunca pelo retorno do checkout.
  */
 
+import { momentoDoPagamento } from "./pagamentoData";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import * as db from "./db";
 import { asaasAccounts, asaasWebhookEvents, paymentHistory, subscriptionPlans, subscriptions, trialPasses, users } from "../drizzle/schema";
@@ -413,7 +414,7 @@ async function activate(account: typeof asaasAccounts.$inferSelect, body: AsaasW
       providerStatus: payment.status || body.event || "PAYMENT_RECEIVED",
       paymentUrl: payment.invoiceUrl,
       dueDate: payment.dueDate || null,
-      paidAt: payment.paymentDate ? new Date(payment.paymentDate) : new Date(),
+      paidAt: momentoDoPagamento(payment.paymentDate),
       providerSubscriptionId: account.asaasSubscriptionId,
       planSlug,
       description: `Assinatura ${getPlanDisplayName(planSlug)} (Asaas)`,

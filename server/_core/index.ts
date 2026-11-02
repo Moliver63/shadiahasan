@@ -126,6 +126,11 @@ async function startServer() {
       import('../asaas').then((m) => m.recoverAsaasEvents()).catch(() => undefined);
     }, 20_000);
 
+    // Compras pagas que a Meta ainda não recebeu (CAPI estava desligada ou recusou)
+    setTimeout(() => {
+      import('../trial').then((m) => m.reenviarComprasPendentesParaMeta()).catch(() => undefined);
+    }, 30_000);
+
     // Sequência de e-mails de boas-vindas (a cada 5 min; só envia entre 8h e 20h e só se estiver ativa)
     import('../marketingSequencia').then((m) => m.iniciarAgendadorSequencia()).catch(() => undefined);
 

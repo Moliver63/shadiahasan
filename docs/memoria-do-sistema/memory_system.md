@@ -760,3 +760,13 @@ Os planos estavam gravados com UTF-8 lido como Latin-1 ("BÃ¡sico"). `shared/ac
 - Variáveis que existem só no painel do Render (sem uso no código) e o conteúdo do banco **não** entram na referência.
 
 **Regra para quem mexer no sistema (pessoa ou IA):** no fim de cada tarefa, registrar aqui o que mudou, por quê e como reverter; rodar `pnpm docs:referencia` se tocou em variáveis, tabelas, rotas ou telas. Testes: `server/docsMecanismo.test.ts` (9).
+
+### Push no celular a cada venda (02/11/2026)
+
+**Por que existe:** antes, uma tarefa agendada do Claude consultava o banco de hora em hora para avisar vendas. Gastava uso do Claude e avisava com até 1h de atraso. Agora o próprio servidor avisa na hora.
+
+- `server/avisoVenda.ts`: envia push via [ntfy](https://ntfy.sh) (JSON para `NTFY_URL`, padrão `https://ntfy.sh`, tópico `NTFY_TOPIC`). Sem `NTFY_TOPIC`, não faz nada.
+- Disparo em `upsertProviderPayment` (`server/db.ts`), **depois do commit**, só quando o pagamento vira `completed` pela primeira vez (webhook repetido não avisa de novo; estorno não avisa). Cobre Asaas (assinatura e teste de R$ 19,90) e Stripe.
+- A sincronização retroativa (`financeSync.ts`) passa `{ avisar: false }`; além disso, pagamento com `paidAt` acima de 48h nunca avisa.
+- Conteúdo: valor, produto (teste de 1 aula ou assinatura), forma (Pix/Cartão/Boleto) e horário de Brasília. **Nunca** nome, e-mail ou CPF. Tópico ntfy público é legível por quem souber o nome: use um nome longo e aleatório.
+- Falha no ntfy só gera log `[AvisoVenda]`; nunca quebra o pagamento.

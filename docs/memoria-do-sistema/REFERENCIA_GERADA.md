@@ -38,6 +38,8 @@
 | `META_CAPI_TEST_EVENT_CODE` | `server/metaCapi.ts` | **não** |
 | `META_PIXEL_ID` | `server/metaCapi.ts` | **não** |
 | `NODE_ENV` | `server/_core/auth.ts`, `server/_core/bootstrap.ts` e mais 2 | sim |
+| `NTFY_TOPIC` | `server/avisoVenda.ts` | sim |
+| `NTFY_URL` | `server/avisoVenda.ts` | sim |
 | `OAUTH_SERVER_URL` | `server/_core/env.ts` | sim |
 | `OWNER_OPEN_ID` | `server/_core/env.ts` | sim |
 | `PORT` | `server/_core/index.ts` | sim |
@@ -61,7 +63,7 @@
 | `VITE_GA4_ID` | `client/src/components/Analytics.tsx`, `client/src/lib/ga4Ids.ts` e mais 1 | **não** |
 | `VITE_META_PIXEL_ID` | `client/src/components/Analytics.tsx`, `client/src/pages/AdminAnalytics.tsx` | **não** |
 
-53 variáveis; 21 sem entrada no `.env.example`. Variáveis do Render que não estão no código (ou o contrário) aparecem aqui como diferença a investigar.
+55 variáveis; 21 sem entrada no `.env.example`. Variáveis do Render que não estão no código (ou o contrário) aparecem aqui como diferença a investigar.
 
 ## Tabelas criadas em tempo de execução
 
@@ -193,4 +195,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-34 arquivos de teste, 253 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+35 arquivos de teste, 258 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

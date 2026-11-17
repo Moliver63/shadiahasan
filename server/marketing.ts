@@ -27,12 +27,13 @@ import * as db from "./db";
 export const TEXTO_CONSENTIMENTO_VERSAO = "2026-10-31";
 export const TEXTO_CONSENTIMENTO = "Quero receber novidades, conteúdos e ofertas da Shadia Hasan por e-mail. Posso cancelar quando quiser.";
 
-export const ORIGENS = ["home", "cadastro", "compra-aula", "autoavaliacao"] as const;
+export const ORIGENS = ["home", "cadastro", "compra-aula", "compra-programa", "autoavaliacao"] as const;
 export type Origem = (typeof ORIGENS)[number];
 export const ROTULO_ORIGEM: Record<Origem, string> = {
   home: "Formulário da home",
   cadastro: "Cadastro no site",
   "compra-aula": "Compra da aula experimental",
+  "compra-programa": "Compra de programa",
   autoavaliacao: "Autoavaliação (anúncios)",
 };
 

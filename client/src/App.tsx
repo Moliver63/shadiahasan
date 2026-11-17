@@ -126,6 +126,7 @@ function Router() {
       <Route path={"/pricing"} component={Pricing} />
       <Route path={"/checkout/success"} component={CheckoutSuccess} />
       <Route path={"/compra/aguardando"} component={CompraAguardando} />
+      <Route path={"/compra/programa"} component={CompraAguardando} />
       <Route path={"/courses"} component={Courses} />
       <Route path={"/courses/:slug"} component={CourseDetail} />
       <ProtectedRoute path={"/lesson/:id"} component={LessonView} />

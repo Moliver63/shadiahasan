@@ -27,8 +27,8 @@ import { paymentHistory } from "../drizzle/schema";
 import { AsaasError, asaasRequest, ensureAsaasSchema, isAsaasConfigured, todayInSaoPaulo, type AsaasWebhookBody } from "./asaas";
 import { isValidCpfCnpj, onlyDigits } from "../shared/br-document";
 import {
-  BILLING_TYPE, MODELO_PADRAO, METODOS_PADRAO, MODELOS_COMERCIAIS, REF_PROGRAMA,
-  formatarReais, lerRefPrograma, metodosAtivos, precoVendavel, refPrograma, validarPrecos,
+  BILLING_TYPE, MODELO_PADRAO, METODOS_PADRAO, MODELOS_COMERCIAIS, REF_PROGRAMA, REF_PROGRAMA_CONVIDADO,
+  formatarReais, lerRefConvidado, lerRefPrograma, metodosAtivos, precoVendavel, refConvidado, refPrograma, validarPrecos,
   type MetodoPagamento, type MetodosAtivos, type ModeloComercial,
 } from "../shared/comercial";
 
@@ -95,6 +95,50 @@ export function garantirSchemaComercial(): Promise<boolean> {
             "updatedAt" timestamp NOT NULL DEFAULT now()
           )
         `);
+        // Origem do visitante (anúncios): o pagamento acontece fora do site, então
+        // a compra só é atribuída à campanha se isto for gravado no checkout.
+        await d.execute(sql`
+          ALTER TABLE "programaCompras"
+            ADD COLUMN IF NOT EXISTS "fbp" varchar(128),
+            ADD COLUMN IF NOT EXISTS "fbc" varchar(255),
+            ADD COLUMN IF NOT EXISTS "utmSource" varchar(128),
+            ADD COLUMN IF NOT EXISTS "utmMedium" varchar(128),
+            ADD COLUMN IF NOT EXISTS "utmCampaign" varchar(191),
+            ADD COLUMN IF NOT EXISTS "utmContent" varchar(191),
+            ADD COLUMN IF NOT EXISTS "landingUrl" text,
+            ADD COLUMN IF NOT EXISTS "clientIp" varchar(64),
+            ADD COLUMN IF NOT EXISTS "clientUserAgent" text,
+            ADD COLUMN IF NOT EXISTS "ga4ClientId" varchar(32),
+            ADD COLUMN IF NOT EXISTS "ga4SessionId" varchar(24),
+            ADD COLUMN IF NOT EXISTS "capiPurchaseSentAt" timestamp,
+            ADD COLUMN IF NOT EXISTS "ga4PurchaseSentAt" timestamp
+        `);
+        // Compra sem conta ("pagar primeiro, conta depois"), como no teste de 1 aula
+        await d.execute(sql`
+          CREATE TABLE IF NOT EXISTS "programaConvidados" (
+            "id" serial PRIMARY KEY,
+            "tokenHash" varchar(64) NOT NULL UNIQUE,
+            "name" varchar(120) NOT NULL,
+            "email" varchar(320) NOT NULL,
+            "cpfHash" varchar(64) NOT NULL,
+            "collectionId" integer NOT NULL,
+            "asaasCustomerId" varchar(64),
+            "asaasPaymentId" varchar(64) UNIQUE,
+            "billingType" varchar(16),
+            "invoiceUrl" text,
+            "dueDate" varchar(10),
+            "amountCents" integer NOT NULL,
+            "status" varchar(16) NOT NULL DEFAULT 'creating',
+            "userId" integer,
+            "userCreated" integer NOT NULL DEFAULT 0,
+            "paidAt" timestamp,
+            "lastCheckAt" timestamp,
+            "atribuicao" text,
+            "createdAt" timestamp NOT NULL DEFAULT now(),
+            "updatedAt" timestamp NOT NULL DEFAULT now()
+          )
+        `);
+        await d.execute(sql`CREATE INDEX IF NOT EXISTS "programaConvidados_cpf_idx" ON "programaConvidados" ("cpfHash")`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "programaCompras_user_idx" ON "programaCompras" ("userId", "status")`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "programaCompras_col_idx" ON "programaCompras" ("collectionId")`);
         await garantirColunasComerciais(d);
@@ -300,20 +344,13 @@ export async function criarCheckoutPrograma(params: {
   cpfCnpj: string;
   metodo: MetodoPagamento;
   origin: string;
+  atribuicao?: Atribuicao | null;
 }): Promise<{ url: string; paymentId: string }> {
   if (!isAsaasConfigured()) throw new ProgramaError("Pagamento indisponível no momento.", "PRECONDITION_FAILED");
   if (!(await ensureAsaasSchema()) || !(await garantirSchemaComercial())) throw new ProgramaError("Banco indisponível. Tente de novo em instantes.", "UNAVAILABLE");
 
-  const { modelo, metodos } = await lerConfigComercial();
-  if (modelo !== "avulso") throw new ProgramaError("A compra individual não está disponível agora. Veja os planos de assinatura.", "PRECONDITION_FAILED");
-  if (!metodos[params.metodo]) throw new ProgramaError("Esta forma de pagamento não está disponível.", "BAD_REQUEST");
-  if (!isValidCpfCnpj(params.cpfCnpj)) throw new ProgramaError("CPF/CNPJ inválido. Confira os números e tente de novo.", "BAD_REQUEST");
-
-  const programa = await lerPrograma(params.collectionId);
-  if (!programa || programa.isActive !== 1) throw new ProgramaError("Programa não encontrado.", "NOT_FOUND");
-  // Preço SEMPRE do banco; o navegador não manda valor.
-  if (!precoVendavel(programa.priceCents)) throw new ProgramaError("Este programa ainda não está à venda.", "PRECONDITION_FAILED");
-  const amountCents = programa.priceCents;
+  const programa = await programaAVenda(params.collectionId, params.metodo, params.cpfCnpj);
+  const amountCents = programa.priceCents as number;
 
   const minhas = await consulta<{ id: number; status: string; asaasPaymentId: string; invoiceUrl: string | null; dueDate: string | null; amountCents: number; billingType: string | null }>(sql`
     SELECT "id", "status", "asaasPaymentId", "invoiceUrl", "dueDate", "amountCents", "billingType"
@@ -375,6 +412,8 @@ export async function criarCheckoutPrograma(params: {
     ON CONFLICT ("asaasPaymentId") DO NOTHING
   `);
 
+  await gravarAtribuicao(payment.id, params.atribuicao);
+
   await db.upsertProviderPayment({
     userId: params.userId,
     amount: amountCents,
@@ -393,6 +432,44 @@ export async function criarCheckoutPrograma(params: {
   return { url: payment.invoiceUrl, paymentId: payment.id };
 }
 
+/** Regras comuns aos dois checkouts. Preço SEMPRE do banco; o navegador não manda valor. */
+async function programaAVenda(collectionId: number, metodo: MetodoPagamento, cpfCnpj: string): Promise<ProgramaVenda> {
+  const { modelo, metodos } = await lerConfigComercial();
+  if (modelo !== "avulso") throw new ProgramaError("A compra individual não está disponível agora. Veja os planos de assinatura.", "PRECONDITION_FAILED");
+  if (!metodos[metodo]) throw new ProgramaError("Esta forma de pagamento não está disponível.", "BAD_REQUEST");
+  if (!isValidCpfCnpj(cpfCnpj)) throw new ProgramaError("CPF/CNPJ inválido. Confira os números e tente de novo.", "BAD_REQUEST");
+  const programa = await lerPrograma(collectionId);
+  if (!programa || programa.isActive !== 1) throw new ProgramaError("Programa não encontrado.", "NOT_FOUND");
+  if (!precoVendavel(programa.priceCents)) throw new ProgramaError("Este programa ainda não está à venda.", "PRECONDITION_FAILED");
+  return programa;
+}
+
+export type Atribuicao = {
+  fbp?: string | null; fbc?: string | null;
+  utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null; utmContent?: string | null;
+  landingUrl?: string | null; clientIp?: string | null; clientUserAgent?: string | null;
+  ga4ClientId?: string | null; ga4SessionId?: string | null;
+};
+
+/** Grava a origem do visitante na compra. Falha aqui nunca impede a venda. */
+async function gravarAtribuicao(paymentId: string, a?: Atribuicao | null): Promise<void> {
+  if (!a) return;
+  try {
+    await consulta(sql`
+      UPDATE "programaCompras" SET
+        "fbp" = COALESCE("fbp", ${a.fbp ?? null}), "fbc" = COALESCE("fbc", ${a.fbc ?? null}),
+        "utmSource" = COALESCE("utmSource", ${a.utmSource ?? null}), "utmMedium" = COALESCE("utmMedium", ${a.utmMedium ?? null}),
+        "utmCampaign" = COALESCE("utmCampaign", ${a.utmCampaign ?? null}), "utmContent" = COALESCE("utmContent", ${a.utmContent ?? null}),
+        "landingUrl" = COALESCE("landingUrl", ${a.landingUrl ?? null}), "clientIp" = COALESCE("clientIp", ${a.clientIp ?? null}),
+        "clientUserAgent" = COALESCE("clientUserAgent", ${a.clientUserAgent ?? null}),
+        "ga4ClientId" = COALESCE("ga4ClientId", ${a.ga4ClientId ?? null}), "ga4SessionId" = COALESCE("ga4SessionId", ${a.ga4SessionId ?? null})
+      WHERE "asaasPaymentId" = ${paymentId}
+    `);
+  } catch (e) {
+    console.warn("[Programa] atribuição não gravada:", e instanceof Error ? e.message : e);
+  }
+}
+
 function diasDepois(dataIso: string, dias: number): string {
   const d = new Date(`${dataIso}T12:00:00-03:00`);
   d.setUTCDate(d.getUTCDate() + dias);
@@ -406,7 +483,8 @@ function descricaoFinanceiro(titulo: string | null | undefined): string {
 // ─── Webhook ─────────────────────────────────────────────────────────────────
 
 export function ehEventoPrograma(body: AsaasWebhookBody): boolean {
-  return REF_PROGRAMA.test(body.payment?.externalReference || "");
+  const ref = body.payment?.externalReference || "";
+  return REF_PROGRAMA.test(ref) || REF_PROGRAMA_CONVIDADO.test(ref);
 }
 
 type Compra = { id: number; userId: number; collectionId: number; status: string; amountCents: number; invoiceUrl: string | null; dueDate: string | null; asaasCustomerId: string | null };
@@ -415,17 +493,40 @@ type Compra = { id: number; userId: number; collectionId: number; status: string
  * Idempotente: CONFIRMED e RECEIVED da mesma cobrança liberam uma vez só, e
  * o financeiro usa a mesma chave `asaas:<id>` (upsert). Um evento repetido
  * já é barrado antes, em `recordAsaasEvent`.
+ *
+ * Compra sem conta ("programaguest:<convidado>:<programa>"): a conta nasce
+ * aqui, quando o pagamento é confirmado, e daí segue o caminho normal.
  */
 export async function processarEventoPrograma(body: AsaasWebhookBody): Promise<void> {
   if (!(await garantirSchemaComercial())) throw new Error("schema comercial indisponível");
   const payment = body.payment!;
   const paymentId = String(payment.id || "");
   if (!paymentId) throw new Error("evento sem id de cobrança");
-  const ref = lerRefPrograma(payment.externalReference);
-  if (!ref) return;
+  const confirmado = body.event === "PAYMENT_CONFIRMED" || body.event === "PAYMENT_RECEIVED";
 
+  const convidado = lerRefConvidado(payment.externalReference);
+  let contaNova = false;
   let [compra] = await consulta<Compra>(sql`SELECT * FROM "programaCompras" WHERE "asaasPaymentId" = ${paymentId} LIMIT 1`);
-  if (!compra) {
+
+  if (convidado) {
+    if (!compra) {
+      if (!confirmado) {
+        // Ainda sem conta e sem compra: só a compra pendente muda de estado
+        if (body.event === "PAYMENT_DELETED") await consulta(sql`UPDATE "programaConvidados" SET "status" = 'cancelled', "updatedAt" = now() WHERE "asaasPaymentId" = ${paymentId} AND "status" = 'pending'`);
+        return;
+      }
+      const m = await materializarConvidado(convidado.convidadoId, paymentId);
+      if (!m) return;
+      contaNova = m.contaNova;
+      [compra] = await consulta<Compra>(sql`SELECT * FROM "programaCompras" WHERE "asaasPaymentId" = ${paymentId} LIMIT 1`);
+    } else {
+      const [c] = await consulta<{ userCreated: number }>(sql`SELECT "userCreated" FROM "programaConvidados" WHERE "asaasPaymentId" = ${paymentId}`);
+      contaNova = c?.userCreated === 1;
+    }
+    if (!compra) return;
+  } else if (!compra) {
+    const ref = lerRefPrograma(payment.externalReference);
+    if (!ref) return;
     // Registro local perdido: recria pelo externalReference (valor = o cobrado)
     await consulta(sql`
       INSERT INTO "programaCompras" ("userId", "collectionId", "origem", "asaasCustomerId", "asaasPaymentId", "billingType", "invoiceUrl", "dueDate", "amountCents", "status")
@@ -435,6 +536,7 @@ export async function processarEventoPrograma(body: AsaasWebhookBody): Promise<v
     [compra] = await consulta<Compra>(sql`SELECT * FROM "programaCompras" WHERE "asaasPaymentId" = ${paymentId} LIMIT 1`);
     if (!compra) return;
   }
+
   const [prog] = await consulta<{ title: string }>(sql`SELECT "title" FROM "contentCollections" WHERE "id" = ${compra.collectionId}`).catch(() => []);
   const descricao = descricaoFinanceiro(prog?.title);
   const pago = Math.round(Number(payment.value || 0) * 100);
@@ -467,9 +569,15 @@ export async function processarEventoPrograma(body: AsaasWebhookBody): Promise<v
         planSlug: "programa",
         description: descricao,
       });
+      if (convidado) {
+        await consulta(sql`UPDATE "programaConvidados" SET "status" = 'paid', "paidAt" = COALESCE("paidAt", now()), "updatedAt" = now() WHERE "asaasPaymentId" = ${paymentId} AND "status" <> 'paid'`);
+      }
       if (ativadas.length > 0) {
-        console.log(`[Programa] liberado: user ${compra.userId} programa ${compra.collectionId}`);
-        await avisarCompraLiberada(compra, prog?.title ?? "seu programa", pago, payment.billingType);
+        console.log(`[Programa] liberado: user ${compra.userId} programa ${compra.collectionId}${convidado ? " (compra sem conta)" : ""}`);
+        // Uma vez por cobrança: CONFIRMED e RECEIVED chegam os dois e a Meta não pode contar duas compras.
+        await enviarCompraParaMeta(compra.id, paymentId, prog?.title);
+        await enviarCompraParaGA4(compra.id, paymentId, prog?.title);
+        await avisarCompraLiberada(compra, prog?.title ?? "seu programa", pago, payment.billingType, contaNova);
       }
       return;
     }
@@ -516,13 +624,40 @@ export async function processarEventoPrograma(body: AsaasWebhookBody): Promise<v
   }
 }
 
-/** E-mail ao aluno e aviso à equipe. Nunca lança: aviso não pode atrapalhar a liberação. */
-async function avisarCompraLiberada(compra: Compra, titulo: string, centavos: number, billingType?: string): Promise<void> {
+/**
+ * E-mail ao aluno e aviso à equipe. Nunca lança: aviso não pode atrapalhar a liberação.
+ * O botão do e-mail é um link de acesso de uso único (entra sem senha): quem
+ * está no navegador do Facebook, onde o Google bloqueia o login, consegue entrar.
+ */
+async function avisarCompraLiberada(compra: Compra, titulo: string, centavos: number, billingType: string | undefined, contaNova: boolean): Promise<void> {
   try {
-    const [u] = await consulta<{ name: string | null; email: string | null }>(sql`SELECT "name", "email" FROM "users" WHERE "id" = ${compra.userId}`);
+    const [u] = await consulta<{ name: string | null; email: string | null; passwordHash: string | null }>(sql`SELECT "name", "email", "passwordHash" FROM "users" WHERE "id" = ${compra.userId}`);
     const { enviarEmail, enviarAvisoInterno } = await import("./_core/email");
     const L = await import("./_core/emailLayout");
-    const url = `${L.siteUrl()}/collections/${compra.collectionId}`;
+    const destino = `/collections/${compra.collectionId}`;
+    let url = `${L.siteUrl()}${destino}`;
+    try {
+      const { criarLinkDeAcesso } = await import("./linkDeAcesso");
+      const { token } = await criarLinkDeAcesso(compra.userId, destino);
+      url = `${L.siteUrl()}/api/auth/link?t=${encodeURIComponent(token)}`;
+    } catch (e) {
+      console.warn("[Programa] link de acesso não criado; vai o link direto:", e instanceof Error ? e.message : e);
+    }
+    let blocoSenha = L.pequeno("Este botão entra direto na sua conta e vale uma vez, por 7 dias. Não encaminhe este e-mail. Depois, entre como sempre.");
+    if (contaNova && !u?.passwordHash) {
+      try {
+        const crypto = await import("node:crypto");
+        const tokenSenha = crypto.randomUUID();
+        await consulta(sql`DELETE FROM "password_reset_tokens" WHERE "userId" = ${compra.userId}`);
+        await consulta(sql`INSERT INTO "password_reset_tokens" ("userId", "token", "expiresAt") VALUES (${compra.userId}, ${tokenSenha}, now() + interval '7 days')`);
+        blocoSenha =
+          L.pequeno("Este botão entra direto na sua conta e vale uma vez, por 7 dias. Não encaminhe este e-mail.") +
+          L.p("Sua conta foi criada com este e-mail. Para entrar de outro celular ou do computador, crie sua senha:") +
+          L.botao("Criar minha senha", `${L.siteUrl()}/reset-password?token=${tokenSenha}&novo=1`);
+      } catch (e) {
+        console.warn("[Programa] link de criar senha não gerado:", e instanceof Error ? e.message : e);
+      }
+    }
     if (u?.email) {
       const html = L.layoutEmail({
         departamento: "atendimento",
@@ -532,19 +667,82 @@ async function avisarCompraLiberada(compra: Compra, titulo: string, centavos: nu
           L.p(L.saudacao(u.name)) +
           L.p(`Recebemos seu pagamento de ${L.formatarReais(centavos)}. O programa <strong>${L.escapar(titulo)}</strong> já está liberado na sua conta.`) +
           L.botao("Começar agora", url) +
-          L.pequeno("Para assistir, entre com o mesmo e-mail desta compra. Todas as suas compras ficam na Minha Área."),
+          blocoSenha,
         motivo: "Você recebeu este e-mail porque comprou um programa em shadiahasan.com.",
       });
       await enviarEmail({ departamento: "atendimento", para: u.email, assunto: `Seu programa está liberado: ${titulo}`, html });
     }
     const forma = ({ PIX: "Pix", CREDIT_CARD: "Cartão", BOLETO: "Boleto" } as Record<string, string>)[String(billingType || "").toUpperCase()] || "Asaas";
+    const [orig] = await consulta<{ utmSource: string | null; utmCampaign: string | null; utmContent: string | null }>(sql`SELECT "utmSource", "utmCampaign", "utmContent" FROM "programaCompras" WHERE "id" = ${compra.id}`).catch(() => []);
+    const origem = [orig?.utmSource, orig?.utmCampaign, orig?.utmContent].filter(Boolean).join(" / ") || "direto (sem UTM)";
     await enviarAvisoInterno(`[Painel] Venda confirmada: ${formatarReais(centavos)}`, [
       `Programa: ${titulo}`,
-      `Aluno: ${u?.name || "(sem nome)"} <${u?.email || "sem e-mail"}>`,
+      `Aluno: ${u?.name || "(sem nome)"} <${u?.email || "sem e-mail"}>${contaNova ? " (conta criada na compra)" : ""}`,
       `Forma: ${forma}`,
+      `Origem: ${origem}`,
     ], { texto: "Ver compras", url: `${L.siteUrl()}/admin/comercial` });
   } catch (e) {
     console.warn("[Programa] aviso da compra não enviado:", e instanceof Error ? e.message : e);
+  }
+}
+
+// ─── Meta (API de Conversões) e GA4 pelo servidor ────────────────────────────
+// Mesmo desenho do teste de 1 aula (trial.ts): uma vez por cobrança, nunca
+// atrapalha a venda, e sem marcar como enviado quando a Meta recusa.
+
+async function enviarCompraParaMeta(compraId: number, paymentId: string, titulo?: string): Promise<void> {
+  try {
+    const { capiConfigurado, enviarCompra } = await import("./metaCapi");
+    if (!capiConfigurado()) return;
+    const [l] = await consulta<any>(sql`
+      SELECT pc."collectionId", pc."userId", pc."amountCents", pc."fbp", pc."fbc", pc."landingUrl", pc."clientIp",
+             pc."clientUserAgent", pc."capiPurchaseSentAt", u."email" AS "userEmail"
+        FROM "programaCompras" pc LEFT JOIN "users" u ON u."id" = pc."userId"
+       WHERE pc."id" = ${compraId} LIMIT 1
+    `);
+    if (!l || l.capiPurchaseSentAt) return;
+    const r = await enviarCompra({
+      eventId: paymentId,
+      value: Number(l.amountCents || 0) / 100,
+      currency: "BRL",
+      contentIds: [`programa:${l.collectionId}`],
+      contentName: titulo || "Programa",
+      email: l.userEmail,
+      externalId: String(l.userId),
+      atribuicao: { fbp: l.fbp, fbc: l.fbc, eventSourceUrl: l.landingUrl, clientIpAddress: l.clientIp, clientUserAgent: l.clientUserAgent },
+    });
+    if (r.ok) {
+      await consulta(sql`UPDATE "programaCompras" SET "capiPurchaseSentAt" = now() WHERE "id" = ${compraId}`);
+      console.log(`[Programa→Meta] Purchase aceito: ${paymentId}${l.fbp || l.fbc ? "" : " (sem _fbp/_fbc)"}`);
+    } else {
+      console.warn(`[Programa→Meta] Purchase recusado (${r.status ?? "sem status"}): ${r.erro}`);
+    }
+  } catch (e) {
+    console.warn("[Programa→Meta] falha ao enviar Purchase:", e instanceof Error ? e.message : e);
+  }
+}
+
+async function enviarCompraParaGA4(compraId: number, paymentId: string, titulo?: string): Promise<void> {
+  try {
+    const { ga4ServidorConfigurado, enviarCompraGA4 } = await import("./ga4");
+    if (!ga4ServidorConfigurado()) return;
+    const [l] = await consulta<any>(sql`
+      SELECT "userId", "collectionId", "amountCents", "ga4ClientId", "ga4SessionId", "ga4PurchaseSentAt"
+        FROM "programaCompras" WHERE "id" = ${compraId} LIMIT 1
+    `);
+    if (!l || l.ga4PurchaseSentAt || !l.ga4ClientId) return;
+    const ok = await enviarCompraGA4({
+      clientId: String(l.ga4ClientId),
+      sessionId: l.ga4SessionId ? String(l.ga4SessionId) : null,
+      userId: Number(l.userId) || null,
+      transactionId: paymentId,
+      valor: Number(l.amountCents || 0) / 100,
+      itemId: `programa:${l.collectionId}`,
+      itemNome: titulo || "Programa",
+    });
+    if (ok) await consulta(sql`UPDATE "programaCompras" SET "ga4PurchaseSentAt" = now() WHERE "id" = ${compraId}`);
+  } catch (e) {
+    console.warn("[Programa→GA4] falha ao enviar compra:", e instanceof Error ? e.message : e);
   }
 }
 
@@ -555,7 +753,8 @@ const STATUS_PAGO = new Set(["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"]);
 /** Consulta no Asaas uma cobrança e, se paga, libera pelo mesmo caminho do webhook. */
 export async function conferirCobranca(paymentId: string): Promise<"liberada" | "pendente" | "ignorada"> {
   const payment = await asaasRequest<NonNullable<AsaasWebhookBody["payment"]>>("GET", `/payments/${encodeURIComponent(paymentId)}`);
-  if (!payment || !REF_PROGRAMA.test(payment.externalReference || "")) return "ignorada";
+  const ref = payment?.externalReference || "";
+  if (!payment || (!REF_PROGRAMA.test(ref) && !REF_PROGRAMA_CONVIDADO.test(ref))) return "ignorada";
   const status = String(payment.status || "").toUpperCase();
   if (!STATUS_PAGO.has(status)) return "pendente";
   await processarEventoPrograma({
@@ -571,6 +770,9 @@ export async function conferirComprasPendentes(): Promise<number> {
   const pendentes = await consulta<{ asaasPaymentId: string }>(sql`
     SELECT "asaasPaymentId" FROM "programaCompras"
      WHERE "status" = 'pending' AND "origem" = 'asaas' AND "createdAt" > now() - interval '10 days'
+    UNION
+    SELECT "asaasPaymentId" FROM "programaConvidados"
+     WHERE "status" = 'pending' AND "asaasPaymentId" IS NOT NULL AND "createdAt" > now() - interval '10 days'
   `);
   let liberadas = 0;
   for (const { asaasPaymentId } of pendentes) {
@@ -584,6 +786,225 @@ export async function conferirComprasPendentes(): Promise<number> {
     }
   }
   return liberadas;
+}
+
+// ─── Compra sem conta ("pagar primeiro, conta depois") ──────────────────────
+//
+// Mesmo motivo do teste de 1 aula (campanha 804): exigir login antes de pagar
+// derruba a venda, principalmente no navegador do Facebook/Instagram, onde o
+// Google bloqueia o login. A pessoa informa nome, e-mail e CPF, paga, e a
+// conta nasce quando o Asaas confirma. Regras de segurança iguais às de
+// server/trialGuest.ts: limites por IP/CPF/e-mail, token só em hash, login
+// automático só para a conta criada por esta compra e por 48 h.
+
+type Convidado = {
+  id: number; tokenHash: string; name: string; email: string; collectionId: number; asaasCustomerId: string | null;
+  asaasPaymentId: string | null; billingType: string | null; invoiceUrl: string | null; dueDate: string | null;
+  amountCents: number; status: string; userId: number | null; userCreated: number; paidAt: Date | null;
+  lastCheckAt: Date | null; atribuicao: string | null;
+};
+
+export async function criarCompraConvidado(params: {
+  nome: string; email: string; cpfCnpj: string; collectionId: number; metodo: MetodoPagamento; origin: string;
+  atribuicao?: Atribuicao | null;
+}): Promise<{ token: string; invoiceUrl: string; pix: { imagemBase64: string; copiaECola: string } | null; emailMascarado: string }> {
+  const g = await import("./trialGuest");
+  if (!isAsaasConfigured()) throw new ProgramaError("Pagamento indisponível no momento.", "PRECONDITION_FAILED");
+  if (!(await ensureAsaasSchema()) || !(await garantirSchemaComercial())) throw new ProgramaError("Banco indisponível. Tente de novo em instantes.", "UNAVAILABLE");
+
+  const nome = String(params.nome || "").trim().replace(/\s+/g, " ").slice(0, 120);
+  const email = g.normalizarEmail(params.email);
+  const documento = onlyDigits(params.cpfCnpj);
+  if (nome.length < 3 || nome.split(" ").length < 2) throw new ProgramaError("Digite nome e sobrenome.", "BAD_REQUEST");
+  if (!g.emailValido(email)) throw new ProgramaError("E-mail inválido. Confira e tente de novo.", "BAD_REQUEST");
+  const programa = await programaAVenda(params.collectionId, params.metodo, documento);
+
+  const cpfHash = g.hashDe(documento);
+  if (!g.dentroDoLimite(params.atribuicao?.clientIp ?? null, cpfHash, email)) {
+    throw new ProgramaError("Muitas tentativas seguidas. Aguarde um pouco e tente de novo.", "BAD_REQUEST");
+  }
+  const [{ n }] = await consulta<{ n: number }>(sql`SELECT count(*)::int AS n FROM "programaConvidados" WHERE "cpfHash" = ${cpfHash} AND "createdAt" > now() - interval '24 hours'`);
+  if (Number(n) >= 4) throw new ProgramaError("Muitas tentativas com este CPF hoje. Fale com a gente pelo WhatsApp.", "BAD_REQUEST");
+
+  // E-mail que já tem conta e já tem o programa: não cobra de novo
+  const d = await db.getDb();
+  if (!d) throw new ProgramaError("Banco indisponível.", "UNAVAILABLE");
+  const { encontrarContaPorEmail } = await import("./emailConta");
+  const conta = await encontrarContaPorEmail(d, email);
+  if (conta && (await programasComprados(conta.id)).includes(programa.id)) {
+    throw new ProgramaError("Este e-mail já tem este programa. Entre na sua conta para assistir.", "CONFLICT");
+  }
+
+  const token = g.gerarToken();
+  const amountCents = programa.priceCents as number;
+  const billingType = BILLING_TYPE[params.metodo];
+  const hoje = todayInSaoPaulo();
+  const dueDate = params.metodo === "boleto" ? diasDepois(hoje, 3) : hoje;
+  const [conv] = await consulta<{ id: number }>(sql`
+    INSERT INTO "programaConvidados" ("tokenHash", "name", "email", "cpfHash", "collectionId", "billingType", "dueDate", "amountCents", "status", "atribuicao")
+    VALUES (${g.hashDe(token)}, ${nome}, ${email}, ${cpfHash}, ${programa.id}, ${billingType}, ${dueDate}, ${amountCents}, 'creating', ${JSON.stringify(params.atribuicao ?? {})})
+    RETURNING "id"
+  `);
+
+  try {
+    const customer = await asaasRequest<{ id: string }>("POST", "/customers", { name: nome, email, cpfCnpj: documento, externalReference: `guestprograma:${conv.id}` });
+    const corpo: Record<string, unknown> = {
+      customer: customer.id,
+      billingType,
+      value: Number((amountCents / 100).toFixed(2)),
+      dueDate,
+      description: `Programa ${programa.title} - Shadia Hasan`.slice(0, 500),
+      externalReference: refConvidado(conv.id, programa.id),
+    };
+    const successUrl = `${params.origin}/compra/programa`;
+    let payment: { id: string; invoiceUrl?: string };
+    try {
+      payment = await asaasRequest("POST", "/payments", { ...corpo, callback: { successUrl, autoRedirect: false } });
+    } catch (e) {
+      if (e instanceof AsaasError && e.status === 400 && /callback|successUrl|dom[ií]nio/i.test(e.message)) payment = await asaasRequest("POST", "/payments", corpo);
+      else throw e;
+    }
+    if (!payment.invoiceUrl) throw new Error("cobrança sem link de pagamento");
+    await consulta(sql`
+      UPDATE "programaConvidados" SET "asaasCustomerId" = ${customer.id}, "asaasPaymentId" = ${payment.id}, "invoiceUrl" = ${payment.invoiceUrl},
+             "status" = 'pending', "updatedAt" = now() WHERE "id" = ${conv.id}
+    `);
+    console.log(`[Programa] compra sem conta ${conv.id}: cobrança ${payment.id} programa ${programa.id}${conta ? " (e-mail já tem conta)" : ""}`);
+    return {
+      token,
+      invoiceUrl: payment.invoiceUrl,
+      pix: params.metodo === "pix" ? await g.buscarPix(payment.id) : null,
+      emailMascarado: g.mascararEmail(email),
+    };
+  } catch (e) {
+    await consulta(sql`UPDATE "programaConvidados" SET "status" = 'failed', "updatedAt" = now() WHERE "id" = ${conv.id}`);
+    console.error(`[Programa] falha ao criar cobrança da compra sem conta ${conv.id}:`, e instanceof Error ? e.message : e);
+    if (e instanceof AsaasError && e.status === 400) throw new ProgramaError(`O Asaas recusou os dados: ${e.message}`, "BAD_REQUEST");
+    throw new ProgramaError("Não foi possível gerar o pagamento agora. Tente de novo em instantes.", "UNAVAILABLE");
+  }
+}
+
+function codigoDeIndicacao(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for (let i = 0; i < 8; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+  return s;
+}
+
+/**
+ * Pagamento confirmado de uma compra sem conta: acha ou cria a conta e grava a
+ * compra (pendente) com a origem do visitante. A ativação segue no webhook.
+ * Idempotente: webhook, conferência e tela de "aguardando" podem chegar juntos.
+ */
+async function materializarConvidado(convidadoId: number, paymentId: string): Promise<{ userId: number; contaNova: boolean } | null> {
+  const d = await db.getDb();
+  if (!d) throw new Error("db indisponível");
+  const [c] = await consulta<Convidado>(sql`SELECT * FROM "programaConvidados" WHERE "id" = ${convidadoId} LIMIT 1`);
+  if (!c || c.asaasPaymentId !== paymentId) {
+    console.warn(`[Programa] compra sem conta ${convidadoId} não confere com a cobrança ${paymentId}`);
+    return null;
+  }
+  let userId = c.userId;
+  let contaNova = c.userCreated === 1;
+  if (!userId) {
+    const { encontrarContaPorEmail } = await import("./emailConta");
+    const existente = await encontrarContaPorEmail(d, c.email);
+    if (existente) {
+      userId = existente.id;
+      contaNova = false;
+    } else {
+      const [criado] = await consulta<{ id: number }>(sql`
+        INSERT INTO "users" ("email", "name", "emailVerified", "loginMethod", "role", "plan", "referralCode")
+        VALUES (${c.email}, ${c.name}, 0, 'email', 'user', 'free', ${codigoDeIndicacao()})
+        ON CONFLICT DO NOTHING RETURNING "id"
+      `);
+      if (criado) {
+        userId = Number(criado.id);
+        contaNova = true;
+        console.log(`[Programa] conta ${userId} criada pela compra sem conta ${c.id}`);
+      } else {
+        const outra = await encontrarContaPorEmail(d, c.email);
+        if (!outra) throw new Error("conta não criada");
+        userId = outra.id;
+        const [releitura] = await consulta<{ userCreated: number }>(sql`SELECT "userCreated" FROM "programaConvidados" WHERE "id" = ${c.id}`);
+        contaNova = releitura?.userCreated === 1;
+      }
+    }
+    await consulta(sql`UPDATE "programaConvidados" SET "userId" = ${userId}, "userCreated" = ${contaNova ? 1 : 0}, "updatedAt" = now() WHERE "id" = ${c.id} AND "userId" IS NULL`);
+  }
+  await consulta(sql`
+    INSERT INTO "programaCompras" ("userId", "collectionId", "origem", "asaasCustomerId", "asaasPaymentId", "billingType", "invoiceUrl", "dueDate", "amountCents", "status")
+    VALUES (${userId}, ${c.collectionId}, 'asaas', ${c.asaasCustomerId}, ${paymentId}, ${c.billingType}, ${c.invoiceUrl}, ${c.dueDate}, ${c.amountCents}, 'pending')
+    ON CONFLICT ("asaasPaymentId") DO NOTHING
+  `);
+  let atrib: Atribuicao | null = null;
+  try { atrib = c.atribuicao ? JSON.parse(c.atribuicao) : null; } catch { atrib = null; }
+  await gravarAtribuicao(paymentId, atrib);
+  return { userId: userId!, contaNova };
+}
+
+export type StatusConvidado = {
+  situacao: "pendente" | "paga" | "cancelada";
+  collectionId: number;
+  invoiceUrl: string | null;
+  pix: { imagemBase64: string; copiaECola: string } | null;
+  emailMascarado: string;
+  entrarSozinho: { userId: number; email: string } | null;
+  donoId: number | null;
+  compra: { id: string; valorCentavos: number } | null;
+};
+
+const pixEmCache = new Map<string, { imagemBase64: string; copiaECola: string } | null>();
+
+/** Tela "aguardando": se ainda pendente, pergunta ao Asaas na hora (no máximo a cada 5 s). */
+export async function statusConvidado(token: string): Promise<StatusConvidado | null> {
+  if (!token || token.length < 20 || !(await garantirSchemaComercial())) return null;
+  const g = await import("./trialGuest");
+  let [c] = await consulta<Convidado>(sql`SELECT * FROM "programaConvidados" WHERE "tokenHash" = ${g.hashDe(token)} LIMIT 1`);
+  if (!c) return null;
+  const podeConferir = !c.lastCheckAt || Date.now() - new Date(c.lastCheckAt).getTime() > 5000;
+  if (c.status === "pending" && c.asaasPaymentId && podeConferir) {
+    await consulta(sql`UPDATE "programaConvidados" SET "lastCheckAt" = now() WHERE "id" = ${c.id}`);
+    try {
+      await conferirCobranca(c.asaasPaymentId);
+      [c] = await consulta<Convidado>(sql`SELECT * FROM "programaConvidados" WHERE "id" = ${c.id} LIMIT 1`);
+    } catch (e) {
+      console.warn(`[Programa] conferência imediata falhou (compra sem conta ${c.id}):`, e instanceof Error ? e.message : e);
+    }
+  }
+  const r = g.decidirRetorno({ status: c.status, userId: c.userId, userCreated: c.userCreated, paidAt: c.paidAt ? new Date(c.paidAt) : null });
+  let pix: StatusConvidado["pix"] = null;
+  if (r.situacao === "pendente" && c.asaasPaymentId && c.billingType === "PIX") {
+    if (!pixEmCache.has(c.asaasPaymentId)) pixEmCache.set(c.asaasPaymentId, await g.buscarPix(c.asaasPaymentId));
+    pix = pixEmCache.get(c.asaasPaymentId) ?? null;
+    if (pixEmCache.size > 500) pixEmCache.clear();
+  }
+  return {
+    situacao: r.situacao,
+    collectionId: c.collectionId,
+    invoiceUrl: c.invoiceUrl,
+    pix,
+    emailMascarado: g.mascararEmail(c.email),
+    entrarSozinho: r.entrarSozinho && c.userId ? { userId: c.userId, email: c.email } : null,
+    donoId: r.situacao === "paga" ? c.userId : null,
+    compra: r.situacao === "paga" && c.asaasPaymentId ? { id: c.asaasPaymentId, valorCentavos: c.amountCents } : null,
+  };
+}
+
+const reenvios = new Map<number, number[]>();
+/** Compra paga numa conta que já existia: manda o link de acesso para o e-mail da compra (3/h). */
+export async function reenviarLinkConvidado(token: string): Promise<{ enviado: boolean; emailMascarado: string } | null> {
+  if (!token || token.length < 20 || !(await garantirSchemaComercial())) return null;
+  const g = await import("./trialGuest");
+  const [c] = await consulta<Convidado>(sql`SELECT * FROM "programaConvidados" WHERE "tokenHash" = ${g.hashDe(token)} LIMIT 1`);
+  if (!c || c.status !== "paid" || !c.userId) return null;
+  const agora = Date.now();
+  const recentes = (reenvios.get(c.id) ?? []).filter((t) => agora - t < 60 * 60 * 1000);
+  if (recentes.length >= 3) throw new ProgramaError("Já enviamos o link há pouco. Confira a caixa de entrada e o spam.", "BAD_REQUEST");
+  reenvios.set(c.id, [...recentes, agora]);
+  const { enviarLinkDeAcesso } = await import("./trialGuestEmail");
+  const enviado = await enviarLinkDeAcesso({ userId: c.userId, destino: `/collections/${c.collectionId}` });
+  return { enviado, emailMascarado: g.mascararEmail(c.email) };
 }
 
 // ─── Admin ───────────────────────────────────────────────────────────────────
@@ -631,7 +1052,11 @@ export async function liberarManual(email: string, collectionId: number, adminId
   if (!(await garantirSchemaComercial())) throw new ProgramaError("Banco indisponível.", "UNAVAILABLE");
   const programa = await lerPrograma(collectionId);
   if (!programa) throw new ProgramaError("Programa não encontrado.", "NOT_FOUND");
-  const [u] = await consulta<{ id: number }>(sql`SELECT "id" FROM "users" WHERE lower("email") = lower(${email.trim()}) LIMIT 1`);
+  const d = await db.getDb();
+  if (!d) throw new ProgramaError("Banco indisponível.", "UNAVAILABLE");
+  // Mesma regra do login e da compra sem conta: sem diferença de maiúscula e, no Gmail, de pontos/"+"
+  const { encontrarContaPorEmail } = await import("./emailConta");
+  const u = await encontrarContaPorEmail(d, email.trim().toLowerCase());
   if (!u) throw new ProgramaError("Nenhuma conta com este e-mail. A pessoa precisa se cadastrar primeiro.", "NOT_FOUND");
   const userId = Number(u.id);
   if ((await programasComprados(userId)).includes(collectionId)) throw new ProgramaError("O aluno já tem este programa.", "CONFLICT");

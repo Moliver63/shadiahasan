@@ -42,6 +42,7 @@ import {
 } from "../cloudflare-stream";
 import { getLearningPathLessonAccess } from "../learning-path";
 import { hasActiveTrialPass } from "../trial";
+import { cursosDosProgramasComprados, temCompraDaAula } from "../programaVenda";
 
 // ─── Admin procedure ──────────────────────────────────────────────────────────
 
@@ -60,6 +61,8 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
  * 1. Aula não restrita (isAccessRestricted=0) → todos acessam.
  * 2. Compra avulsa do curso (coursePurchases, status=completed) → libera SEMPRE
  *    aquele curso, independente de assinatura.
+ * 2b. Compra avulsa de Programa (programaCompras, status=active) → libera as aulas
+ *    do Programa, independente de assinatura (precisa do `id` da aula).
  * 3. Assinatura ativa (subscriptions OU userSubscriptions+subscription_plans):
  *    - plano "premium" ou "vip" → libera TODOS os cursos restritos.
  *    - plano "basic" → libera no máximo `maxCourses` cursos simultâneos
@@ -92,6 +95,12 @@ export async function checkUserHasAccess(
 
   // Teste pago de 1 aula (R$ 19,90): libera SÓ aquela aula, dentro da validade
   if (lesson.id && (await hasActiveTrialPass(userId, lesson.id))) return true;
+
+  // Compra avulsa de um Programa que contém esta aula: direito próprio, independe de plano
+  if (lesson.id && (await temCompraDaAula(userId, lesson.id))) {
+    await ensureEnrollment(db, userId, lesson.courseId);
+    return true;
+  }
   const purchase = await db
     .select()
     .from(coursePurchases)
@@ -202,8 +211,10 @@ export async function checkUserHasAccess(
       .from(enrollments)
       .where(eq(enrollments.userId, userId));
 
+    // Cursos liberados por Programa comprado não consomem a cota do plano Básico
+    const comprados = await cursosDosProgramasComprados(userId);
     const paidEnrollmentsCount = allEnrollments.filter((e) =>
-      paidCourseIdSet.has(e.courseId)
+      paidCourseIdSet.has(e.courseId) && !comprados.has(e.courseId)
     ).length;
 
     if (paidEnrollmentsCount < maxCourses) {

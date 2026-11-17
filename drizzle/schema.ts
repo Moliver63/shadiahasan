@@ -941,6 +941,14 @@ export const contentCollections = pgTable("contentCollections", {
   order: integer("order").default(0).notNull(),
   isActive: integer("isActive").default(1).notNull(),
   totalDuration: integer("totalDuration").default(0).notNull(),
+  /** Venda avulsa (centavos). Colunas criadas em tempo de execução (server/programaVenda.ts). */
+  priceCents: integer("priceCents"),
+  originalPriceCents: integer("originalPriceCents"),
+  headline: varchar("headline", { length: 255 }),
+  salesDescription: text("salesDescription"),
+  forWhom: text("forWhom"),
+  learnings: text("learnings"),
+  ctaText: varchar("ctaText", { length: 120 }),
   createdBy: integer("createdBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
@@ -1107,4 +1115,40 @@ export const emailCaixas = pgTable("emailCaixas", {
   padrao: boolean("padrao").default(false).notNull(),
   ordem: integer("ordem").default(0).notNull(),
   criadoEm: timestamp("criadoEm").defaultNow().notNull(),
+});
+
+/**
+ * Configurações do site (chave/valor). Criada em tempo de execução por server/programaVenda.ts.
+ * Chaves: modeloComercial ("assinatura" | "avulso"), metodosPagamentoAvulso (JSON).
+ */
+export const siteSettings = pgTable("siteSettings", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  value: text("value").notNull(),
+  updatedBy: integer("updatedBy"),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+/**
+ * Compra avulsa de Programa (contentCollections). Criada em tempo de execução por
+ * server/programaVenda.ts. status: pending | active | refunded | revoked | cancelled.
+ * origem: asaas | manual. Direito independente da assinatura.
+ */
+export const programaCompras = pgTable("programaCompras", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  collectionId: integer("collectionId").notNull(),
+  origem: varchar("origem", { length: 16 }).default("asaas").notNull(),
+  asaasCustomerId: varchar("asaasCustomerId", { length: 64 }),
+  asaasPaymentId: varchar("asaasPaymentId", { length: 64 }).notNull().unique(),
+  billingType: varchar("billingType", { length: 16 }),
+  invoiceUrl: text("invoiceUrl"),
+  dueDate: varchar("dueDate", { length: 10 }),
+  amountCents: integer("amountCents").notNull(),
+  status: varchar("status", { length: 16 }).default("pending").notNull(),
+  paidAt: timestamp("paidAt"),
+  revokedAt: timestamp("revokedAt"),
+  revokedReason: text("revokedReason"),
+  grantedBy: integer("grantedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

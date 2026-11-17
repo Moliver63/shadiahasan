@@ -23,7 +23,9 @@ const JANELA_MS = 48 * 60 * 60 * 1000;
 
 export function textoDaVenda(v: DadosVenda): { titulo: string; corpo: string } {
   const valor = ((v.amount ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  const produto = v.planSlug === "trial" ? "Teste de 1 aula" : `Assinatura${v.planSlug ? ` (${v.planSlug})` : ""}`;
+  const produto = v.planSlug === "trial" ? "Teste de 1 aula"
+    : v.planSlug === "programa" ? "Programa (compra avulsa)"
+    : `Assinatura${v.planSlug ? ` (${v.planSlug})` : ""}`;
   const forma = formaDePagamento(v.paymentMethod);
   const quando = new Date().toLocaleString("pt-BR", {
     timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",

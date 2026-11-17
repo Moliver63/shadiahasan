@@ -13,11 +13,44 @@ export default function CheckoutSuccess() {
   // Teste pago de 1 aula: libera só aquela aula, e o caminho natural depois é assinar
   const isTrial = searchParams.get('trial') === '1';
   const trialLessonId = Number(searchParams.get('lesson')) || 0;
+  // Compra avulsa de Programa: liberada pelo webhook, nunca por esta página
+  const programaId = Number(searchParams.get('programa')) || 0;
 
   useEffect(() => {
     // You could verify the session with Stripe here if needed
     console.log('Checkout session ID:', sessionId);
   }, [sessionId]);
+
+  if (isAsaas && programaId > 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <Card className="max-w-xl w-full">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckCircle className="h-12 w-12 text-green-600" />
+            </div>
+            <CardTitle className="text-3xl">Pagamento em processamento</CardTitle>
+            <CardDescription className="text-lg">
+              Assim que o Asaas confirmar o pagamento, o programa é liberado na sua conta e você recebe um e-mail. No Pix leva poucos minutos; no boleto, até 3 dias úteis.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link href={`/collections/${programaId}`} className="flex-1">
+                <Button className="w-full" size="lg">Ir para o programa</Button>
+              </Link>
+              <Link href="/minha-area" className="flex-1">
+                <Button variant="outline" className="w-full" size="lg">Minha Área</Button>
+              </Link>
+            </div>
+            <p className="text-center text-sm text-gray-500">
+              Se as aulas ainda aparecerem bloqueadas, aguarde a confirmação e atualize a página.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isTrial) {
     return (

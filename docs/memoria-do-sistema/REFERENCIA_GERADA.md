@@ -95,6 +95,9 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | `marketingSequenciaEnvios` | `server/marketingSequencia.ts` |
 | `marketingSequenciaPassos` | `server/marketingSequencia.ts` |
 | `marketingSequencias` | `server/marketingSequencia.ts` |
+| `programaCompras` | `server/programaVenda.ts` |
+| `siteSettings` | `server/programaVenda.ts` |
+| `siteSettingsHistory` | `server/programaVenda.ts` |
 | `stripeWebhookEvents` | `server/db.ts` |
 | `trialEntryLessons` | `server/trial.ts` |
 | `trialGuestCheckouts` | `server/trialGuest.ts` |
@@ -102,7 +105,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 
 ## Routers tRPC (`server/routers.ts`)
 
-`acessos`, `admin`, `adminManagement`, `ai`, `appointments`, `areaAluno`, `auth`, `badges`, `caixaEmail`, `certificados`, `certificates`, `collections`, `community`, `courseGroups`, `courses`, `ebooks`, `enrollments`, `leads`, `lessons`, `marketing`, `materials`, `messaging`, `plans`, `profile`, `profiles`, `referrals`, `reviews`, `subscriptionManagement`, `subscriptions`, `system`, `testimonials`, `trial`, `videos`
+`acessos`, `admin`, `adminManagement`, `ai`, `appointments`, `areaAluno`, `auth`, `badges`, `caixaEmail`, `certificados`, `certificates`, `collections`, `comercial`, `community`, `courseGroups`, `courses`, `ebooks`, `enrollments`, `leads`, `lessons`, `marketing`, `materials`, `messaging`, `plans`, `profile`, `profiles`, `referrals`, `reviews`, `subscriptionManagement`, `subscriptions`, `system`, `testimonials`, `trial`, `videos`
 
 ## Rotas HTTP do servidor (Express)
 
@@ -144,6 +147,7 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 | `/admin/campanhas` | `AdminCampanhas` | admin |
 | `/admin/cashback-requests` | `AdminCashbackRequests` | admin |
 | `/admin/collections` | `AdminCollections` | admin |
+| `/admin/comercial` | `AdminComercial` | admin |
 | `/admin/courses` | `AdminCourses` | admin |
 | `/admin/courses/:id/groups` | `AdminCourseGroups` | admin |
 | `/admin/courses/:id/lessons` | `AdminCourseLessons` | admin |
@@ -195,4 +199,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-35 arquivos de teste, 258 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+37 arquivos de teste, 277 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

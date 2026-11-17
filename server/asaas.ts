@@ -508,6 +508,17 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
       return;
     }
 
+    // Compra avulsa de Programa (externalReference "programa:..."): direito próprio, não mexe na assinatura
+    const { ehEventoPrograma, processarEventoPrograma } = await import("./programaVenda");
+    if (ehEventoPrograma(body)) {
+      await processarEventoPrograma(body);
+      await d
+        .update(asaasWebhookEvents)
+        .set({ status: "done", processedAt: new Date(), error: null })
+        .where(eq(asaasWebhookEvents.eventId, String(body.id)));
+      return;
+    }
+
     const account = await resolveAccount(body);
 
     switch (event) {
@@ -1056,6 +1067,9 @@ export async function runBillingMaintenance(): Promise<void> {
     // Rede de segurança do webhook: libera teste pago cujo aviso não chegou.
     const { conferirTestesPendentes } = await import("./trial");
     await conferirTestesPendentes();
+    // Mesma rede de segurança para a compra avulsa de Programas.
+    const { conferirComprasPendentes } = await import("./programaVenda");
+    await conferirComprasPendentes();
   } catch (e) {
     console.warn("[Asaas] rotina de cobrança falhou:", e instanceof Error ? e.message : e);
   } finally {

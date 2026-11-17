@@ -22,6 +22,7 @@ export default function Pricing() {
   const createAsaasCheckout = trpc.subscriptions.createAsaasCheckout.useMutation();
   const { data: providers } = trpc.subscriptions.paymentProviders.useQuery();
   const { data: trialInfo } = trpc.trial.info.useQuery();
+  const { data: comercial } = trpc.comercial.config.useQuery(undefined, { staleTime: 30_000 });
 
   // Escolha do método de pagamento (só aparece quando o Asaas está configurado)
   type PaidSlug = "basic" | "premium" | "vip";
@@ -218,6 +219,23 @@ export default function Pricing() {
           </p>
         </div>
       </section>
+
+      {/* Modelo "Compra individual": cada programa tem preço próprio, sem mensalidade */}
+      {comercial?.vendaAvulsa && (
+        <section className="px-4 pb-10">
+          <div className="container mx-auto max-w-3xl">
+            <div className="flex flex-col gap-4 rounded-xl border border-primary/30 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-lg">Prefere comprar só o programa que quer fazer?</p>
+                <p className="text-sm text-muted-foreground">Cada programa tem preço próprio, em pagamento único e sem mensalidade.</p>
+              </div>
+              <Link href="/courses">
+                <Button className="shrink-0">Ver programas</Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Teste de 1 aula (Asaas) */}
       {providers?.asaas && trialInfo && (

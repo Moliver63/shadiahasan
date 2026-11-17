@@ -111,6 +111,7 @@ export function statusDoTeste(t: Pick<LinhaTeste, "status" | "expiresAt" | "dueD
 function descricaoCompra(p: LinhaPagamento): string {
   const d = (p.description || "").trim();
   if (p.planSlug === "trial" || /teste de 1 aula/i.test(d)) return "Teste de 1 aula";
+  if (p.planSlug === "programa") return d.replace(/\s*\((asaas|stripe)\)/i, "") || "Programa";
   if (p.planSlug && NOMES_PLANO[p.planSlug]) return `Plano ${NOMES_PLANO[p.planSlug]}`;
   return d.replace(/\s*\((asaas|stripe)\)/i, "") || "Pagamento";
 }

@@ -15,6 +15,7 @@ import {
 } from "../trial";
 import { isAsaasConfigured } from "../asaas";
 import { checkUserHasAccess } from "./videos";
+import { temCompraDaAula } from "../programaVenda";
 import { and, isNotNull, notInArray } from "drizzle-orm";
 import { trialPasses, users } from "../../drizzle/schema";
 import { COOKIE_NAME } from "@shared/const";
@@ -137,7 +138,8 @@ export const trialRouter = router({
             const { encontrarContaPorEmail } = await import("../emailConta");
             const u = await encontrarContaPorEmail(d, normalizarEmail(email));
             if (!u) return null;
-            const jaTemAcesso = await checkUserHasAccess(u.id, { isAccessRestricted: aula.isAccessRestricted ?? 0, courseId: aula.courseId });
+            const jaTemAcesso = (await checkUserHasAccess(u.id, { isAccessRestricted: aula.isAccessRestricted ?? 0, courseId: aula.courseId }))
+              || (aula.id ? await temCompraDaAula(u.id, aula.id) : false);
             const usados = await d
               .select({ id: trialPasses.id })
               .from(trialPasses)
@@ -249,10 +251,10 @@ export const trialRouter = router({
       if (!lesson) throw new TRPCError({ code: "NOT_FOUND", message: "Aula não encontrada." });
 
       // Sem o id da aula, o passe de teste não entra na conta: aqui só interessa plano/compra
-      const alreadyHasAccess = await checkUserHasAccess(ctx.user.id, {
+      const alreadyHasAccess = (await checkUserHasAccess(ctx.user.id, {
         isAccessRestricted: lesson.isAccessRestricted ?? 0,
         courseId: lesson.courseId,
-      });
+      })) || (await temCompraDaAula(ctx.user.id, lesson.id));
 
       const origin = ctx.req.headers.origin || "https://shadiahasan.com";
       try {

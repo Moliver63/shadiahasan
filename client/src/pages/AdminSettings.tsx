@@ -10,6 +10,7 @@ import { Settings, Globe, Bell, Shield, Palette, Mail, KeyRound } from "lucide-r
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import ModeloComercialCard from "@/components/programa/ModeloComercialCard";
 
 export default function AdminSettings() {
   const { user } = useAuth();
@@ -93,6 +94,9 @@ export default function AdminSettings() {
         </div>
 
         <div className="grid gap-6">
+          {/* Modelo de Comercialização (assinatura x compra individual) */}
+          <ModeloComercialCard />
+
           {/* Configurações Gerais */}
           <Card>
             <CardHeader>

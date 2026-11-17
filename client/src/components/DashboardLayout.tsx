@@ -41,6 +41,7 @@ import {
   Shield,
   Users,
   Wallet,
+  Store,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { safeLocalStorageGet, safeLocalStorageSet } from "@/lib/safeStorage";
@@ -57,6 +58,7 @@ const menuItems = [
   { icon: Users, label: "Usuários", path: "/admin/users" },
   { icon: CreditCard, label: "Assinaturas", path: "/admin/manage-subscriptions" },
   { icon: Wallet, label: "Financeiro", path: "/admin/financeiro" },
+  { icon: Store, label: "Comercial", path: "/admin/comercial" },
   { icon: Mail, label: "E-mails", path: "/admin/emails" },
   { icon: Megaphone, label: "Campanhas", path: "/admin/campanhas" },
   { icon: CreditCard, label: "Planos", path: "/admin/plans" },

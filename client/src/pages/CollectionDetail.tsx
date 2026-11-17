@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { trpc } from "@/lib/trpc";
 import { formatDuration } from "@/lib/formatDuration";
-import { ArrowLeft, Award, BookOpen, Check, Clock, Infinity as InfinityIcon, Lock, PlayCircle, Smartphone } from "lucide-react";
+import { ArrowLeft, Award, BookOpen, Check, Clock, Download, Gift, Infinity as InfinityIcon, Lock, PlayCircle, Smartphone } from "lucide-react";
 import { Link, useParams, useLocation } from "wouter";
 import PublicHeader from "@/components/PublicHeader";
 import { SEOHead } from "@/components/SEOHead";
@@ -40,6 +40,7 @@ export default function CollectionDetail() {
   );
   const { data: comercial } = trpc.comercial.config.useQuery(undefined, { staleTime: 30_000 });
   const { data: meus = [] } = trpc.comercial.meusProgramas.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: presente } = trpc.comercial.presente.useQuery({ collectionId: id || 0 }, { enabled: id > 0 });
 
   const col = collection as any;
   const itens: Item[] = useMemo(() => (col?.lessons ?? []).filter((i: Item) => i.lesson?.isPublished === 1), [col]);
@@ -183,7 +184,7 @@ export default function CollectionDetail() {
                 {col.coverUrl && <img src={col.coverUrl} alt="" className="w-full aspect-video object-cover" />}
                 <CardContent className="p-6 space-y-5">
                   <Acao />
-                  <IncluiLista total={itens.length} duracao={totalDuration} />
+                  <IncluiLista total={itens.length} duracao={totalDuration} presente={presente?.titulo} />
                 </CardContent>
               </Card>
             </aside>
@@ -194,6 +195,23 @@ export default function CollectionDetail() {
       <div className="container py-10 md:py-14">
         <div className="grid lg:grid-cols-[1fr_380px] gap-8 lg:gap-12">
           <div className="space-y-14 min-w-0">
+            {/* Presente: para quem já tem o programa, o download; para quem chega, o convite */}
+            {presente && (
+              <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 md:p-6 flex flex-col sm:flex-row gap-4 sm:items-center">
+                <div className="h-12 w-12 shrink-0 rounded-full bg-amber-100 flex items-center justify-center"><Gift className="h-6 w-6 text-amber-700" /></div>
+                <div className="flex-1 space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-800">{presente.podeBaixar ? "Seu presente" : "Presente para quem entra"}</p>
+                  <p className="font-serif text-xl font-semibold">{presente.titulo}</p>
+                  <p className="text-sm text-foreground/80 leading-relaxed">{presente.descricao}</p>
+                </div>
+                {presente.podeBaixar && presente.url && (
+                  <a href={presente.url} className="shrink-0">
+                    <Button variant="outline" className="border-amber-300 bg-white"><Download className="h-4 w-4 mr-2" />Baixar PDF</Button>
+                  </a>
+                )}
+              </section>
+            )}
+
             {/* Descrição */}
             {(descricao.length > 0 || col.description) && (
               <section className="space-y-4 max-w-2xl">
@@ -271,8 +289,13 @@ export default function CollectionDetail() {
                 <h2 className="font-serif text-2xl font-semibold">Shadia Hasan</h2>
                 <p className="text-sm text-muted-foreground">Psicóloga · CRP 12/27052</p>
                 <p className="text-sm leading-relaxed text-foreground/85">
-                  Shadia acredita que cada pessoa já carrega muitas das respostas que procura. Nos programas, ela conduz reflexões
-                  sobre autoconhecimento, emoções e padrões de pensamento, com escuta acolhedora e sem julgamento.
+                  Psicóloga e mentora de desenvolvimento humano, Shadia acompanha pessoas em atendimentos, mentorias e processos de
+                  autoconhecimento. Ao longo desse caminho, percebeu que muitas dificuldades do presente têm raízes em crenças e
+                  feridas antigas, e que ninguém está condenado a repetir para sempre os mesmos padrões.
+                </p>
+                <p className="text-sm leading-relaxed text-foreground/85 italic">
+                  "A minha intenção não é trazer respostas prontas para a sua vida. É compartilhar reflexões, ferramentas e caminhos
+                  que ajudem você a se compreender melhor."
                 </p>
                 <Link href="/about" className="text-sm font-medium text-primary hover:underline">Conheça a Shadia</Link>
               </div>
@@ -369,8 +392,9 @@ export default function CollectionDetail() {
   );
 }
 
-function IncluiLista({ total, duracao }: { total: number; duracao: number }) {
+function IncluiLista({ total, duracao, presente }: { total: number; duracao: number; presente?: string }) {
   const itens = [
+    ...(presente ? [{ icone: Gift, texto: `Presente: ${presente} (PDF)` }] : []),
     { icone: BookOpen, texto: `${total} aulas em vídeo${duracao > 0 ? ` (${formatDuration(duracao)})` : ""}` },
     { icone: InfinityIcon, texto: "Assista no seu ritmo, quantas vezes quiser" },
     { icone: Smartphone, texto: "No celular ou no computador" },

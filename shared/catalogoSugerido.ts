@@ -5,9 +5,12 @@
  * "Usar texto sugerido", revisa e salva. A chave é o id do Programa em
  * produção e o título precisa bater (proteção contra id trocado em outro banco).
  *
- * Base: aulas reais de cada Programa (títulos e módulos no banco em 17/11/2026)
- * e as páginas da Hotmart. Não citam bônus, diário, meditação ou material
- * complementar porque o site ainda não tem esses arquivos (lessonMaterials vazio).
+ * Base: aulas reais de cada Programa (títulos e módulos no banco em 17/11/2026),
+ * as páginas da Hotmart e os textos da própria Shadia ("Materiais dos cursos",
+ * PDF enviado em 17/11/2026). Pensamentos Automáticos cita o Diário da
+ * Transformação, que é entregue como presente (shared/presentes.ts). Os demais
+ * materiais citados no PDF (Diário da Autoconsciência, meditações) não existem
+ * no site e por isso não aparecem.
  */
 
 export type TextoVenda = {
@@ -28,9 +31,10 @@ export const TEXTOS_SUGERIDOS: Record<number, TextoVenda> = {
     titulo: /permita-se\s+ser\s+livre/i,
     headline: "Você muda de emprego, de relação, de cidade. E os mesmos padrões vão junto.",
     salesDescription: [
-      "Tem coisas que se repetem não importa o cenário. O medo de ser deixada de lado. A culpa por dizer não. A sensação de que precisa provar o tempo todo que merece estar ali. Quase sempre isso tem uma origem, e ela costuma estar lá atrás.",
-      "Permita-se Ser Livre é a jornada mais completa da Shadia Hasan. São 24 aulas em vídeo, pouco mais de seis horas, organizadas em sete módulos. Cada módulo olha para um ponto que costuma travar a vida adulta: as crenças que você aprendeu sobre si, a criança que você foi, a rejeição, o medo, o passado, o amor-próprio e, no fim, o protagonismo sobre as próprias escolhas.",
-      "As aulas seguem uma ordem pensada para ir do entendimento à prática. Algumas trazem clareza rápida. Outras mexem com lembranças e pedem uma pausa antes da próxima. Vá no seu tempo. A proposta é você se conhecer melhor e escolher com mais consciência, sem a pressa de virar outra pessoa.",
+      "Tem coisas que se repetem não importa o cenário. O medo de ser deixada de lado. A culpa por dizer não. A sensação de que precisa provar o tempo todo que merece estar ali. Quase sempre isso tem uma origem, e ela costuma estar lá atrás, em crenças e feridas que nem sempre conseguimos olhar.",
+      "Permita-se Ser Livre nasceu da experiência da Shadia Hasan com atendimentos, mentorias e histórias reais de mudança. Foi desenvolvido a partir de técnicas psicoterapêuticas e de fundamentos da psicologia positiva para ajudar você a compreender seus pensamentos, emoções e comportamentos, e a identificar crenças limitantes e bloqueios emocionais que interferem na sua vida.",
+      "São 24 aulas em vídeo, pouco mais de seis horas, em sete módulos de três aulas. A jornada começa por como as crenças limitantes se formam e influenciam suas escolhas, e segue pela criança interior, a rejeição, o medo, o passado, o amor-próprio e o protagonismo. Ao longo das aulas há reflexões, exercícios e propostas de prática.",
+      "A Shadia faz um pedido: não apenas assista, se envolva. Reserve um tempo para você, anote suas reflexões, permita-se sentir e questionar. Algumas reflexões podem tocar fundo na sua história, e isso é natural. Cada pessoa tem o seu ritmo, e é ele que vale aqui.",
     ].join("\n\n"),
     forWhom: [
       "Quem percebe que repete os mesmos padrões nas relações, no trabalho ou na família",
@@ -40,7 +44,7 @@ export const TEXTOS_SUGERIDOS: Record<number, TextoVenda> = {
       "Quem quer um processo longo e organizado, para fazer no próprio ritmo",
     ].join("\n"),
     learnings: [
-      "Módulo 1: identificar suas crenças limitantes e começar a ressignificá-las",
+      "Módulo 1: entender como as crenças limitantes se formam e começar a ressignificá-las",
       "Módulo 2: reconhecer as marcas da infância e olhar para a relação com seus pais",
       "Módulo 3: entender a ferida da rejeição e aprender a acolher as próprias emoções",
       "Módulo 4: descobrir de onde vem o medo e montar estratégias para lidar com ele",
@@ -48,7 +52,7 @@ export const TEXTOS_SUGERIDOS: Record<number, TextoVenda> = {
       "Módulo 6: fortalecer o amor-próprio e construir relações mais saudáveis",
       "Módulo 7: assumir o protagonismo da própria vida e integrar o que mudou",
     ].join("\n"),
-    ctaText: "Sua história, no seu ritmo. Comece pela primeira aula hoje.",
+    ctaText: "A liberdade que você busca pode começar quando você se permite olhar para si com mais amor, consciência e verdade.",
     priceCents: 19700,
     originalPriceCents: 59700,
   },
@@ -83,25 +87,27 @@ export const TEXTOS_SUGERIDOS: Record<number, TextoVenda> = {
   // Pensamentos Automáticos: introdução + 4 módulos, cerca de 1h45
   9: {
     titulo: /pensamentos\s+autom[áa]ticos/i,
-    headline: "Nem tudo o que você pensa é verdade. Aprenda a perceber a diferença.",
+    headline: "Até quando você vai desistir de si por acreditar em pensamentos que talvez nem sejam verdadeiros?",
     salesDescription: [
-      "Uma mensagem fica sem resposta e a cabeça já conclui que a pessoa está chateada com você. Um erro pequeno no trabalho e vem a certeza de que você não serve para aquilo. Esses pensamentos chegam sozinhos, em segundos, e mudam o humor e as decisões antes que você perceba.",
-      "Em Pensamentos Automáticos, a Shadia Hasan explica como a mente funciona no piloto automático, de onde vêm esses pensamentos e como eles se formaram ao longo da sua história, de que forma se ligam às emoções e o que fazer para interromper os padrões que se repetem. São uma aula de introdução e quatro módulos, quase duas horas de conteúdo. Os três últimos módulos são os mais longos e os mais práticos.",
-      "A sugestão da Shadia é assistir uma aula de cada vez, fazer pausas e anotar o que perceber. Observar o próprio pensamento é uma habilidade, e ela melhora com a prática.",
+      "Quantas oportunidades você deixou passar por achar que não era capaz? Quantas vezes ficou numa situação que fazia mal por acreditar que não merecia algo melhor? Talvez você tenha vontade de mudar, mas a mente sempre encontra um motivo para desistir. Você se cobra, se compara e se critica tanto que nunca parece ser suficiente.",
+      "Na psicologia, pensamentos automáticos são aqueles que surgem rápido, muitas vezes sem a gente perceber, e mexem com emoções e comportamentos. Quem cresceu ouvindo que nunca fazia nada direito pode pensar \"não vou conseguir\" diante de uma oportunidade e desistir antes de tentar. E esse padrão se repete no trabalho, nos relacionamentos e nas escolhas.",
+      "Em Pensamentos Automáticos, a Shadia Hasan ajuda você a reconhecer esses pensamentos, entender de onde eles vêm e responder a eles com mais consciência, sem fingir que os problemas não existem e sem tentar eliminar todo pensamento negativo. São uma aula de introdução e quatro módulos, quase duas horas de conteúdo.",
+      "Quem entra recebe de presente o Diário da Transformação, um caderno para responder ao fim de cada módulo. É nele que o conhecimento começa a virar consciência. A sugestão da Shadia é simples: uma aula de cada vez, com pausas, reflexão e escrita.",
     ].join("\n\n"),
     forWhom: [
-      "Quem costuma pensar logo no pior cenário",
-      "Quem reage no impulso e se arrepende depois",
-      "Quem se cobra demais e fala consigo mesmo com dureza",
-      "Quem quer entender a relação entre o que pensa e o que sente",
+      "Quem começa projetos e desiste no meio do caminho",
+      "Quem busca aprovação o tempo todo ou tem medo da rejeição",
+      "Quem sente que precisa provar o próprio valor o tempo inteiro",
+      "Quem se cobra, se compara e se critica demais",
+      "Quem quer entender os próprios padrões e construir uma relação mais saudável consigo",
     ].join("\n"),
     learnings: [
-      "O que são pensamentos automáticos e por que a mente entra no piloto automático",
-      "De onde vêm seus pensamentos e como eles se formaram ao longo da vida",
-      "Como pensamentos e emoções se influenciam, e qual vem primeiro",
-      "Estratégias para interromper padrões automáticos e construir novos caminhos",
+      "Módulo 1, O piloto automático da mente: como os pensamentos automáticos surgem e por que acreditamos tanto na voz interna que critica, compara e antecipa o pior",
+      "Módulo 2, De onde vêm seus pensamentos: como a infância, as experiências e as mensagens recebidas formam crenças sobre amor, dinheiro, valor pessoal e merecimento",
+      "Módulo 3, Pensamentos e emoções: a relação entre pensar, sentir e agir, as distorções cognitivas e como reconhecer o que sente para responder com mais consciência",
+      "Módulo 4, Reprogramando a mente: como questionar um pensamento, construir interpretações mais realistas e interromper padrões automáticos",
     ].join("\n"),
-    ctaText: "Comece a observar seus pensamentos antes que eles decidam por você.",
+    ctaText: "Você não precisa acreditar em tudo o que pensa. Pode aprender a reconhecer seus pensamentos e escolher como responder.",
     priceCents: 5700,
     originalPriceCents: 19700,
   },

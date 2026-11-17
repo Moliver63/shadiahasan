@@ -294,6 +294,23 @@ export async function cursosDosProgramasComprados(userId: number): Promise<Set<n
   }
 }
 
+/**
+ * Presente do Programa (shared/presentes.ts): admin, compra ativa do Programa
+ * ou assinatura Premium/VIP ativa. O teste de 1 aula não dá direito.
+ */
+export async function podeReceberPresente(userId: number, role: string | null | undefined, collectionId: number): Promise<boolean> {
+  if (role === "admin" || role === "superadmin") return true;
+  if ((await programasComprados(userId)).includes(collectionId)) return true;
+  try {
+    const rows = await consulta(sql`
+      SELECT 1 FROM "subscriptions" WHERE "userId" = ${userId} AND "status" = 'active' AND "plan" IN ('premium', 'vip') LIMIT 1
+    `);
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function programasComprados(userId: number): Promise<number[]> {
   if (!(await garantirSchemaComercial())) return [];
   const rows = await consulta<{ collectionId: number }>(sql`

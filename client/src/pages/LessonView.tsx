@@ -115,6 +115,10 @@ export default function LessonView() {
   const { data: comercial } = trpc.comercial.config.useQuery(undefined, { staleTime: 30_000 });
   const vendaAvulsa = !!comercial?.vendaAvulsa;
   const programaDaAula = collectionContext ? { id: collectionContext.collectionId, titulo: collectionContext.collectionTitle as string } : null;
+  const { data: presenteDaAula } = trpc.comercial.presente.useQuery(
+    { collectionId: Number(collectionContext?.collectionId) || 0 },
+    { enabled: !!collectionContext?.collectionId && isAuthenticated },
+  );
 
   const { data: enrollmentData } = trpc.enrollments.checkEnrollment.useQuery(
     { courseId: lesson?.courseId || 0 },
@@ -854,6 +858,15 @@ export default function LessonView() {
                   <p className="text-muted-foreground">{lesson.description}</p>
                 </CardContent>
               </Card>
+            )}
+
+            {hasAccess && presenteDaAula?.podeBaixar && presenteDaAula.url && (
+              <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-amber-900">
+                  <strong>{presenteDaAula.titulo}:</strong> ao fim de cada módulo, reserve alguns minutos para responder ao diário.
+                </p>
+                <a href={presenteDaAula.url} className="shrink-0"><Button size="sm" variant="outline" className="bg-white">Baixar PDF</Button></a>
+              </div>
             )}
 
             {hasAccess && <CertificadoPassos lessonId={lessonId} aoGanhar={avisarCertificados} />}

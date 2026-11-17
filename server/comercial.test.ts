@@ -84,3 +84,17 @@ describe("financeiro e aviso de venda", () => {
     expect(textoDaVenda({ amount: 5700, planSlug: "programa", paymentMethod: "asaas:pix" }).corpo).toMatch(/^Programa \(compra avulsa\) · Pix/);
   });
 });
+
+import { presenteDoPrograma, urlDoPresente } from "../shared/presentes";
+import fs from "node:fs";
+
+describe("presente do programa", () => {
+  it("Diário só para Pensamentos Automáticos, com o título conferido", () => {
+    const p = presenteDoPrograma(9, "Pensamentos Automáticos");
+    expect(p?.titulo).toBe("Diário da Transformação");
+    expect(presenteDoPrograma(9, "Outro programa")).toBeNull();
+    expect(presenteDoPrograma(1, "Jornada Permita-se SER LIVRE")).toBeNull();
+    expect(urlDoPresente(9, p!)).toBe("/api/presentes/9/diario-da-transformacao.pdf");
+    expect(fs.existsSync(`server/assets/presentes/${p!.arquivo}`)).toBe(true);
+  });
+});

@@ -18,6 +18,8 @@ import { guardarIntencao, lerIntencao, limparIntencao, veioDaOferta } from "@/li
  */
 export default function TrialOfferSection() {
   const { data: info } = trpc.trial.info.useQuery();
+  const { data: comercial } = trpc.comercial.config.useQuery(undefined, { staleTime: 30_000 });
+  const vendaAvulsa = !!comercial?.vendaAvulsa;
   const { data: entries } = trpc.trial.entryLessons.useQuery();
   const { user, isAuthenticated } = useAuth();
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
@@ -155,7 +157,7 @@ export default function TrialOfferSection() {
             <span className="block italic text-[#e8c48f]">por {price}</span>
           </h2>
           <p className="text-base text-[#d8cabd]">
-            Assista a uma aula inteira, no seu ritmo. Se fizer sentido para você, é só assinar para continuar.
+            Assista a uma aula inteira, no seu ritmo. Se fizer sentido para você, {vendaAvulsa ? "é só comprar o programa completo, sem mensalidade." : "é só assinar para continuar."}
           </p>
         </div>
 

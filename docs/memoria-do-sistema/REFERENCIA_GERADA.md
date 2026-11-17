@@ -96,6 +96,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | `marketingSequenciaPassos` | `server/marketingSequencia.ts` |
 | `marketingSequencias` | `server/marketingSequencia.ts` |
 | `programaCompras` | `server/programaVenda.ts` |
+| `programaConvidados` | `server/programaVenda.ts` |
 | `siteSettings` | `server/programaVenda.ts` |
 | `siteSettingsHistory` | `server/programaVenda.ts` |
 | `stripeWebhookEvents` | `server/db.ts` |
@@ -173,6 +174,7 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 | `/community/connections` | `CommunityConnections` | logado |
 | `/community/explore` | `CommunityExplore` | logado |
 | `/compra/aguardando` | `CompraAguardando` | público |
+| `/compra/programa` | `CompraAguardando` | público |
 | `/contact` | `Contact` | público |
 | `/courses` | `Courses` | público |
 | `/courses/:slug` | `CourseDetail` | público |
@@ -199,4 +201,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-37 arquivos de teste, 277 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+37 arquivos de teste, 283 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

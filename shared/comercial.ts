@@ -102,3 +102,13 @@ export function linhas(texto?: string | null): string[] {
 export function paragrafos(texto?: string | null): string[] {
   return String(texto ?? "").split(/\r?\n\s*\r?\n/).map((p) => p.replace(/\s+/g, " ").trim()).filter(Boolean);
 }
+
+/** Compra sem conta (pagar primeiro, conta depois): "programaguest:<convidadoId>:<collectionId>". */
+export const REF_PROGRAMA_CONVIDADO = /^programaguest:(\d+):(\d+)$/;
+export function refConvidado(convidadoId: number, collectionId: number): string {
+  return `programaguest:${convidadoId}:${collectionId}`;
+}
+export function lerRefConvidado(ref?: string | null): { convidadoId: number; collectionId: number } | null {
+  const m = REF_PROGRAMA_CONVIDADO.exec(ref || "");
+  return m ? { convidadoId: Number(m[1]), collectionId: Number(m[2]) } : null;
+}

@@ -87,7 +87,7 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
     await exec(S()`ALTER TABLE "contentCollections" DROP COLUMN IF EXISTS "priceCents", DROP COLUMN IF EXISTS "originalPriceCents",
       DROP COLUMN IF EXISTS "headline", DROP COLUMN IF EXISTS "salesDescription", DROP COLUMN IF EXISTS "forWhom",
       DROP COLUMN IF EXISTS "learnings", DROP COLUMN IF EXISTS "ctaText"`);
-    await exec(S()`DROP TABLE IF EXISTS "programaCompras", "siteSettings", "siteSettingsHistory"`);
+    await exec(S()`DROP TABLE IF EXISTS "programaCompras", "programaConvidados", "siteSettings", "siteSettingsHistory"`);
     expect(await m.pv.garantirSchemaComercial()).toBe(true);
     expect(await m.asaas.ensureAsaasSchema()).toBe(true);
   });
@@ -95,7 +95,7 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
   beforeEach(async () => {
     chamadas.length = 0;
     cobrancas.clear();
-    await exec(S()`TRUNCATE "programaCompras", "siteSettings", "siteSettingsHistory", "asaasWebhookEvents", "payment_history",
+    await exec(S()`TRUNCATE "programaCompras", "programaConvidados", "siteSettings", "siteSettingsHistory", "asaasWebhookEvents", "payment_history",
       "contentCollectionItems", "contentCollections", subscriptions, enrollments, lessons, courses, users RESTART IDENTITY CASCADE`);
     const u = await exec(S()`INSERT INTO users (email, name) VALUES ('aluna@teste.com', 'Aluna Teste'), ('assinante@teste.com', 'Assinante'), ('admin@teste.com', 'Admin') RETURNING id`);
     [ids.aluna, ids.assinante, ids.admin] = u.map((r) => r.id);
@@ -217,5 +217,83 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
     await m.pv.definirModeloComercial("avulso", ids.admin);
     await expect(checkout({ metodo: "boleto" })).rejects.toThrow(/forma de pagamento/); // boleto vem desligado
     await expect(m.pv.definirMetodosPagamento({ pix: false, cartao: false, boleto: false }, ids.admin)).rejects.toThrow(/ao menos uma/);
+  });
+
+  // ── Compra sem conta e atribuição (ajustes de 17/11/2026) ──────────────────
+
+  const convidado = (over: Record<string, unknown> = {}) => m.pv.criarCompraConvidado({
+    nome: "Maria Nova Silva", email: "maria.nova@gmail.com", cpfCnpj: "52998224725", collectionId: ids.p1,
+    metodo: "pix", origin: "https://shadiahasan.com",
+    atribuicao: { utmSource: "facebook", utmCampaign: "programa-livre", fbp: "fb.1.123.456", clientIp: "200.1.1.1" },
+    ...over,
+  } as any);
+
+  it("compra sem conta: paga primeiro, a conta nasce na confirmação e a compra leva a origem", async () => {
+    await m.pv.definirModeloComercial("avulso", ids.admin);
+    const r = await convidado();
+    const post = chamadas.find((c) => c.path === "/payments")!;
+    expect(post.body.value).toBe(197);
+    expect(post.body.externalReference).toMatch(/^programaguest:\d+:\d+$/);
+    let st = await m.pv.statusConvidado(r.token);
+    expect(st?.situacao).toBe("pendente");
+    expect(await exec(S()`SELECT 1 FROM users WHERE email = 'maria.nova@gmail.com'`)).toHaveLength(0); // ainda sem conta
+
+    const paymentId = post.body && [...cobrancas.keys()].at(-1)!;
+    await webhook("evt_g1", "PAYMENT_CONFIRMED", paymentId);
+    await webhook("evt_g2", "PAYMENT_RECEIVED", paymentId);
+    const [u] = await exec(S()`SELECT id FROM users WHERE email = 'maria.nova@gmail.com'`);
+    expect(u).toBeTruthy();
+    expect(await temAcesso(u.id, ids.l1, ids.curso1)).toBe(true);
+    expect(await temAcesso(u.id, ids.l3, ids.curso2)).toBe(false);
+    const [c] = await exec(S()`SELECT status, "utmCampaign", fbp, "clientIp" FROM "programaCompras" WHERE "userId" = ${u.id}`);
+    expect(c).toEqual({ status: "active", utmCampaign: "programa-livre", fbp: "fb.1.123.456", clientIp: "200.1.1.1" });
+    expect(await exec(S()`SELECT 1 FROM users WHERE email = 'maria.nova@gmail.com'`)).toHaveLength(1); // uma conta só
+
+    st = await m.pv.statusConvidado(r.token);
+    expect(st?.situacao).toBe("paga");
+    expect(st?.entrarSozinho?.userId).toBe(u.id); // conta criada agora: entra sozinho
+  });
+
+  it("compra sem conta com e-mail que já tem conta: acesso vai para a conta existente, sem login automático", async () => {
+    await m.pv.definirModeloComercial("avulso", ids.admin);
+    const r = await convidado({ email: "ALUNA@teste.com" });
+    const paymentId = [...cobrancas.keys()].at(-1)!;
+    await webhook("evt_e1", "PAYMENT_CONFIRMED", paymentId);
+    expect(await temAcesso(ids.aluna, ids.l1, ids.curso1)).toBe(true);
+    const st = await m.pv.statusConvidado(r.token);
+    expect(st?.situacao).toBe("paga");
+    expect(st?.entrarSozinho).toBeNull();
+    // Já tem o programa: não cobra de novo
+    await expect(convidado({ email: "aluna@teste.com", cpfCnpj: "11144477735" })).rejects.toThrow(/já tem este programa/);
+  });
+
+  it("compra sem conta: tela de aguardando libera na hora quem pagou sem webhook", async () => {
+    await m.pv.definirModeloComercial("avulso", ids.admin);
+    const r = await convidado({ email: "outra.pessoa@teste.com" });
+    const paymentId = [...cobrancas.keys()].at(-1)!;
+    cobrancas.get(paymentId).status = "RECEIVED";
+    const st = await m.pv.statusConvidado(r.token);
+    expect(st?.situacao).toBe("paga");
+    const [u] = await exec(S()`SELECT id FROM users WHERE email = 'outra.pessoa@teste.com'`);
+    expect(await temAcesso(u.id, ids.l2, ids.curso1)).toBe(true);
+  });
+
+  it("compra sem conta respeita o modelo comercial", async () => {
+    await m.pv.definirModeloComercial("assinatura", ids.admin);
+    await expect(convidado({ email: "modelo@teste.com" })).rejects.toThrow(/não está disponível/);
+  });
+
+  it("checkout logado grava a origem do visitante", async () => {
+    await m.pv.definirModeloComercial("avulso", ids.admin);
+    const { paymentId } = await checkout({ atribuicao: { utmCampaign: "c1", ga4ClientId: "123.456" } } as any);
+    const [c] = await exec(S()`SELECT "utmCampaign", "ga4ClientId" FROM "programaCompras" WHERE "asaasPaymentId" = ${paymentId}`);
+    expect(c).toEqual({ utmCampaign: "c1", ga4ClientId: "123.456" });
+  });
+
+  it("liberação manual acha a conta do Gmail com ou sem pontos", async () => {
+    await exec(S()`INSERT INTO users (email, name) VALUES ('maria.silva@gmail.com', 'Maria Silva')`);
+    await m.pv.liberarManual("mariasilva@gmail.com", ids.p2, ids.admin);
+    const [u] = await exec(S()`SELECT id FROM users WHERE email = 'maria.silva@gmail.com'`);
+    expect(await temAcesso(u.id, ids.l3, ids.curso2)).toBe(true);
   });
 });

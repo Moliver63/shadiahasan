@@ -14,6 +14,42 @@ import {
   programasComprados, resumoPorPrograma, revogarCompra,
 } from "../programaVenda";
 import { METODOS, type MetodoPagamento } from "../../shared/comercial";
+import { COOKIE_NAME } from "@shared/const";
+import { getSessionCookieOptions } from "../_core/cookies";
+import { assinarSessao } from "../_core/sessionCookie";
+import { registrarAutorizacao } from "./marketing";
+import { criarCompraConvidado, reenviarLinkConvidado, statusConvidado } from "../programaVenda";
+
+const TRINTA_DIAS_S = 30 * 24 * 60 * 60;
+
+/** Origem do visitante (mesmo formato do teste de 1 aula). Opcional: a compra nunca depende disso. */
+const atribuicaoSchema = z
+  .object({
+    fbp: z.string().max(128).optional(),
+    fbc: z.string().max(255).optional(),
+    utmSource: z.string().max(128).optional(),
+    utmMedium: z.string().max(128).optional(),
+    utmCampaign: z.string().max(191).optional(),
+    utmContent: z.string().max(191).optional(),
+    utmTerm: z.string().max(191).optional(),
+    landingUrl: z.string().max(2048).optional(),
+    ga4ClientId: z.string().regex(/^\d{1,20}\.\d{1,20}$/).optional().catch(undefined),
+    ga4SessionId: z.string().regex(/^\d{6,20}$/).optional().catch(undefined),
+  })
+  .partial()
+  .optional();
+
+function ipDoRequest(req: { headers: Record<string, unknown>; ip?: string }): string | null {
+  const encaminhado = req.headers["x-forwarded-for"];
+  const bruto = Array.isArray(encaminhado) ? encaminhado[0] : encaminhado;
+  const primeiro = typeof bruto === "string" ? bruto.split(",")[0]?.trim() : "";
+  return primeiro || req.ip || null;
+}
+
+function atribuicaoDe(input: z.infer<typeof atribuicaoSchema>, req: any) {
+  const { utmTerm: _t, ...resto } = input || {};
+  return { ...resto, clientIp: ipDoRequest(req), clientUserAgent: (req.headers["user-agent"] as string | undefined) ?? null };
+}
 
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== "admin" && ctx.user.role !== "superadmin") {
@@ -61,10 +97,12 @@ export const comercialRouter = router({
       collectionId: z.number().int().positive(),
       cpfCnpj: z.string().min(11).max(18),
       metodo: metodoSchema,
+      atribuicao: atribuicaoSchema,
     }))
     .mutation(async ({ ctx, input }) => {
       try {
         return await criarCheckoutPrograma({
+          atribuicao: atribuicaoDe(input.atribuicao, ctx.req),
           userId: ctx.user.id,
           userEmail: ctx.user.email ?? "",
           userName: ctx.user.name,
@@ -76,6 +114,71 @@ export const comercialRouter = router({
       } catch (e) {
         erro(e);
       }
+    }),
+
+  /** Compra sem conta: nome, e-mail e CPF. A conta só nasce quando o pagamento for confirmado. */
+  guestCheckout: publicProcedure
+    .input(z.object({
+      collectionId: z.number().int().positive(),
+      nome: z.string().min(1).max(120),
+      email: z.string().min(3).max(254),
+      cpfCnpj: z.string().min(11).max(18),
+      metodo: metodoSchema,
+      aceitaNovidades: z.boolean().optional(),
+      atribuicao: atribuicaoSchema,
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const r = await criarCompraConvidado({
+          nome: input.nome,
+          email: input.email,
+          cpfCnpj: input.cpfCnpj,
+          collectionId: input.collectionId,
+          metodo: input.metodo,
+          origin: urlCanonica(),
+          atribuicao: atribuicaoDe(input.atribuicao, ctx.req),
+        });
+        if (input.aceitaNovidades === true) void registrarAutorizacao({ email: input.email, nome: input.nome, origem: "compra-programa" });
+        return r;
+      } catch (e) { erro(e); }
+    }),
+
+  /** Tela "aguardando". Paga e com conta criada por esta compra: entra sozinho (sessão provisória, 48 h). */
+  guestStatus: publicProcedure
+    .input(z.object({ token: z.string().min(20).max(128) }))
+    .query(async ({ input, ctx }) => {
+      const r = await statusConvidado(input.token);
+      if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Compra não encontrada." });
+      let logado = !!ctx.user && !!r.donoId && r.donoId === ctx.user.id;
+      if (r.entrarSozinho && !ctx.user) {
+        ctx.res.cookie(
+          COOKIE_NAME,
+          await assinarSessao({ id: r.entrarSozinho.userId, email: r.entrarSozinho.email }, { provisoria: true, validadeS: TRINTA_DIAS_S }),
+          { ...getSessionCookieOptions(ctx.req), maxAge: TRINTA_DIAS_S * 1000 },
+        );
+        logado = true;
+      }
+      return {
+        situacao: r.situacao,
+        collectionId: r.collectionId,
+        invoiceUrl: r.invoiceUrl,
+        pix: r.pix,
+        emailMascarado: r.emailMascarado,
+        logado,
+        precisaEntrar: r.situacao === "paga" && !logado,
+        compra: r.compra,
+      };
+    }),
+
+  guestEnviarLink: publicProcedure
+    .input(z.object({ token: z.string().min(20).max(128) }))
+    .mutation(async ({ input }) => {
+      try {
+        const r = await reenviarLinkConvidado(input.token);
+        if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Compra não encontrada ou ainda não paga." });
+        if (!r.enviado) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não conseguimos enviar o e-mail agora. Tente de novo em instantes." });
+        return { emailMascarado: r.emailMascarado };
+      } catch (e) { erro(e); }
     }),
 
   // ── Admin ────────────────────────────────────────────────────────────────

@@ -243,10 +243,10 @@ export default function Pricing() {
           <div className="container mx-auto max-w-3xl">
             <div className="flex flex-col gap-4 rounded-xl border border-purple-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="font-semibold text-lg">Quer sentir antes de assinar?</p>
+                <p className="font-semibold text-lg">{comercial?.vendaAvulsa ? "Quer sentir antes de comprar?" : "Quer sentir antes de assinar?"}</p>
                 <p className="text-sm text-muted-foreground">
                   Assista a 1 aula completa por {(trialInfo.priceCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}, pagamento único.
-                  Se gostar, é só assinar um plano mensal.
+                  {comercial?.vendaAvulsa ? "Se gostar, é só comprar o programa completo." : "Se gostar, é só assinar um plano mensal."}
                 </p>
               </div>
               <Link href="/courses">

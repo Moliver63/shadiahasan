@@ -102,11 +102,8 @@ export default function CollectionDetail() {
   }
 
   function queroComecar() {
+    // Sem login também: o diálogo faz a compra sem conta (a conta nasce no pagamento)
     trackEvent("programa_quero_comecar", { programa_id: id });
-    if (!isAuthenticated) {
-      setLocation(`/login?next=${encodeURIComponent(`/collections/${id}?comprar=1`)}`);
-      return;
-    }
     setComprando(true);
   }
 
@@ -359,6 +356,7 @@ export default function CollectionDetail() {
           titulo={col.title}
           priceCents={col.priceCents}
           metodos={comercial!.metodos}
+          logado={isAuthenticated}
         />
       )}
 

@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { CheckCircle2, Copy, Loader2, QrCode, CreditCard, LogIn, AlertCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { lerCompra, limparCompra } from "@/lib/compraSemConta";
+import { CHAVE_PROGRAMA, lerCompra, limparCompra } from "@/lib/compraSemConta";
 import { getLoginUrl } from "@/const";
 import { trackPurchaseGA4 } from "@/components/Analytics";
 
@@ -22,25 +22,40 @@ function Moldura({ children }: { children: React.ReactNode }) {
  * abre. O servidor confere no Asaas na hora; não depende do webhook.
  */
 export default function CompraAguardando() {
-  const [token] = useState(() => lerCompra());
+  // Mesma tela para o teste de 1 aula (/compra/aguardando) e para Programa (/compra/programa)
+  const [ehPrograma] = useState(() => typeof window !== "undefined" && window.location.pathname.startsWith("/compra/programa"));
+  const chave = ehPrograma ? CHAVE_PROGRAMA : undefined;
+  const [token] = useState(() => lerCompra(undefined, undefined, chave));
   const [copiado, setCopiado] = useState(false);
-  const status = trpc.trial.guestStatus.useQuery(
-    { token: token || "" },
-    {
-      enabled: !!token,
-      retry: 1,
-      refetchOnWindowFocus: true,
-      refetchInterval: (q) => (q.state.data?.situacao === "pendente" ? 4000 : false),
-    },
-  );
-  const dados = status.data;
-  const reenviar = trpc.trial.guestEnviarLink.useMutation();
+  const opcoes = (ativo: boolean) => ({
+    enabled: !!token && ativo,
+    retry: 1,
+    refetchOnWindowFocus: true,
+    refetchInterval: (q: any) => (q.state.data?.situacao === "pendente" ? 4000 : false),
+  });
+  const statusAula = trpc.trial.guestStatus.useQuery({ token: token || "" }, opcoes(!ehPrograma) as any);
+  const statusPrograma = trpc.comercial.guestStatus.useQuery({ token: token || "" }, opcoes(ehPrograma) as any);
+  const status = ehPrograma ? statusPrograma : statusAula;
+  const bruto = status.data as any;
+  const dados = bruto
+    ? {
+        ...bruto,
+        destino: ehPrograma ? `/collections/${bruto.collectionId}` : `/lesson/${bruto.lessonId}`,
+        itemGA4: ehPrograma ? `programa:${bruto.collectionId}` : `lesson:${bruto.lessonId}`,
+      }
+    : undefined;
+  const reenviarAula = trpc.trial.guestEnviarLink.useMutation();
+  const reenviarPrograma = trpc.comercial.guestEnviarLink.useMutation();
+  const reenviar = ehPrograma ? reenviarPrograma : reenviarAula;
+  const item = ehPrograma
+    ? { liberada: "Seu programa está liberado.", naConta: "O programa foi liberado", botao: "Começar agora", abre: "o programa abre aqui", voltar: "Voltar ao programa", email: "Seu programa está liberado", botaoEmail: "Começar agora" }
+    : { liberada: "Sua aula está liberada.", naConta: "A aula foi liberada", botao: "Assistir agora", abre: "a aula abre aqui", voltar: "Voltar para a oferta", email: "Sua aula está liberada", botaoEmail: "Assistir à aula" };
   const noApp = typeof navigator !== "undefined" && /FBAN|FBAV|FB_IAB|Instagram/i.test(navigator.userAgent || "");
   // Com a chave do GA4 no servidor, a compra já vai pelo servidor: aqui não manda de novo
   const { data: info } = trpc.trial.info.useQuery();
 
   useEffect(() => {
-    if (dados?.situacao === "paga" || dados?.situacao === "cancelada") limparCompra();
+    if (dados?.situacao === "paga" || dados?.situacao === "cancelada") limparCompra(chave);
   }, [dados?.situacao]);
 
   // Compra no GA4, uma vez por cobrança (sobrevive a recarregar a página)
@@ -49,8 +64,8 @@ export default function CompraAguardando() {
     if (dados?.situacao !== "paga" || !c || !info || info.ga4CompraPeloServidor) return;
     const chave = `shadia:ga4:purchase:${c.id}`;
     try { if (sessionStorage.getItem(chave)) return; sessionStorage.setItem(chave, "1"); } catch { /* segue: o GA4 deduplica pelo id */ }
-    trackPurchaseGA4({ transactionId: c.id, value: c.valorCentavos / 100, contentId: `lesson:${dados.lessonId}` });
-  }, [dados?.situacao, dados?.compra, dados?.lessonId, info]);
+    trackPurchaseGA4({ transactionId: c.id, value: c.valorCentavos / 100, contentId: dados.itemGA4 });
+  }, [dados?.situacao, dados?.compra, dados?.itemGA4, info]);
 
   const copiar = async () => {
     const codigo = dados?.pix?.copiaECola;
@@ -76,11 +91,11 @@ export default function CompraAguardando() {
         <AlertCircle className="mx-auto h-12 w-12 text-[#a8743c]" />
         <h1 className="mt-4 text-center font-serif text-2xl">Não encontramos sua compra neste aparelho</h1>
         <p className="mt-3 text-center text-base text-[#5c4a3d]">
-          Se você já pagou, a aula está liberada no e-mail que você informou. Procure a mensagem "Sua aula está liberada".
+          Se você já pagou, o acesso foi enviado para o e-mail que você informou. Procure a mensagem "{item.email}".
         </p>
         <div className="mt-6 flex flex-col gap-3">
           <a href={getLoginUrl()}><Button size="lg" className="h-12 w-full text-base">Entrar na minha conta</Button></a>
-          <Link href="/#experimente-uma-aula"><Button size="lg" variant="outline" className="h-12 w-full text-base">Voltar para a oferta</Button></Link>
+          <Link href={ehPrograma ? "/courses" : "/#experimente-uma-aula"}><Button size="lg" variant="outline" className="h-12 w-full text-base">{ehPrograma ? "Ver os programas" : "Voltar para a oferta"}</Button></Link>
         </div>
       </Moldura>
     );
@@ -102,10 +117,10 @@ export default function CompraAguardando() {
         <h1 className="mt-4 text-center font-serif text-3xl">Pagamento confirmado!</h1>
         {dados.logado ? (
           <>
-            <p className="mt-3 text-center text-lg">Sua aula está liberada.</p>
+            <p className="mt-3 text-center text-lg">{item.liberada}</p>
             {/* Recarrega a página inteira: a sessão acabou de ser criada */}
-            <Button size="lg" className="mt-6 h-14 w-full text-lg" onClick={() => window.location.assign(`/lesson/${dados.lessonId}`)}>
-              Assistir agora
+            <Button size="lg" className="mt-6 h-14 w-full text-lg" onClick={() => window.location.assign(dados.destino)}>
+              {item.botao}
             </Button>
             <p className="mt-5 text-center text-sm text-[#5c4a3d]">
               Enviamos para {dados.emailMascarado} um link para você criar sua senha e entrar de outros aparelhos.
@@ -114,12 +129,12 @@ export default function CompraAguardando() {
         ) : (
           <>
             <p className="mt-3 text-center text-base">
-              A aula foi liberada na sua conta <strong>{dados.emailMascarado}</strong>.
+              {item.naConta} na sua conta <strong>{dados.emailMascarado}</strong>.
             </p>
             <div className="mt-5 rounded-2xl border border-[#e6d8c8] bg-white p-4 text-center">
               <Mail className="mx-auto h-7 w-7 text-[#a8743c]" />
               <p className="mt-2 text-base">
-                Mandamos para esse e-mail o botão <strong>Assistir à aula</strong>. Ele entra direto na sua conta, sem senha.
+                Mandamos para esse e-mail o botão <strong>{item.botaoEmail}</strong>. Ele entra direto na sua conta, sem senha.
               </p>
               {reenviar.isSuccess ? (
                 <p className="mt-3 text-sm font-medium text-green-700">Link enviado de novo. Confira também o spam.</p>
@@ -141,11 +156,11 @@ export default function CompraAguardando() {
                 Aqui no navegador do Facebook/Instagram o Google não deixa entrar. Use o link do e-mail.
               </p>
             ) : (
-              <a href={`/api/auth/google?next=${encodeURIComponent(`/lesson/${dados.lessonId}`)}`}>
+              <a href={`/api/auth/google?next=${encodeURIComponent(dados.destino)}`}>
                 <Button size="lg" className="mt-5 h-14 w-full text-lg"><LogIn className="mr-2 h-5 w-5" /> Entrar com Google e assistir</Button>
               </a>
             )}
-            <a href={`/login?next=${encodeURIComponent(`/lesson/${dados.lessonId}`)}`} className="mt-3 block text-center text-sm text-[#5c4a3d] underline">
+            <a href={`/login?next=${encodeURIComponent(dados.destino)}`} className="mt-3 block text-center text-sm text-[#5c4a3d] underline">
               Entrar com e-mail e senha
             </a>
           </>
@@ -158,9 +173,9 @@ export default function CompraAguardando() {
     return (
       <Moldura>
         <AlertCircle className="mx-auto h-12 w-12 text-[#a8743c]" />
-        <h1 className="mt-4 text-center font-serif text-2xl">Este Pix não vale mais</h1>
-        <p className="mt-3 text-center text-base text-[#5c4a3d]">Gere um novo para assistir à aula.</p>
-        <Link href="/#experimente-uma-aula"><Button size="lg" className="mt-6 h-12 w-full text-base">Gerar novo Pix</Button></Link>
+        <h1 className="mt-4 text-center font-serif text-2xl">{ehPrograma ? "Este pagamento não vale mais" : "Este Pix não vale mais"}</h1>
+        <p className="mt-3 text-center text-base text-[#5c4a3d]">Gere um novo pagamento para continuar.</p>
+        <Link href={ehPrograma ? dados.destino : "/#experimente-uma-aula"}><Button size="lg" className="mt-6 h-12 w-full text-base">{ehPrograma ? "Voltar ao programa" : "Gerar novo Pix"}</Button></Link>
       </Moldura>
     );
   }
@@ -169,7 +184,7 @@ export default function CompraAguardando() {
     <Moldura>
       <p className="text-center text-[11px] font-medium uppercase tracking-[0.3em] text-[#a8743c]">Falta só o pagamento</p>
       <h1 className="mt-2 text-center font-serif text-3xl leading-tight">
-        {dados.pix ? "Pague com Pix e a aula abre aqui" : "Pague e a aula abre aqui"}
+        {dados.pix ? `Pague com Pix e ${item.abre}` : `Pague e ${item.abre}`}
       </h1>
 
       {dados.pix ? (

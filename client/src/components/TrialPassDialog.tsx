@@ -38,6 +38,8 @@ type Props = {
 export default function TrialPassDialog({ open, onOpenChange, lessonId, priceCents, validDays }: Props) {
   const [cpfCnpj, setCpfCnpj] = useState("");
   const createCheckout = trpc.trial.createCheckout.useMutation();
+  const { data: comercial } = trpc.comercial.config.useQuery(undefined, { staleTime: 30_000 });
+  const vendaAvulsa = !!comercial?.vendaAvulsa;
 
   const confirm = async () => {
     if (!isValidCpfCnpj(cpfCnpj)) {
@@ -89,7 +91,7 @@ export default function TrialPassDialog({ open, onOpenChange, lessonId, priceCen
           <DialogTitle>Assistir esta aula por {formatBRL(priceCents)}</DialogTitle>
           <DialogDescription>
             Pagamento único, sem renovação. Você assiste à aula completa por {validDays} dias depois que o pagamento for confirmado.
-            Se gostar, é só assinar um plano mensal para continuar.
+            {vendaAvulsa ? "Se gostar, é só comprar o programa completo, sem mensalidade." : "Se gostar, é só assinar um plano mensal para continuar."}
           </DialogDescription>
         </DialogHeader>
 

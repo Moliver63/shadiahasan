@@ -247,7 +247,7 @@ export type AtribuicaoDaCompra = {
 
 export type PixDaCompra = { imagemBase64: string; copiaECola: string } | null;
 
-async function buscarPix(paymentId: string): Promise<PixDaCompra> {
+export async function buscarPix(paymentId: string): Promise<PixDaCompra> {
   try {
     const r = await asaasRequest<{ encodedImage?: string; payload?: string }>("GET", `/payments/${encodeURIComponent(paymentId)}/pixQrCode`);
     return r?.payload ? { imagemBase64: r.encodedImage || "", copiaECola: r.payload } : null;

@@ -24,6 +24,9 @@ import {
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
+import { Tag } from "lucide-react";
+import VendaProgramaDialog from "@/components/programa/VendaProgramaDialog";
+import { formatarReais } from "@shared/comercial";
 
 // ── Upload Cloudinary ──────────────────────────────────────────────────────
 async function uploadToCloudinary(file: File): Promise<string> {
@@ -160,6 +163,9 @@ export default function AdminCollections() {
     onSuccess: () => { refetch(); toast.success("Agrupamento removido."); setConfirmDelete(null); },
     onError: (e) => toast.error(e.message),
   });
+
+  // Estado — preço e página de venda
+  const [vendaCol, setVendaCol] = useState<any>(null);
 
   // Estado — criar
   const [showCreate, setShowCreate] = useState(false);
@@ -305,6 +311,12 @@ export default function AdminCollections() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-sm">{col.title}</p>
                       {col.isActive === 0 && <Badge variant="outline" className="text-xs">Inativo</Badge>}
+                      {col.priceCents ? (
+                        <Badge variant="secondary" className="text-xs font-normal">
+                          {col.originalPriceCents ? <s className="mr-1 opacity-60">{formatarReais(col.originalPriceCents)}</s> : null}
+                          {formatarReais(col.priceCents)}
+                        </Badge>
+                      ) : null}
                     </div>
                     {col.subtitle && <p className="text-xs text-primary/80 truncate">{col.subtitle}</p>}
                     <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
@@ -326,6 +338,10 @@ export default function AdminCollections() {
                     <button className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Histórico"
                       onClick={() => { setHistoryId(col.id); setShowHistory(true); }}>
                       <History className="h-4 w-4" />
+                    </button>
+                    <button className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Preço e página de venda"
+                      onClick={() => setVendaCol(col)}>
+                      <Tag className="h-4 w-4" />
                     </button>
                     <button className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Editar"
                       onClick={() => openEdit(col)}>
@@ -408,6 +424,8 @@ export default function AdminCollections() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <VendaProgramaDialog col={vendaCol} onClose={() => setVendaCol(null)} onSaved={() => refetch()} />
 
       {/* ── Dialog: Editar ── */}
       <Dialog open={showEdit} onOpenChange={setShowEdit}>

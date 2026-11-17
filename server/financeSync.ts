@@ -66,7 +66,7 @@ export function statusDoAsaas(status?: string): StatusFinanceiro {
 
 export type ContaAsaas = { userId: number; asaasCustomerId: string; asaasSubscriptionId: string; planSlug: string };
 
-export type VinculoAsaas = { userId: number; planSlug: string | null; tipo: "trial" | "assinatura" | "avulsa"; lessonId?: number };
+export type VinculoAsaas = { userId: number; planSlug: string | null; tipo: "trial" | "assinatura" | "avulsa" | "programa"; lessonId?: number };
 
 /**
  * Descobre de quem é a cobrança. Mesma ordem que os webhooks usam:
@@ -78,6 +78,9 @@ export function vinculoDaCobrancaAsaas(c: CobrancaAsaas, contas: ContaAsaas[]): 
   const ref = c.externalReference || "";
   const trial = /^trial:(\d+):(\d+)/.exec(ref);
   if (trial) return { userId: Number(trial[1]), planSlug: "trial", tipo: "trial", lessonId: Number(trial[2]) };
+
+  const programa = /^programa:(\d+):(\d+)/.exec(ref);
+  if (programa) return { userId: Number(programa[1]), planSlug: "programa", tipo: "programa" };
 
   const userRef = /user:(\d+)/.exec(ref)?.[1];
   const planRef = /plan:(basic|premium|vip)/.exec(ref)?.[1] ?? null;
@@ -109,6 +112,8 @@ export function lancamentoDoAsaas(c: CobrancaAsaas, v: VinculoAsaas) {
   const centavos = Math.round(Number(c.value || 0) * 100);
   const descricao = v.tipo === "trial"
     ? `Teste de 1 aula (Asaas)${v.lessonId ? ` — aula ${v.lessonId}` : ""}`
+    : v.tipo === "programa"
+      ? (c.description?.trim().replace(/\s*-\s*Shadia Hasan$/, "") || "Programa") + " (Asaas)"
     : v.tipo === "assinatura"
       ? `Assinatura ${nomePlano(v.planSlug)} (Asaas)`
       : (c.description?.trim() || "Cobrança avulsa (Asaas)");

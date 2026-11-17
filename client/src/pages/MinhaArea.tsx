@@ -14,6 +14,7 @@ import {
   Award, BookOpen, CheckCircle2, Clock, CreditCard, ExternalLink, MessageSquareQuote, PlayCircle, Receipt, Sparkles,
 } from "lucide-react";
 import { Link } from "wouter";
+import { Layers } from "lucide-react";
 
 const brl = (centavos: number) => (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const data = (d: Date | string | null | undefined) =>
@@ -39,6 +40,8 @@ const STATUS_TESTE: Record<string, string> = {
 export default function MinhaArea() {
   const { user, isAuthenticated, loading } = useAuth();
   const { data: area, isLoading, error } = trpc.areaAluno.resumo.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: minhasCompras = [] } = trpc.comercial.minhasCompras.useQuery(undefined, { enabled: isAuthenticated });
+  const programasComprados = minhasCompras.filter((c) => c.status === "active");
 
   if (loading) {
     return (
@@ -87,6 +90,27 @@ export default function MinhaArea() {
           <div className="grid gap-4 md:grid-cols-2">
             {[1, 2, 3, 4].map((i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-muted" />)}
           </div>
+        )}
+
+        {programasComprados.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="flex items-center gap-2 text-xl font-semibold"><Layers className="h-5 w-5 text-primary" /> Meus programas</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {programasComprados.map((c) => (
+                <Link key={c.id} href={`/collections/${c.collectionId}`}>
+                  <Card className="cursor-pointer transition-colors hover:border-primary/50">
+                    <CardContent className="flex items-center justify-between gap-3 py-4">
+                      <div>
+                        <p className="font-medium">{c.titulo}</p>
+                        <p className="text-xs text-muted-foreground">Compra avulsa · acesso sem prazo</p>
+                      </div>
+                      <span className="text-sm font-medium text-primary">Abrir</span>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </section>
         )}
 
         {area && (

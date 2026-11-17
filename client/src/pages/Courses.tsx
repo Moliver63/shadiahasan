@@ -8,12 +8,17 @@ import { formatDuration } from "@/lib/formatDuration";
 import { useState } from "react";
 import { SEOHead } from "@/components/SEOHead";
 import { getSEOMetaTags } from "@/lib/seo-meta-tags";
+import { useAuth } from "@/_core/hooks/useAuth";
+import PrecoPrograma from "@/components/programa/PrecoPrograma";
+import { precoVendavel } from "@shared/comercial";
 
 type Filter = "all" | "collections" | "courses";
 
-function CollectionCard({ col }: { col: any }) {
+function CollectionCard({ col, vendaAvulsa, comprado }: { col: any; vendaAvulsa: boolean; comprado: boolean }) {
+  const comPreco = vendaAvulsa && precoVendavel(col.priceCents);
   return (
     <Link href={`/collections/${col.id}`}>
+      <div className="flex flex-col gap-2 cursor-pointer">
       <div className="course-card group relative cursor-pointer select-none">
         <div className="course-card__media">
           {col.coverUrl ? (
@@ -39,6 +44,15 @@ function CollectionCard({ col }: { col: any }) {
           </div>
         </div>
       </div>
+      {comprado ? (
+        <p className="px-1 text-sm font-medium text-emerald-700">Você já tem este programa</p>
+      ) : comPreco ? (
+        <div className="flex items-end justify-between gap-2 px-1">
+          <PrecoPrograma priceCents={col.priceCents} originalPriceCents={col.originalPriceCents} />
+          <span className="hidden sm:inline-flex shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">Quero começar</span>
+        </div>
+      ) : null}
+      </div>
     </Link>
   );
 }
@@ -58,6 +72,10 @@ export default function Courses() {
   );
 
   const isLoading = coursesLoading || collectionsLoading;
+  const { isAuthenticated } = useAuth();
+  const { data: comercial } = trpc.comercial.config.useQuery(undefined, { staleTime: 30_000 });
+  const { data: meus = [] } = trpc.comercial.meusProgramas.useQuery(undefined, { enabled: isAuthenticated });
+  const vendaAvulsa = !!comercial?.vendaAvulsa;
 
   const showCollections = filter === "all" || filter === "collections";
   const showCourses     = filter === "all" || filter === "courses";
@@ -86,10 +104,10 @@ export default function Courses() {
       <section className="bg-gradient-to-br from-primary/10 via-background to-background py-16">
         <div className="container text-center">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-            Catálogo de Cursos
+            Programas
           </h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
-            Explore nossos cursos e aprenda com experiências imersivas em realidade virtual
+            Autoconhecimento, emoções e padrões de pensamento, com a psicóloga Shadia Hasan. No seu ritmo, pelo celular ou computador.
           </p>
         </div>
       </section>
@@ -134,7 +152,7 @@ export default function Courses() {
         ) : hasContent ? (
           <div className="grid gap-4 sm:gap-6 grid-cols-2 md:grid-cols-3 lg:grid-cols-4" style={{ paddingBottom: "2rem" }}>
             {visibleCollections.map((col: any) => (
-              <CollectionCard key={`col-${col.id}`} col={col} />
+              <CollectionCard key={`col-${col.id}`} col={col} vendaAvulsa={vendaAvulsa} comprado={meus.includes(col.id)} />
             ))}
             {visibleCourses.map((course) => (
               <CourseCard
@@ -163,7 +181,7 @@ export default function Courses() {
 
       <footer className="border-t bg-card mt-12">
         <div className="container py-8 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Shadia VR Platform. Todos os direitos reservados.</p>
+          <p>© {new Date().getFullYear()} Shadia Hasan. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>

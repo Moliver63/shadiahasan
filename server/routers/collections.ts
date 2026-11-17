@@ -14,6 +14,8 @@ import {
   courses,
 } from "../../drizzle/schema";
 import { eq, and, asc, inArray, sql, ilike, or } from "drizzle-orm";
+import { garantirColunasComerciais, salvarPrecosPrograma } from "../programaVenda";
+import { validarPrecos } from "../../shared/comercial";
 
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== "admin" && ctx.user.role !== "superadmin") {
@@ -61,6 +63,8 @@ async function ensureSchema(db: any) {
     await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "cci_col_lesson_uidx" ON "contentCollectionItems" ("collectionId","lessonId")`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "cci_col_order_idx" ON "contentCollectionItems" ("collectionId","order")`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "cch_col_idx" ON "contentCollectionHistory" ("collectionId")`);
+    // Preço e textos de venda (venda avulsa): antes de qualquer select() desta tabela
+    await garantirColunasComerciais(db);
     return true;
   } catch (e) {
     console.error("[collections] schema init failed:", e instanceof Error ? e.message : e);
@@ -304,6 +308,14 @@ export const contentCollectionsRouter = router({
       coverUrl: z.string().optional().nullable(),
       order: z.number().optional(),
       isActive: z.number().min(0).max(1).optional(),
+      // Venda avulsa: preços em centavos (validados no servidor) e textos da página
+      priceCents: z.number().int().nullable().optional(),
+      originalPriceCents: z.number().int().nullable().optional(),
+      headline: z.string().max(255).nullable().optional(),
+      salesDescription: z.string().max(8000).nullable().optional(),
+      forWhom: z.string().max(4000).nullable().optional(),
+      learnings: z.string().max(4000).nullable().optional(),
+      ctaText: z.string().max(120).nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
@@ -318,6 +330,20 @@ export const contentCollectionsRouter = router({
       if (input.coverUrl !== undefined) updates.coverUrl = input.coverUrl;
       if (input.order !== undefined) updates.order = input.order;
       if (input.isActive !== undefined) updates.isActive = input.isActive;
+      for (const campo of ["headline", "salesDescription", "forWhom", "learnings", "ctaText"] as const) {
+        if (input[campo] !== undefined) updates[campo] = input[campo]?.trim() || null;
+      }
+      if (input.priceCents !== undefined || input.originalPriceCents !== undefined) {
+        const [atual] = await db.select({ p: contentCollections.priceCents, o: contentCollections.originalPriceCents })
+          .from(contentCollections).where(eq(contentCollections.id, input.id)).limit(1);
+        const preco = input.priceCents !== undefined ? input.priceCents : atual?.p ?? null;
+        const original = input.originalPriceCents !== undefined ? input.originalPriceCents : atual?.o ?? null;
+        const erro = validarPrecos(preco, original);
+        if (erro) throw new TRPCError({ code: "BAD_REQUEST", message: erro });
+        await salvarPrecosPrograma(input.id, preco, original);
+        await logHistory(db, input.id, "price_changed",
+          `Preço: ${atual?.p ?? "—"} → ${preco ?? "—"} | original: ${atual?.o ?? "—"} → ${original ?? "—"} (centavos)`, ctx.user.id);
+      }
 
       const [updated] = await db
         .update(contentCollections)

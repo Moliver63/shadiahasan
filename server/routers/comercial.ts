@@ -18,7 +18,11 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { assinarSessao } from "../_core/sessionCookie";
 import { registrarAutorizacao } from "./marketing";
-import { criarCompraConvidado, reenviarLinkConvidado, statusConvidado } from "../programaVenda";
+import { criarCompraConvidado, podeReceberPresente, reenviarLinkConvidado, statusConvidado } from "../programaVenda";
+import { presenteDoPrograma, urlDoPresente } from "../../shared/presentes";
+import { getDb } from "../db";
+import { contentCollections } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 const TRINTA_DIAS_S = 30 * 24 * 60 * 60;
 
@@ -84,6 +88,22 @@ export const comercialRouter = router({
       metodos: METODOS.filter((m) => metodos[m]),
     };
   }),
+
+  /**
+   * Presente do Programa: o que é (público, para a página de venda) e, para
+   * quem está logado, se pode baixar e o link. O arquivo só sai pela rota protegida.
+   */
+  presente: publicProcedure
+    .input(z.object({ collectionId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const d = await getDb();
+      if (!d) return null;
+      const [col] = await d.select({ title: contentCollections.title }).from(contentCollections).where(eq(contentCollections.id, input.collectionId)).limit(1);
+      const p = col ? presenteDoPrograma(input.collectionId, col.title) : null;
+      if (!p) return null;
+      const pode = ctx.user ? await podeReceberPresente(ctx.user.id, ctx.user.role, input.collectionId) : false;
+      return { titulo: p.titulo, descricao: p.descricao, podeBaixar: pode, url: pode ? urlDoPresente(input.collectionId, p) : null };
+    }),
 
   /** Programas que o aluno logado já comprou (ids). */
   meusProgramas: protectedProcedure.query(async ({ ctx }) => programasComprados(ctx.user.id)),

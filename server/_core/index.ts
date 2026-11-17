@@ -87,6 +87,9 @@ async function startServer() {
   // PDF do certificado do aluno (exige sessão)
   const certificadosPdf = await import('../routes/certificados');
   app.use('/api', certificadosPdf.default);
+  // Presente do Programa (ex.: Diário da Transformação), só para quem tem o programa
+  const presentes = await import('../routes/presentes');
+  app.use('/api', presentes.default);
 
   // tRPC API com rate limiting
   app.use(

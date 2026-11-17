@@ -296,4 +296,12 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
     const [u] = await exec(S()`SELECT id FROM users WHERE email = 'maria.silva@gmail.com'`);
     expect(await temAcesso(u.id, ids.l3, ids.curso2)).toBe(true);
   });
+
+  it("presente: quem comprou e assinante Premium recebem; teste de 1 aula e sem compra não", async () => {
+    await m.pv.liberarManual("aluna@teste.com", ids.p2, ids.admin);
+    expect(await m.pv.podeReceberPresente(ids.aluna, "user", ids.p2)).toBe(true);
+    expect(await m.pv.podeReceberPresente(ids.aluna, "user", ids.p1)).toBe(false);
+    expect(await m.pv.podeReceberPresente(ids.assinante, "user", ids.p1)).toBe(true); // premium ativo
+    expect(await m.pv.podeReceberPresente(ids.aluna, "admin", ids.p1)).toBe(true);
+  });
 });

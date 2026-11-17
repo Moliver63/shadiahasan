@@ -794,3 +794,16 @@ Os planos estavam gravados com UTF-8 lido como Latin-1 ("BÃ¡sico"). `shared/ac
 **Não validado:** cobrança real no Asaas (só sandbox simulado; nada foi ativado em produção). Antes de ligar: testar no sandbox (`ASAAS_BASE_URL` de sandbox num ambiente de teste), conferir que Pix/cartão estão habilitados na conta, definir os preços em Agrupamentos e só então mudar o modelo para "Compra individual".
 
 **Como reverter:** mudar o modelo para "Assinatura" no painel (some a venda; compras feitas continuam valendo). Reverter o código não apaga `programaCompras`; sem o código, quem comprou perde o acesso até o código voltar.
+
+**Textos sugeridos revisados (17/11/2026, PR #18):** `shared/catalogoSugerido.ts` reescrito com situações concretas, o que cada módulo/semana cobre (títulos reais das aulas), tamanho de cada programa e posição entre eles (Permita-se = jornada completa; A vida responde = porta de entrada curta). "Perdão aos pais" virou "olhar para a relação com seus pais" (a Shadia confirma). Continuam só no botão "Usar sugerido".
+
+### Avaliação da venda avulsa contra a documentação (17/11/2026)
+
+Conferido: os 4 pontos que chamam `checkUserHasAccess` passam o `id` da aula (`videos.getPlaybackUrl`, `videos.hasAccess`, `lessons.listByCourse`, `lessons.getById`; mais `certificados.validarAulas`), então compra de Programa vale para vídeo, lista de aulas e certificado. `learningPaths` não existe em produção, logo a trilha não bloqueia quem comprou. Nenhuma rota nova devolve `videoPlaybackUrl`. Webhook segue o padrão do teste de 1 aula (registro idempotente, valor mínimo, estorno não reativa, conferência a cada 10 min). `ARQUITETURA.md` e o `README.md` raiz estão desatualizados (MySQL, `.club`, R$ 97); não conflitam, mas não devem ser usados como referência.
+
+**Pendências achadas (não corrigidas ainda):**
+1. **Compra exige conta antes de pagar.** É o mesmo defeito que zerou a campanha 804 (seção "Funil do teste de 1 aula"). `Signup` não carrega o `?next=`, o Google do cadastro também não, e cadastro por e-mail pede confirmação: visitante novo perde a intenção de compra. Correção indicada: reaproveitar o "pagar primeiro, conta depois" (`trialGuest.ts`) para Programas, ou no mínimo levar o `next` pelo cadastro.
+2. **Compra de Programa não vai para Meta CAPI nem GA4** e não grava atribuição (UTM, `_fbp`, `_fbc`, client_id do GA4). O teste de 1 aula faz isso. Sem isso, anúncio de Programa não é atribuído nem otimizado.
+3. **Aula bloqueada (`LessonView`)** no modo "Compra individual" só oferece planos e o teste de R$ 19,90; o texto fala em "comprar o curso" sem botão. Deve levar à compra do Programa da aula.
+4. **Textos de assinatura no modo avulso:** teste de 1 aula, `TrialOfferSection` e o fim da aula dizem "assine depois", mesmo quando o site vende sem mensalidade.
+5. Menor: "Liberar manualmente" busca o e-mail só sem diferença de maiúsculas; não usa `encontrarContaPorEmail` (pontos no Gmail).

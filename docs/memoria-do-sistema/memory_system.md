@@ -820,3 +820,15 @@ Conferido: os 4 pontos que chamam `checkUserHasAccess` passam o `id` da aula (`v
 **Textos:** os textos sugeridos de Permita-se Ser Livre e Pensamentos Automáticos (`shared/catalogoSugerido.ts`) passaram a usar as palavras da própria Shadia do PDF (base técnica, estrutura da jornada, "para quem é", módulos de Pensamentos Automáticos, chamada final). O bloco "Quem conduz" da página do Programa usa o "Quem sou eu" dela.
 
 **Divergências do PDF que ficaram de fora (Shadia confere):** (1) o bloco titulado "Código Interno" fala de pensamentos automáticos e do Diário da Transformação, então parece ser de Pensamentos Automáticos; nada foi usado no Código Interno; (2) o texto de Pensamentos Automáticos diz "três módulos", o site tem introdução + 4 módulos e o diário tem 5 (o 5º, "Uma nova forma de viver", não existe como aula); (3) Permita-se diz "7 módulos, em 7 aulas", o site tem 7 módulos de 3 aulas; (4) "investimento menor que uma sessão de terapia" e "período de acesso contratado" não foram usados (o segundo contradiz o acesso vitalício dos Termos; o primeiro vale conferir com as regras de publicidade do CRP); (5) Diário da Autoconsciência e meditações são citados no PDF, mas não existem no site.
+
+### Auditoria do Comercial (18/11/2026)
+
+**Estado encontrado em produção:** modelo trocado para `avulso` às 09:09 UTC por um admin, sem nenhum Programa com preço (o "Usar sugerido" nunca foi salvo). Efeito: nada à venda, mas os textos do teste de 1 aula já diziam "compre o programa completo". Webhook do Asaas funcionando (6 eventos `done`, 0 com erro).
+
+**Correções:**
+- `programasAVenda()` = Programas ativos com preço válido. `comercial.config.vendaAvulsa` só é `true` com modelo `avulso` + Asaas + forma de pagamento + ao menos um Programa à venda; o front decide por Programa com `programasAVenda` (vitrine, página do Programa, aula bloqueada). Sem isso, o site se comporta como no modelo assinatura, mesmo com a chave em `avulso`.
+- `definirModeloComercial("avulso")` recusa se nenhum Programa tiver preço; o botão "Compra individual" fica travado com o motivo. Voltar para assinatura sempre pode.
+- `/admin/comercial`: faixa de status ("Agora o site vende por…" / "ligada, mas nada está à venda"), checklist "Pronto para vender?" (chave do Asaas, `ASAAS_WEBHOOK_TOKEN`, programas com preço, formas de pagamento, aviso de sandbox), tabela "Programas, preços e vendas" com situação de cada Programa e botão "Preço e página" (o mesmo `VendaProgramaDialog` de Agrupamentos), e "Preencher sugeridos" para os Programas sem preço (confirmação com a lista de preços antes de gravar).
+- Home: `VitrineProgramas` logo após o topo, só no modo avulso e só com Programas à venda.
+
+**Fora do escopo, notado:** o topo da Home ainda fala em "Experiência em Realidade Virtual" e "experiências imersivas".

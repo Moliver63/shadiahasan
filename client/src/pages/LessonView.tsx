@@ -113,8 +113,9 @@ export default function LessonView() {
 
   // Modo "Compra individual": a aula bloqueada leva ao Programa dela, não aos planos
   const { data: comercial } = trpc.comercial.config.useQuery(undefined, { staleTime: 30_000 });
-  const vendaAvulsa = !!comercial?.vendaAvulsa;
   const programaDaAula = collectionContext ? { id: collectionContext.collectionId, titulo: collectionContext.collectionTitle as string } : null;
+  // Só oferece o Programa quando ele está de fato à venda (modo avulso + preço salvo)
+  const programaAVenda = !!programaDaAula && !!comercial?.programasAVenda?.includes(Number(programaDaAula.id));
   const { data: presenteDaAula } = trpc.comercial.presente.useQuery(
     { collectionId: Number(collectionContext?.collectionId) || 0 },
     { enabled: !!collectionContext?.collectionId && isAuthenticated },
@@ -529,41 +530,41 @@ export default function LessonView() {
               {isLearningPathLocked
                 ? accessData?.nextUnlockLabel ||
                   "Esta aula faz parte de uma etapa futura da sua trilha de aprendizado."
-                : vendaAvulsa && programaDaAula
+                : programaAVenda
                   ? `Esta aula faz parte do programa "${programaDaAula.titulo}". Compre o programa para assistir a todas as aulas, em pagamento único e sem mensalidade.`
                   : "Esta aula é exclusiva para assinantes ou para quem adquiriu este curso individualmente. Assine um plano ou compre o curso para continuar."}
             </p>
             <div className="flex flex-col gap-2">
-              {!isLearningPathLocked && vendaAvulsa && programaDaAula && (
+              {!isLearningPathLocked && programaAVenda && (
                 <Link href={`/collections/${programaDaAula.id}`}>
                   <Button className="w-full">Conhecer e comprar o programa</Button>
                 </Link>
               )}
               {!isLearningPathLocked && trialStatus?.enabled && trialStatus.lessonEligible && !trialStatus.alreadyUsed && (
                 <>
-                  <Button className="w-full" variant={vendaAvulsa && programaDaAula ? "outline" : "default"} onClick={() => setShowTrialDialog(true)}>
+                  <Button className="w-full" variant={programaAVenda ? "outline" : "default"} onClick={() => setShowTrialDialog(true)}>
                     Assistir só esta aula por {formatBRL(trialStatus.priceCents)}
                   </Button>
                   <p className="text-xs text-muted-foreground mb-2">
                     Pagamento único, aula completa por {trialStatus.validDays} dias.{" "}
-                    {vendaAvulsa ? "Gostou? Depois é só comprar o programa completo." : "Gostou? Assine depois."}
+                    {programaAVenda ? "Gostou? Depois é só comprar o programa completo." : "Gostou? Assine depois."}
                   </p>
                 </>
               )}
               {!isLearningPathLocked && trialStatus?.alreadyUsed && (
                 <p className="text-xs text-muted-foreground mb-2">
-                  {vendaAvulsa ? "Você já usou o teste de 1 aula. Para continuar, compre o programa completo." : "Você já usou o teste de 1 aula. Para continuar assistindo, assine um plano."}
+                  {programaAVenda ? "Você já usou o teste de 1 aula. Para continuar, compre o programa completo." : "Você já usou o teste de 1 aula. Para continuar assistindo, assine um plano."}
                 </p>
               )}
               {/* Os cursos por trás de um Programa ficam em rascunho: o caminho certo é o Programa */}
-              {!(vendaAvulsa && programaDaAula) && (programaDaAula || course) && (
+              {!(programaAVenda) && (programaDaAula || course) && (
                 <Link href={programaDaAula ? `/collections/${programaDaAula.id}` : `/courses/${course!.slug}`}>
                   <Button className="w-full" variant={trialStatus?.enabled && trialStatus.lessonEligible && !trialStatus.alreadyUsed ? "outline" : "default"}>
                     {isLearningPathLocked ? "Voltar para a trilha" : programaDaAula ? "Ver o programa" : "Ver opções do curso"}
                   </Button>
                 </Link>
               )}
-              {!isLearningPathLocked && !vendaAvulsa && (
+              {!isLearningPathLocked && !programaAVenda && (
                 <Link href="/pricing">
                   <Button variant="outline" className="w-full">
                     Ver planos de assinatura
@@ -630,10 +631,10 @@ export default function LessonView() {
             <p className="text-sm text-purple-900">
               Você está no teste de 1 aula. Esta aula fica liberada até{" "}
               <strong>{new Date(trialStatus.activePass.expiresAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</strong>.
-              {vendaAvulsa && programaDaAula ? "Gostou? Compre o programa completo, sem mensalidade." : "Gostou? Assine para continuar com todos os cursos."}
+              {programaAVenda ? "Gostou? Compre o programa completo, sem mensalidade." : "Gostou? Assine para continuar com todos os cursos."}
             </p>
-            <Link href={vendaAvulsa && programaDaAula ? `/collections/${programaDaAula.id}` : "/pricing"}>
-              <Button size="sm">{vendaAvulsa && programaDaAula ? "Ver o programa" : "Ver planos"}</Button>
+            <Link href={programaAVenda ? `/collections/${programaDaAula.id}` : "/pricing"}>
+              <Button size="sm">{programaAVenda ? "Ver o programa" : "Ver planos"}</Button>
             </Link>
           </div>
         )}

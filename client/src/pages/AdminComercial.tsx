@@ -12,11 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ExternalLink, Gift, Loader2, RefreshCw, Search, ShieldOff } from "lucide-react";
+import { ExternalLink, Gift, Loader2, RefreshCw, Search, ShieldOff, Sparkles, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import ModeloComercialCard from "@/components/programa/ModeloComercialCard";
-import { formatarReais } from "@shared/comercial";
+import { formatarReais, precoVendavel } from "@shared/comercial";
+import { textoSugeridoPara } from "@shared/catalogoSugerido";
+import VendaProgramaDialog from "@/components/programa/VendaProgramaDialog";
 
 const STATUS: Record<string, { rotulo: string; classe: string }> = {
   active: { rotulo: "Liberado", classe: "bg-emerald-100 text-emerald-800" },
@@ -48,6 +50,33 @@ export default function AdminComercial() {
   });
 
   const atualizar = () => { refetch(); utils.comercial.resumo.invalidate(); };
+  const { data: config } = trpc.comercial.adminConfig.useQuery();
+  const [vendaCol, setVendaCol] = useState<any>(null);
+  const [confirmarSugeridos, setConfirmarSugeridos] = useState(false);
+  const atualizarPrograma = trpc.collections.update.useMutation();
+  const semPrecoComSugestao = (programas as any[]).filter((p) => !p.priceCents && textoSugeridoPara(p.id, p.title));
+  const recarregarProgramas = () => {
+    utils.collections.adminList.invalidate();
+    utils.comercial.invalidate();
+  };
+  async function preencherSugeridos() {
+    let ok = 0;
+    for (const p of semPrecoComSugestao) {
+      const t = textoSugeridoPara(p.id, p.title)!;
+      try {
+        await atualizarPrograma.mutateAsync({
+          id: p.id, priceCents: t.priceCents, originalPriceCents: t.originalPriceCents, headline: t.headline,
+          salesDescription: t.salesDescription, forWhom: t.forWhom, learnings: t.learnings, ctaText: t.ctaText,
+        });
+        ok++;
+      } catch (e: any) {
+        toast.error(`${p.title}: ${e?.message || "não salvou"}`);
+      }
+    }
+    setConfirmarSugeridos(false);
+    recarregarProgramas();
+    if (ok) toast.success(`${ok} programa(s) preenchido(s). Revise cada um em "Preço e página".`);
+  }
   const conferir = trpc.comercial.conferir.useMutation({
     onSuccess: (r) => {
       const msg = r?.resultado === "liberada" ? "Pagamento confirmado no Asaas. Programa liberado." : r?.resultado === "pendente" ? "O Asaas ainda não confirmou este pagamento." : "Cobrança não reconhecida.";
@@ -75,23 +104,48 @@ export default function AdminComercial() {
         <ModeloComercialCard />
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Vendas avulsas por programa</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+            <div>
+              <CardTitle className="text-base">Programas, preços e vendas</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">Só aparece à venda o programa ativo com preço salvo. Clique em "Preço e página" para editar.</p>
+            </div>
+            {semPrecoComSugestao.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setConfirmarSugeridos(true)}>
+                <Sparkles className="h-4 w-4 mr-1.5" />Preencher sugeridos ({semPrecoComSugestao.length})
+              </Button>
+            )}
+          </CardHeader>
           <CardContent className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-muted-foreground">
-                <tr><th className="py-2 pr-4 font-medium">Programa</th><th className="py-2 pr-4 font-medium">Preço</th><th className="py-2 pr-4 font-medium text-right">Vendas</th><th className="py-2 pr-4 font-medium text-right">Receita</th><th className="py-2 pr-4 font-medium text-right">Pendentes</th><th className="py-2 font-medium text-right">Estornos</th></tr>
+                <tr>
+                  <th className="py-2 pr-4 font-medium">Programa</th><th className="py-2 pr-4 font-medium">Preço</th><th className="py-2 pr-4 font-medium">Situação</th>
+                  <th className="py-2 pr-4 font-medium text-right">Vendas</th><th className="py-2 pr-4 font-medium text-right">Receita</th>
+                  <th className="py-2 pr-4 font-medium text-right">Pendentes</th><th className="py-2 pr-4 font-medium text-right">Estornos</th><th className="py-2" />
+                </tr>
               </thead>
               <tbody className="divide-y">
-                {resumo.map((r) => {
-                  const p = (programas as any[]).find((x) => x.id === r.collectionId);
+                {(programas as any[]).map((p) => {
+                  const r = resumo.find((x) => x.collectionId === p.id);
+                  const situacao = p.isActive !== 1
+                    ? { rotulo: "Inativo", classe: "bg-muted text-muted-foreground" }
+                    : !precoVendavel(p.priceCents)
+                      ? { rotulo: "Sem preço", classe: "bg-amber-100 text-amber-900" }
+                      : config?.modelo === "avulso"
+                        ? { rotulo: "À venda", classe: "bg-emerald-100 text-emerald-800" }
+                        : { rotulo: "Pronto (modelo assinatura)", classe: "bg-sky-100 text-sky-900" };
                   return (
-                    <tr key={r.collectionId}>
-                      <td className="py-2.5 pr-4">{r.programa}{p?.isActive === 0 ? <Badge variant="outline" className="ml-2 text-[10px]">Inativo</Badge> : null}</td>
-                      <td className="py-2.5 pr-4 tabular-nums">{p?.priceCents ? <>{p.originalPriceCents ? <s className="text-muted-foreground mr-1">{formatarReais(p.originalPriceCents)}</s> : null}{formatarReais(p.priceCents)}</> : <span className="text-muted-foreground">sem preço</span>}</td>
-                      <td className="py-2.5 pr-4 text-right tabular-nums">{r.vendas}</td>
-                      <td className="py-2.5 pr-4 text-right tabular-nums">{formatarReais(r.receitaCents)}</td>
-                      <td className="py-2.5 pr-4 text-right tabular-nums">{r.pendentes}</td>
-                      <td className="py-2.5 text-right tabular-nums">{r.estornos}</td>
+                    <tr key={p.id}>
+                      <td className="py-2.5 pr-4 font-medium">{p.title}</td>
+                      <td className="py-2.5 pr-4 tabular-nums whitespace-nowrap">
+                        {p.priceCents ? <>{p.originalPriceCents ? <s className="text-muted-foreground mr-1">{formatarReais(p.originalPriceCents)}</s> : null}{formatarReais(p.priceCents)}</> : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="py-2.5 pr-4"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${situacao.classe}`}>{situacao.rotulo}</span></td>
+                      <td className="py-2.5 pr-4 text-right tabular-nums">{r?.vendas ?? 0}</td>
+                      <td className="py-2.5 pr-4 text-right tabular-nums">{formatarReais(r?.receitaCents ?? 0)}</td>
+                      <td className="py-2.5 pr-4 text-right tabular-nums">{r?.pendentes ?? 0}</td>
+                      <td className="py-2.5 pr-4 text-right tabular-nums">{r?.estornos ?? 0}</td>
+                      <td className="py-2.5 text-right"><Button size="sm" variant="ghost" onClick={() => setVendaCol(p)}><Tag className="h-4 w-4 mr-1" />Preço e página</Button></td>
                     </tr>
                   );
                 })}
@@ -175,6 +229,34 @@ export default function AdminComercial() {
           </CardContent>
         </Card>
       </div>
+
+      <VendaProgramaDialog col={vendaCol} onClose={() => setVendaCol(null)} onSaved={recarregarProgramas} />
+
+      <Dialog open={confirmarSugeridos} onOpenChange={setConfirmarSugeridos}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Preencher preços e textos sugeridos</DialogTitle>
+            <DialogDescription>Só nos programas que ainda não têm preço. Depois você revisa cada um em "Preço e página".</DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-2 text-sm">
+            {semPrecoComSugestao.map((p) => {
+              const t = textoSugeridoPara(p.id, p.title)!;
+              return (
+                <li key={p.id} className="flex justify-between gap-3 rounded-md border px-3 py-2">
+                  <span>{p.title}</span>
+                  <span className="tabular-nums whitespace-nowrap"><s className="text-muted-foreground mr-1">{formatarReais(t.originalPriceCents)}</s>{formatarReais(t.priceCents)}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmarSugeridos(false)}>Cancelar</Button>
+            <Button disabled={atualizarPrograma.isPending} onClick={() => void preencherSugeridos()}>
+              {atualizarPrograma.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Salvando...</> : "Preencher"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!revogar} onOpenChange={(o) => { if (!o) { setRevogar(null); setMotivo(""); } }}>
         <DialogContent className="sm:max-w-md">

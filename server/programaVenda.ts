@@ -205,9 +205,26 @@ async function gravarConfig(chave: string, valor: string, adminId: number): Prom
   cache = null;
 }
 
+/** Programas ativos com preço válido: os únicos que podem ser vendidos avulso. */
+export async function programasAVenda(): Promise<number[]> {
+  try {
+    if (!(await garantirSchemaComercial())) return [];
+    const rows = await consulta<{ id: number; priceCents: number | null }>(sql`
+      SELECT "id", "priceCents" FROM "contentCollections" WHERE "isActive" = 1 AND "priceCents" IS NOT NULL
+    `);
+    return rows.filter((r) => precoVendavel(r.priceCents)).map((r) => Number(r.id));
+  } catch {
+    return [];
+  }
+}
+
 /** Só muda a vitrine e o checkout. Não toca em assinatura, compra ou cobrança existente. */
 export async function definirModeloComercial(modelo: ModeloComercial, adminId: number): Promise<void> {
   if (!(MODELOS_COMERCIAIS as string[]).includes(modelo)) throw new Error("Modelo comercial inválido.");
+  // Sem programa com preço, "Compra individual" deixaria o site sem nada para vender
+  if (modelo === "avulso" && (await programasAVenda()).length === 0) {
+    throw new Error("Defina o preço de pelo menos um programa ativo antes de ligar a Compra individual.");
+  }
   await gravarConfig("modeloComercial", modelo, adminId);
   console.log(`[Programa] modelo comercial → ${modelo} (admin ${adminId})`);
 }

@@ -38,8 +38,9 @@ export default function VendaProgramaDialog({ col, onClose, onSaved }: Props) {
     setCta(col.ctaText ?? "");
   }, [col]);
 
+  const utils = trpc.useUtils();
   const salvar = trpc.collections.update.useMutation({
-    onSuccess: () => { toast.success("Venda do programa salva."); onSaved(); onClose(); },
+    onSuccess: () => { toast.success("Venda do programa salva."); utils.comercial.invalidate(); onSaved(); onClose(); },
     onError: (e) => toast.error(e.message),
   });
 

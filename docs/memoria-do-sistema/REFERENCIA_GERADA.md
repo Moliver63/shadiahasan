@@ -13,8 +13,8 @@
 | `APPLE_PRIVATE_KEY` | `server/auth/passport.ts` | sim |
 | `APPLE_TEAM_ID` | `server/auth/passport.ts` | sim |
 | `ASAAS_API_KEY` | `server/asaas.ts` | **não** |
-| `ASAAS_BASE_URL` | `server/asaas.ts` | **não** |
-| `ASAAS_WEBHOOK_TOKEN` | `server/asaas.ts` | **não** |
+| `ASAAS_BASE_URL` | `server/asaas.ts`, `server/routers/comercial.ts` | **não** |
+| `ASAAS_WEBHOOK_TOKEN` | `server/asaas.ts`, `server/routers/comercial.ts` | **não** |
 | `BUILT_IN_FORGE_API_KEY` | `server/_core/env.ts` | sim |
 | `BUILT_IN_FORGE_API_URL` | `server/_core/env.ts` | sim |
 | `CLOUDFLARE_ACCOUNT_ID` | `server/cloudflare-stream.ts`, `server/routers.ts` | sim |
@@ -202,4 +202,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-37 arquivos de teste, 285 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+37 arquivos de teste, 286 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

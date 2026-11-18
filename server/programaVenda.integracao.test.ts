@@ -304,4 +304,13 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
     expect(await m.pv.podeReceberPresente(ids.assinante, "user", ids.p1)).toBe(true); // premium ativo
     expect(await m.pv.podeReceberPresente(ids.aluna, "admin", ids.p1)).toBe(true);
   });
+
+  it("não liga Compra individual sem programa com preço; programa inativo não está à venda", async () => {
+    await exec(S()`UPDATE "contentCollections" SET "isActive" = 0 WHERE id = ${ids.p2}`);
+    expect(await m.pv.programasAVenda()).toEqual([ids.p1]);
+    await m.pv.salvarPrecosPrograma(ids.p1, null, null);
+    expect(await m.pv.programasAVenda()).toEqual([]);
+    await expect(m.pv.definirModeloComercial("avulso", ids.admin)).rejects.toThrow(/preço de pelo menos um programa/);
+    await m.pv.definirModeloComercial("assinatura", ids.admin); // voltar sempre pode
+  });
 });

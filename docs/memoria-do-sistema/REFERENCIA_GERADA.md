@@ -83,6 +83,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | `contentCollections` | `server/routers/collections.ts` |
 | `courseGroupLessons` | `server/routers/groups.ts` |
 | `courseGroups` | `server/routers/groups.ts` |
+| `diarioCartas` | `server/programaVenda.ts` |
 | `emailAvisosEnviados` | `server/emailAvisos.ts` |
 | `emailCaixas` | `server/caixaEmail.ts` |
 | `emailEnviados` | `server/caixaEmail.ts` |
@@ -112,9 +113,13 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 
 | Método | Caminho | Arquivo |
 |---|---|---|
+| POST | `/api/diario/mapa` | `server/routes/diarioOnline.ts` |
+| GET | `/api/presentes/9/carta` | `server/routes/diarioOnline.ts` |
+| POST | `/api/presentes/9/carta` | `server/routes/diarioOnline.ts` |
 | POST | `/apple/callback` | `server/auth/routes.ts` |
 | GET | `/apple` | `server/auth/routes.ts` |
 | GET | `/certificados/:arquivo` | `server/routes/certificados.ts` |
+| GET | `/diario` | `server/routes/diarioOnline.ts` |
 | POST | `/enviar-link` | `server/auth/routes.ts` |
 | GET | `/google/callback` | `server/auth/routes.ts` |
 | GET | `/google` | `server/auth/routes.ts` |
@@ -128,6 +133,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | POST | `/marketing/sair` | `server/routes/marketing.ts` |
 | GET | `/me` | `server/auth/routes.ts` |
 | GET | `/presentes/:collectionId/:arquivo` | `server/routes/presentes.ts` |
+| GET | `/presentes/diario` | `server/routes/diarioOnline.ts` |
 | POST | `/stripe/webhook` | `server/routes/stripe-webhook.ts` |
 | POST | `/webhooks/asaas` | `server/routes/asaas-webhook.ts` |
 | POST | `/webhooks/resend` | `server/routes/resend-webhook.ts` |
@@ -202,4 +208,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-37 arquivos de teste, 290 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+37 arquivos de teste, 291 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

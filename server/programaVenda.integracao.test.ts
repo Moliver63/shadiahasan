@@ -46,12 +46,17 @@ vi.mock("./asaas", async (original) => {
 
 // E-mail simulado: guarda os lembretes enviados
 const lembretes: Array<{ email: string; what: string }> = [];
+const emails: Array<{ para: string; assunto: string; html: string }> = [];
 vi.mock("./_core/email", async (original) => {
   const real = await original<typeof import("./_core/email")>();
   return {
     ...real,
     sendPaymentReminderEmail: vi.fn(async (email: string, _nome: string, o: { what: string }) => {
       lembretes.push({ email, what: o.what });
+      return { success: true };
+    }),
+    enviarEmail: vi.fn(async (p: { para: string; assunto: string; html: string }) => {
+      emails.push(p);
       return { success: true };
     }),
   };
@@ -100,7 +105,7 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
     await exec(S()`ALTER TABLE "contentCollections" DROP COLUMN IF EXISTS "priceCents", DROP COLUMN IF EXISTS "originalPriceCents",
       DROP COLUMN IF EXISTS "headline", DROP COLUMN IF EXISTS "salesDescription", DROP COLUMN IF EXISTS "forWhom",
       DROP COLUMN IF EXISTS "learnings", DROP COLUMN IF EXISTS "ctaText"`);
-    await exec(S()`DROP TABLE IF EXISTS "programaCompras", "programaConvidados", "siteSettings", "siteSettingsHistory"`);
+    await exec(S()`DROP TABLE IF EXISTS "programaCompras", "programaConvidados", "diarioCartas", "siteSettings", "siteSettingsHistory"`);
     expect(await m.pv.garantirSchemaComercial()).toBe(true);
     expect(await m.asaas.ensureAsaasSchema()).toBe(true);
   });
@@ -108,7 +113,7 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
   beforeEach(async () => {
     chamadas.length = 0;
     cobrancas.clear();
-    await exec(S()`TRUNCATE "programaCompras", "programaConvidados", "siteSettings", "siteSettingsHistory", "asaasWebhookEvents", "payment_history",
+    await exec(S()`TRUNCATE "programaCompras", "programaConvidados", "diarioCartas", "siteSettings", "siteSettingsHistory", "asaasWebhookEvents", "payment_history",
       "contentCollectionItems", "contentCollections", subscriptions, enrollments, lessons, courses, users RESTART IDENTITY CASCADE`);
     const u = await exec(S()`INSERT INTO users (email, name) VALUES ('aluna@teste.com', 'Aluna Teste'), ('assinante@teste.com', 'Assinante'), ('admin@teste.com', 'Admin') RETURNING id`);
     [ids.aluna, ids.assinante, ids.admin] = u.map((r) => r.id);
@@ -376,5 +381,22 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
     await webhook("r2", "PAYMENT_RESTORED", paymentId);
     await webhook("r3", "PAYMENT_RECEIVED", paymentId);
     expect(await temAcesso(ids.aluna, ids.l1, ids.curso1)).toBe(true);
+  });
+
+  it("carta do diário: agenda para 6 meses, envia no dia e apaga o texto", async () => {
+    emails.length = 0;
+    await expect(m.pv.agendarCarta(ids.aluna, "curta")).rejects.toThrow(/Escreva um pouco mais/);
+    const { enviarEm } = await m.pv.agendarCarta(ids.aluna, "Querida eu do futuro, lembra de respirar antes de responder.");
+    expect(enviarEm > new Date().toISOString().slice(0, 10)).toBe(true);
+    expect((await m.pv.cartaAgendada(ids.aluna)).enviarEm).toBe(enviarEm);
+    expect(await m.pv.enviarCartasDoDia()).toBe(0); // ainda não é o dia
+    await exec(S()`UPDATE "diarioCartas" SET "enviarEm" = '2000-01-01'`);
+    expect(await m.pv.enviarCartasDoDia()).toBe(1);
+    expect(emails.at(-1)?.para).toBe("aluna@teste.com");
+    expect(emails.at(-1)?.html).toContain("lembra de respirar");
+    const [c] = await exec(S()`SELECT "texto", "enviadaEm" FROM "diarioCartas"`);
+    expect(c.texto).toBeNull();
+    expect(c.enviadaEm).not.toBeNull();
+    expect(await m.pv.enviarCartasDoDia()).toBe(0); // não reenvia
   });
 });

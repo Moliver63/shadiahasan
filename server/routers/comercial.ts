@@ -109,7 +109,14 @@ export const comercialRouter = router({
       const p = col ? presenteDoPrograma(input.collectionId, col.title) : null;
       if (!p) return null;
       const pode = ctx.user ? await podeReceberPresente(ctx.user.id, ctx.user.role, input.collectionId) : false;
-      return { titulo: p.titulo, descricao: p.descricao, podeBaixar: pode, url: pode ? urlDoPresente(input.collectionId, p) : null };
+      return {
+        titulo: p.titulo,
+        descricao: p.descricao,
+        podeBaixar: pode,
+        url: pode ? urlDoPresente(input.collectionId, p) : null,
+        urlOnline: pode ? p.online ?? null : null,
+        amostra: p.amostra ?? null,
+      };
     }),
 
   /** Programas que o aluno logado já comprou (ids). */

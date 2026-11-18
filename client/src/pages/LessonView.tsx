@@ -866,7 +866,10 @@ export default function LessonView() {
                 <p className="text-sm text-amber-900">
                   <strong>{presenteDaAula.titulo}:</strong> ao fim de cada módulo, reserve alguns minutos para responder ao diário.
                 </p>
-                <a href={presenteDaAula.url} className="shrink-0"><Button size="sm" variant="outline" className="bg-white">Baixar PDF</Button></a>
+                <div className="flex shrink-0 gap-2">
+                  {presenteDaAula.urlOnline && <a href={presenteDaAula.urlOnline}><Button size="sm">Abrir diário</Button></a>}
+                  <a href={presenteDaAula.url}><Button size="sm" variant="outline" className="bg-white">PDF</Button></a>
+                </div>
               </div>
             )}
 

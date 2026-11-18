@@ -142,6 +142,18 @@ export function garantirSchemaComercial(): Promise<boolean> {
         // Lembretes de pagamento pendente (1 h e 7 h depois), como no teste de 1 aula
         await d.execute(sql`ALTER TABLE "programaConvidados" ADD COLUMN IF NOT EXISTS "remindersSent" integer NOT NULL DEFAULT 0`);
         await d.execute(sql`ALTER TABLE "programaCompras" ADD COLUMN IF NOT EXISTS "remindersSent" integer NOT NULL DEFAULT 0`);
+        // Carta para a versão futura (Diário da Transformação online): só o texto, só até o envio
+        await d.execute(sql`
+          CREATE TABLE IF NOT EXISTS "diarioCartas" (
+            "id" serial PRIMARY KEY,
+            "userId" integer NOT NULL UNIQUE,
+            "texto" text,
+            "enviarEm" varchar(10) NOT NULL,
+            "enviadaEm" timestamp,
+            "createdAt" timestamp NOT NULL DEFAULT now(),
+            "updatedAt" timestamp NOT NULL DEFAULT now()
+          )
+        `);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "programaCompras_user_idx" ON "programaCompras" ("userId", "status")`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "programaCompras_col_idx" ON "programaCompras" ("collectionId")`);
         await garantirColunasComerciais(d);
@@ -1175,6 +1187,77 @@ export async function reenviarAcessoCompra(compraId: number): Promise<{ email: s
   const ok = await enviarLinkDeAcesso({ userId: c.userId, destino: `/collections/${c.collectionId}` });
   if (!ok) throw new ProgramaError("O e-mail não pôde ser enviado agora. Tente de novo em instantes.", "UNAVAILABLE");
   return { email: c.email };
+}
+
+// ─── Diário online: carta para a versão futura ───────────────────────────────
+
+function seisMesesDepois(hojeIso: string): string {
+  const d = new Date(`${hojeIso}T12:00:00-03:00`);
+  d.setUTCMonth(d.getUTCMonth() + 6);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Agenda (ou reagenda) a carta do aluno para daqui a 6 meses. Uma por aluno. */
+export async function agendarCarta(userId: number, texto: string): Promise<{ enviarEm: string }> {
+  const limpo = String(texto ?? "").trim().slice(0, 20_000);
+  if (limpo.length < 20) throw new ProgramaError("Escreva um pouco mais antes de agendar.", "BAD_REQUEST");
+  if (!(await garantirSchemaComercial())) throw new ProgramaError("Banco indisponível.", "UNAVAILABLE");
+  const enviarEm = seisMesesDepois(todayInSaoPaulo());
+  await consulta(sql`
+    INSERT INTO "diarioCartas" ("userId", "texto", "enviarEm") VALUES (${userId}, ${limpo}, ${enviarEm})
+    ON CONFLICT ("userId") DO UPDATE SET "texto" = EXCLUDED."texto", "enviarEm" = EXCLUDED."enviarEm", "enviadaEm" = NULL, "updatedAt" = now()
+  `);
+  return { enviarEm };
+}
+
+export async function cartaAgendada(userId: number): Promise<{ enviarEm: string | null }> {
+  if (!(await garantirSchemaComercial())) return { enviarEm: null };
+  const [c] = await consulta<{ enviarEm: string }>(sql`SELECT "enviarEm" FROM "diarioCartas" WHERE "userId" = ${userId} AND "enviadaEm" IS NULL LIMIT 1`);
+  return { enviarEm: c?.enviarEm ?? null };
+}
+
+/** Rotina: manda as cartas do dia e apaga o texto depois do envio. */
+export async function enviarCartasDoDia(): Promise<number> {
+  if (!(await garantirSchemaComercial())) return 0;
+  const hoje = todayInSaoPaulo();
+  const devidas = await consulta<{ id: number; texto: string; email: string | null; name: string | null; createdAt: string }>(sql`
+    SELECT c."id", c."texto", u."email", u."name", c."createdAt" FROM "diarioCartas" c JOIN "users" u ON u."id" = c."userId"
+     WHERE c."enviadaEm" IS NULL AND c."texto" IS NOT NULL AND c."enviarEm" <= ${hoje} LIMIT 50
+  `);
+  let enviadas = 0;
+  for (const c of devidas) {
+    if (!c.email) continue;
+    // Reserva antes de enviar (não duplica com duas instâncias); se falhar, devolve
+    const r = await consulta(sql`UPDATE "diarioCartas" SET "enviadaEm" = now() WHERE "id" = ${c.id} AND "enviadaEm" IS NULL RETURNING "id"`);
+    if (!r.length) continue;
+    try {
+      const { enviarEmail } = await import("./_core/email");
+      const L = await import("./_core/emailLayout");
+      const escrita = new Date(c.createdAt).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Sao_Paulo" });
+      const corpoCarta = L.escapar(c.texto).replace(/\r?\n/g, "<br>");
+      const html = L.layoutEmail({
+        departamento: "atendimento",
+        preheader: "Uma carta que você escreveu para você mesma há seis meses.",
+        titulo: "Uma carta sua chegou",
+        corpo:
+          L.p(L.saudacao(c.name)) +
+          L.p(`Em ${escrita}, no Diário da Transformação, você escreveu esta carta para ler hoje:`) +
+          `<div style="border-left:3px solid #c9a7e0;padding:12px 16px;margin:16px 0;font-family:Georgia,serif;font-size:16px;line-height:1.6;color:#2b2b2b">${corpoCarta}</div>` +
+          L.p("Vale reler com calma e perceber o que mudou desde então. Se quiser, volte ao diário e escreva o que leva com você agora.") +
+          L.botao("Abrir meu diário", `${L.siteUrl()}/presentes/diario`),
+        motivo: "Você recebeu este e-mail porque agendou esta carta no Diário da Transformação.",
+      });
+      const ok = await enviarEmail({ departamento: "atendimento", para: c.email, assunto: "Sua carta de seis meses atrás", html });
+      if (!ok.success) throw new Error(ok.error || "envio recusado");
+      await consulta(sql`UPDATE "diarioCartas" SET "texto" = NULL, "updatedAt" = now() WHERE "id" = ${c.id}`);
+      enviadas++;
+    } catch (e) {
+      await consulta(sql`UPDATE "diarioCartas" SET "enviadaEm" = NULL WHERE "id" = ${c.id}`);
+      console.warn(`[Diário] carta ${c.id} não enviada:`, e instanceof Error ? e.message : e);
+    }
+  }
+  if (enviadas) console.log(`[Diário] ${enviadas} carta(s) enviada(s)`);
+  return enviadas;
 }
 
 // ─── Admin ───────────────────────────────────────────────────────────────────

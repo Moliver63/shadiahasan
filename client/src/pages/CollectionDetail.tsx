@@ -215,11 +215,20 @@ export default function CollectionDetail() {
                   <p className="font-serif text-xl font-semibold">{presente.titulo}</p>
                   <p className="text-sm text-foreground/80 leading-relaxed">{presente.descricao}</p>
                 </div>
-                {presente.podeBaixar && presente.url && (
-                  <a href={presente.url} className="shrink-0">
-                    <Button variant="outline" className="border-amber-300 bg-white"><Download className="h-4 w-4 mr-2" />Baixar PDF</Button>
+                {presente.podeBaixar ? (
+                  <div className="flex shrink-0 flex-col gap-2 sm:items-stretch">
+                    {presente.urlOnline && (
+                      <a href={presente.urlOnline}><Button className="w-full">Abrir meu diário</Button></a>
+                    )}
+                    {presente.url && (
+                      <a href={presente.url}><Button variant="outline" className="w-full border-amber-300 bg-white"><Download className="h-4 w-4 mr-2" />Baixar PDF</Button></a>
+                    )}
+                  </div>
+                ) : presente.amostra ? (
+                  <a href={presente.amostra} className="shrink-0">
+                    <Button variant="outline" className="border-amber-300 bg-white">Fazer o 1º exercício grátis</Button>
                   </a>
-                )}
+                ) : null}
               </section>
             )}
 

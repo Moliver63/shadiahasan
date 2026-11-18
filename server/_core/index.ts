@@ -65,6 +65,10 @@ async function startServer() {
   const resendWebhook = await import('../routes/resend-webhook');
   app.use('/api', resendWebhook.default);
 
+  // Cancelamento feito no MailerLite volta para cá. Corpo cru para a assinatura.
+  const mailerliteWebhook = await import('../routes/mailerlite-webhook');
+  app.use('/api', mailerliteWebhook.default);
+
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.use(cookieParser());

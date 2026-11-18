@@ -33,6 +33,9 @@
 | `GOOGLE_CLIENT_SECRET` | `server/_core/bootstrap.ts`, `server/auth/passport.ts` | sim |
 | `GROQ_API_KEY_SH` | `server/routers/materials.ts` | **não** |
 | `JWT_SECRET` | `server/_core/auth.ts`, `server/_core/env.ts` | sim |
+| `MAILERLITE_API_KEY` | `server/mailerlite.ts` | sim |
+| `MAILERLITE_GRUPOS` | `server/mailerlite.ts` | sim |
+| `MAILERLITE_WEBHOOK_SECRET` | `server/routes/mailerlite-webhook.ts` | sim |
 | `META_CAPI_ACCESS_TOKEN` | `server/metaCapi.ts` | **não** |
 | `META_CAPI_API_VERSION` | `server/metaCapi.ts` | **não** |
 | `META_CAPI_TEST_EVENT_CODE` | `server/metaCapi.ts` | **não** |
@@ -63,7 +66,7 @@
 | `VITE_GA4_ID` | `client/src/components/Analytics.tsx`, `client/src/lib/ga4Ids.ts` e mais 1 | **não** |
 | `VITE_META_PIXEL_ID` | `client/src/components/Analytics.tsx`, `client/src/pages/AdminAnalytics.tsx` | **não** |
 
-55 variáveis; 21 sem entrada no `.env.example`. Variáveis do Render que não estão no código (ou o contrário) aparecem aqui como diferença a investigar.
+58 variáveis; 21 sem entrada no `.env.example`. Variáveis do Render que não estão no código (ou o contrário) aparecem aqui como diferença a investigar.
 
 ## Tabelas criadas em tempo de execução
 
@@ -130,6 +133,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | GET | `/presentes/:collectionId/:arquivo` | `server/routes/presentes.ts` |
 | POST | `/stripe/webhook` | `server/routes/stripe-webhook.ts` |
 | POST | `/webhooks/asaas` | `server/routes/asaas-webhook.ts` |
+| POST | `/webhooks/mailerlite` | `server/routes/mailerlite-webhook.ts` |
 | POST | `/webhooks/resend` | `server/routes/resend-webhook.ts` |
 
 Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
@@ -202,4 +206,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-37 arquivos de teste, 285 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+38 arquivos de teste, 292 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

@@ -12,6 +12,7 @@ import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import { confirmarContato, contatoPorToken, descadastrarContato, tokenValido } from "../marketing";
 import { escapar, MARCA, siteUrl } from "../_core/emailLayout";
+import { sincronizarConfirmado, sincronizarDescadastro } from "../mailerlite";
 
 const router = Router();
 
@@ -74,6 +75,7 @@ router.get("/marketing/sair", limite, async (req: Request, res: Response) => {
 router.post("/marketing/sair", limite, async (req: Request, res: Response) => {
   const token = tokenDe(req);
   const ok = token ? await descadastrarContato(token) : false;
+  if (ok) void sincronizarDescadastro(token);
   // Cliente de e-mail (um clique) só quer o status; navegador recebe a página.
   if (req.is("application/x-www-form-urlencoded") && (req.body as any)?.["List-Unsubscribe"] === "One-Click") {
     return res.status(ok ? 200 : 404).send(ok ? "ok" : "link inválido");
@@ -102,6 +104,7 @@ router.get("/marketing/confirmar", limite, async (req: Request, res: Response) =
 router.post("/marketing/confirmar", limite, async (req: Request, res: Response) => {
   const token = tokenDe(req);
   const ok = token ? await confirmarContato(token) : false;
+  if (ok) void sincronizarConfirmado(token);
   if (!ok) return res.status(404).type("html").send(invalido());
   res.type("html").send(paginaSimples("Inscrição confirmada", `<h1>Inscrição confirmada</h1><p>Obrigada! A partir de agora você recebe as novidades da Shadia por e-mail.</p>`));
 });

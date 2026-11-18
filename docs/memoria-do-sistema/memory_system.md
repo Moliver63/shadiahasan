@@ -820,3 +820,24 @@ Conferido: os 4 pontos que chamam `checkUserHasAccess` passam o `id` da aula (`v
 **Textos:** os textos sugeridos de Permita-se Ser Livre e Pensamentos Automáticos (`shared/catalogoSugerido.ts`) passaram a usar as palavras da própria Shadia do PDF (base técnica, estrutura da jornada, "para quem é", módulos de Pensamentos Automáticos, chamada final). O bloco "Quem conduz" da página do Programa usa o "Quem sou eu" dela.
 
 **Divergências do PDF que ficaram de fora (Shadia confere):** (1) o bloco titulado "Código Interno" fala de pensamentos automáticos e do Diário da Transformação, então parece ser de Pensamentos Automáticos; nada foi usado no Código Interno; (2) o texto de Pensamentos Automáticos diz "três módulos", o site tem introdução + 4 módulos e o diário tem 5 (o 5º, "Uma nova forma de viver", não existe como aula); (3) Permita-se diz "7 módulos, em 7 aulas", o site tem 7 módulos de 3 aulas; (4) "investimento menor que uma sessão de terapia" e "período de acesso contratado" não foram usados (o segundo contradiz o acesso vitalício dos Termos; o primeiro vale conferir com as regras de publicidade do CRP); (5) Diário da Autoconsciência e meditações são citados no PDF, mas não existem no site.
+
+### Lista de e-mails espelhada no MailerLite (18/11/2026)
+
+**Por que existe:** o Michel decidiu rodar as sequências da Shadia no MailerLite. A autorização (LGPD) continua sendo dada e provada aqui, em `marketingContatos`, com a mesma dupla confirmação. O MailerLite só recebe quem já confirmou; nunca é a porta de entrada.
+
+**Como funciona (`server/mailerlite.ts`):**
+- Confirmou a inscrição (`POST /api/marketing/confirmar`): cria/atualiza o inscrito como `active` no grupo da origem, com primeiro nome, `origem`, `perfil` (autoavaliação), `utm_source`, `utm_campaign`, `utm_term` e `opted_in_at`. Os campos personalizados já existem na conta.
+- Cancelou aqui (`POST /api/marketing/sair`, inclusive o um clique do Gmail): marca `unsubscribed` lá.
+- Cancelou lá (rodapé do MailerLite): `POST /api/webhooks/mailerlite` (`server/routes/mailerlite-webhook.ts`, antes do `express.json()`, assinatura HMAC-SHA256 no cabeçalho `Signature`) grava `descadastradoEm` aqui. Sem `MAILERLITE_WEBHOOK_SECRET` a rota responde 503 (não aceita cancelamento sem assinatura).
+- Qual origem vai e para qual grupo: `MAILERLITE_GRUPOS` (JSON origem -> id do grupo; `"*"` vale para as demais). Origem fora do mapa não vai. Sem `MAILERLITE_API_KEY`, nada muda no site.
+- Chamadas em segundo plano (`void`), com limite de 8 s; erro vira só log `[MailerLite]`. A pessoa nunca fica sem confirmar por causa do MailerLite.
+
+**No MailerLite (conta mixavier31@gmail.com, criado em 18/11 pelo conector):** grupo "Shadia Hasan – Autoavaliação de Comunicação" (`204468296120010379`), formulário incorporado sem uso (o site tem o próprio), automação "Shadia Hasan – Boas-vindas Autoavaliação" (`204468325458118560`, DESLIGADA): 4 e-mails em 7 dias, terminando na aula de R$ 19,90, com lembrete só para quem não clicou.
+
+**Configurar no Render:** `MAILERLITE_API_KEY` (MailerLite > Integrações > API), `MAILERLITE_GRUPOS={"autoavaliacao":"204468296120010379"}` e, para o caminho de volta, cadastrar no MailerLite o webhook `subscriber.unsubscribed` para `https://shadiahasan.com/api/webhooks/mailerlite` e colocar o segredo dele em `MAILERLITE_WEBHOOK_SECRET`.
+
+**Atenção:** não ativar ao mesmo tempo a sequência de boas-vindas do site (`/admin/campanhas`) e a automação do MailerLite para a mesma origem: a pessoa receberia as duas. Quem confirmou antes de configurar a chave não é enviado (não há importação retroativa).
+
+**Testes:** `server/mailerlite.test.ts` (7: mapa de grupos, corpo do inscrito, assinatura e leitura do webhook). Não testado contra a API real (sem chave no ambiente de desenvolvimento): conferir no log `[MailerLite] contato confirmado enviado` na primeira confirmação depois do deploy.
+
+**Como reverter:** apagar `MAILERLITE_API_KEY` no Render desliga tudo sem deploy.

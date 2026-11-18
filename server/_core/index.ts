@@ -87,12 +87,14 @@ async function startServer() {
   // PDF do certificado do aluno (exige sessão)
   const certificadosPdf = await import('../routes/certificados');
   app.use('/api', certificadosPdf.default);
-  // Presente do Programa (ex.: Diário da Transformação), só para quem tem o programa
-  const presentes = await import('../routes/presentes');
-  app.use('/api', presentes.default);
-  // Diário da Transformação online: /diario (grátis), /presentes/diario (presente) e APIs da carta/mapa
+  // Diário da Transformação online: /diario (grátis), /presentes/diario (presente) e APIs das
+  // respostas, da carta e do mapa. Vem ANTES de presentes: o GET /api/presentes/:id/:arquivo
+  // de lá engoliria /api/presentes/9/diario e /api/presentes/9/carta.
   const diarioOnline = await import('../routes/diarioOnline');
   app.use(diarioOnline.default);
+  // Presente do Programa (PDF do Diário), só para quem tem o programa
+  const presentes = await import('../routes/presentes');
+  app.use('/api', presentes.default);
 
   // tRPC API com rate limiting
   app.use(

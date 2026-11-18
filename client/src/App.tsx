@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import RetomarCompraTeste from "./components/RetomarCompraTeste";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
+import PaginaDoServidor from "@/pages/PaginaDoServidor";
 import { lazy, Suspense } from "react";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -127,6 +128,9 @@ function Router() {
       <Route path={"/checkout/success"} component={CheckoutSuccess} />
       <Route path={"/compra/aguardando"} component={CompraAguardando} />
       <Route path={"/compra/programa"} component={CompraAguardando} />
+      {/* Páginas do servidor: só caem aqui se um service worker antigo interceptar */}
+      <Route path={"/diario"} component={PaginaDoServidor} />
+      <Route path={"/presentes/diario"} component={PaginaDoServidor} />
       <Route path={"/courses"} component={Courses} />
       <Route path={"/courses/:slug"} component={CourseDetail} />
       <ProtectedRoute path={"/lesson/:id"} component={LessonView} />

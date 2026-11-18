@@ -220,7 +220,8 @@ const plugins = [
       clientsClaim: true,
       skipWaiting: true,
       navigateFallback: "/index.html",
-      navigateFallbackDenylist: [/^\/api\//, /^\/sitemap\.xml$/, /^\/robots\.txt$/],
+      // /diario e /presentes/* são páginas do servidor (diário online e PDF), não do app
+      navigateFallbackDenylist: [/^\/api\//, /^\/sitemap\.xml$/, /^\/robots\.txt$/, /^\/diario(\/|$)/, /^\/presentes\//],
       maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
       runtimeCaching: [

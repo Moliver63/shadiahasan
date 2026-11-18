@@ -139,6 +139,9 @@ export function garantirSchemaComercial(): Promise<boolean> {
           )
         `);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "programaConvidados_cpf_idx" ON "programaConvidados" ("cpfHash")`);
+        // Lembretes de pagamento pendente (1 h e 7 h depois), como no teste de 1 aula
+        await d.execute(sql`ALTER TABLE "programaConvidados" ADD COLUMN IF NOT EXISTS "remindersSent" integer NOT NULL DEFAULT 0`);
+        await d.execute(sql`ALTER TABLE "programaCompras" ADD COLUMN IF NOT EXISTS "remindersSent" integer NOT NULL DEFAULT 0`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "programaCompras_user_idx" ON "programaCompras" ("userId", "status")`);
         await d.execute(sql`CREATE INDEX IF NOT EXISTS "programaCompras_col_idx" ON "programaCompras" ("collectionId")`);
         await garantirColunasComerciais(d);
@@ -628,6 +631,41 @@ export async function processarEventoPrograma(body: AsaasWebhookBody): Promise<v
       return;
     }
 
+    case "PAYMENT_AWAITING_CHARGEBACK_REVERSAL": {
+      // Disputa de chargeback ganha: o dinheiro volta, o acesso volta.
+      const r = await consulta(sql`
+        UPDATE "programaCompras" SET "status" = 'active', "revokedAt" = NULL, "revokedReason" = NULL, "updatedAt" = now()
+         WHERE "id" = ${compra.id} AND "status" = 'refunded' AND "revokedReason" = 'PAYMENT_CHARGEBACK_REQUESTED' RETURNING "id"
+      `);
+      if (r.length) {
+        const d = await db.getDb();
+        if (d) await d.update(paymentHistory).set({ status: "completed", refundedAmount: 0, providerStatus: body.event }).where(eq(paymentHistory.stripeInvoiceId, `asaas:${paymentId}`));
+        console.log(`[Programa] chargeback revertido: acesso devolvido (compra ${compra.id})`);
+      }
+      return;
+    }
+
+    case "PAYMENT_RESTORED": {
+      // Cobrança excluída e depois restaurada no Asaas: volta a ser pendente.
+      await consulta(sql`UPDATE "programaCompras" SET "status" = 'pending', "updatedAt" = now() WHERE "id" = ${compra.id} AND "status" = 'cancelled'`);
+      if (convidado) await consulta(sql`UPDATE "programaConvidados" SET "status" = 'pending', "updatedAt" = now() WHERE "asaasPaymentId" = ${paymentId} AND "status" = 'cancelled'`);
+      return;
+    }
+
+    case "PAYMENT_PARTIALLY_REFUNDED": {
+      // Estorno parcial é acordo (desconto), não desistência: o acesso continua.
+      console.log(`[Programa] estorno parcial na compra ${compra.id}; acesso mantido`);
+      const d = await db.getDb();
+      if (d) await d.update(paymentHistory).set({ providerStatus: body.event }).where(eq(paymentHistory.stripeInvoiceId, `asaas:${paymentId}`));
+      return;
+    }
+
+    case "PAYMENT_CHARGEBACK_DISPUTE":
+    case "PAYMENT_REFUND_IN_PROGRESS":
+      // Em andamento: o acesso só muda no resultado (REFUNDED, CHARGEBACK_REQUESTED ou reversão).
+      console.log(`[Programa] ${body.event} na compra ${compra.id}; aguardando resultado`);
+      return;
+
     case "PAYMENT_OVERDUE":
     case "PAYMENT_DELETED": {
       // Só cancela o que não foi pago. Vencida fica pendente (boleto ainda pode compensar);
@@ -1039,6 +1077,104 @@ export async function reenviarLinkConvidado(token: string): Promise<{ enviado: b
   const { enviarLinkDeAcesso } = await import("./trialGuestEmail");
   const enviado = await enviarLinkDeAcesso({ userId: c.userId, destino: `/collections/${c.collectionId}` });
   return { enviado, emailMascarado: g.mascararEmail(c.email) };
+}
+
+// ─── Catálogo inicial (preços e textos pedidos pelo proprietário) ────────────
+
+/**
+ * Preenche preço e textos dos Programas conhecidos (shared/catalogoSugerido.ts)
+ * que ainda estão SEM preço E SEM texto de venda. Nunca sobrescreve o que o
+ * admin já salvou, então pode rodar a cada subida do servidor.
+ */
+export async function aplicarCatalogoInicial(): Promise<number> {
+  if (!(await garantirSchemaComercial())) return 0;
+  const { TEXTOS_SUGERIDOS } = await import("../shared/catalogoSugerido");
+  let aplicados = 0;
+  for (const [idTexto, t] of Object.entries(TEXTOS_SUGERIDOS)) {
+    const id = Number(idTexto);
+    const [p] = await consulta<{ title: string; priceCents: number | null; salesDescription: string | null }>(sql`
+      SELECT "title", "priceCents", "salesDescription" FROM "contentCollections" WHERE "id" = ${id} LIMIT 1
+    `);
+    if (!p || p.priceCents != null || p.salesDescription != null || !t.titulo.test(p.title)) continue;
+    if (validarPrecos(t.priceCents, t.originalPriceCents)) continue;
+    const r = await consulta(sql`
+      UPDATE "contentCollections" SET "priceCents" = ${t.priceCents}, "originalPriceCents" = ${t.originalPriceCents},
+             "headline" = ${t.headline}, "salesDescription" = ${t.salesDescription}, "forWhom" = ${t.forWhom},
+             "learnings" = ${t.learnings}, "ctaText" = ${t.ctaText}, "updatedAt" = now()
+       WHERE "id" = ${id} AND "priceCents" IS NULL AND "salesDescription" IS NULL RETURNING "id"
+    `);
+    if (r.length) {
+      aplicados++;
+      console.log(`[Programa] catálogo inicial aplicado: ${p.title} (${formatarReais(t.originalPriceCents)} por ${formatarReais(t.priceCents)})`);
+    }
+  }
+  return aplicados;
+}
+
+// ─── Lembretes de pagamento pendente ─────────────────────────────────────────
+
+/**
+ * Pix/boleto gerado e não pago: dois lembretes por e-mail (1 h e 7 h depois),
+ * enquanto a cobrança vale. Cada envio é "reservado" no banco antes (UPDATE
+ * condicional), então não sai duplicado; se o e-mail falhar, a reserva volta.
+ */
+export async function enviarLembretesProgramas(): Promise<number> {
+  if (!(await garantirSchemaComercial())) return 0;
+  const { sendPaymentReminderEmail } = await import("./_core/email");
+  const hoje = todayInSaoPaulo();
+  let enviados = 0;
+  const pendentes = await consulta<{ tabela: string; id: number; n: number; email: string | null; nome: string | null; invoiceUrl: string; billingType: string | null; dueDate: string; titulo: string | null }>(sql`
+    SELECT 'convidado' AS "tabela", c."id", c."remindersSent" AS "n", c."email", c."name" AS "nome", c."invoiceUrl", c."billingType", c."dueDate", p."title" AS "titulo"
+      FROM "programaConvidados" c LEFT JOIN "contentCollections" p ON p."id" = c."collectionId"
+     WHERE c."status" = 'pending' AND c."invoiceUrl" IS NOT NULL AND c."dueDate" >= ${hoje} AND c."remindersSent" < 2
+       AND c."createdAt" < now() - (CASE WHEN c."remindersSent" = 0 THEN interval '1 hour' ELSE interval '7 hours' END)
+    UNION ALL
+    SELECT 'compra', pc."id", pc."remindersSent", u."email", u."name", pc."invoiceUrl", pc."billingType", pc."dueDate", p."title"
+      FROM "programaCompras" pc JOIN "users" u ON u."id" = pc."userId" LEFT JOIN "contentCollections" p ON p."id" = pc."collectionId"
+     WHERE pc."status" = 'pending' AND pc."origem" = 'asaas' AND pc."invoiceUrl" IS NOT NULL AND pc."dueDate" >= ${hoje} AND pc."remindersSent" < 2
+       AND NOT EXISTS (SELECT 1 FROM "programaConvidados" c2 WHERE c2."asaasPaymentId" = pc."asaasPaymentId")
+       AND pc."createdAt" < now() - (CASE WHEN pc."remindersSent" = 0 THEN interval '1 hour' ELSE interval '7 hours' END)
+  `);
+  for (const l of pendentes) {
+    if (!l.email) continue;
+    const reservar = l.tabela === "convidado"
+      ? sql`UPDATE "programaConvidados" SET "remindersSent" = ${l.n + 1} WHERE "id" = ${l.id} AND "remindersSent" = ${l.n} AND "status" = 'pending' RETURNING "id"`
+      : sql`UPDATE "programaCompras" SET "remindersSent" = ${l.n + 1} WHERE "id" = ${l.id} AND "remindersSent" = ${l.n} AND "status" = 'pending' RETURNING "id"`;
+    if ((await consulta(reservar)).length === 0) continue;
+    const boleto = l.billingType === "BOLETO";
+    const r = await sendPaymentReminderEmail(l.email, l.nome ?? "", {
+      invoiceUrl: l.invoiceUrl,
+      what: `o programa ${l.titulo ?? ""}`.trim(),
+      note: boleto
+        ? "O boleto vale até a data de vencimento. Se você já pagou, ignore este lembrete: a compensação pode levar até 3 dias úteis."
+        : "O link de pagamento vale até o fim de hoje. Se você já pagou, ignore este lembrete.",
+    });
+    if (r.success) {
+      enviados++;
+    } else {
+      const devolver = l.tabela === "convidado"
+        ? sql`UPDATE "programaConvidados" SET "remindersSent" = ${l.n} WHERE "id" = ${l.id} AND "remindersSent" = ${l.n + 1}`
+        : sql`UPDATE "programaCompras" SET "remindersSent" = ${l.n} WHERE "id" = ${l.id} AND "remindersSent" = ${l.n + 1}`;
+      await consulta(devolver);
+    }
+  }
+  if (enviados) console.log(`[Programa] ${enviados} lembrete(s) de pagamento enviado(s)`);
+  return enviados;
+}
+
+/** Admin: manda de novo o e-mail com link de acesso de uma compra liberada. */
+export async function reenviarAcessoCompra(compraId: number): Promise<{ email: string }> {
+  if (!(await garantirSchemaComercial())) throw new ProgramaError("Banco indisponível.", "UNAVAILABLE");
+  const [c] = await consulta<{ userId: number; collectionId: number; status: string; email: string | null }>(sql`
+    SELECT pc."userId", pc."collectionId", pc."status", u."email" FROM "programaCompras" pc JOIN "users" u ON u."id" = pc."userId" WHERE pc."id" = ${compraId}
+  `);
+  if (!c) throw new ProgramaError("Compra não encontrada.", "NOT_FOUND");
+  if (c.status !== "active") throw new ProgramaError("Só dá para reenviar o acesso de uma compra liberada.", "CONFLICT");
+  if (!c.email) throw new ProgramaError("O aluno não tem e-mail cadastrado.", "PRECONDITION_FAILED");
+  const { enviarLinkDeAcesso } = await import("./trialGuestEmail");
+  const ok = await enviarLinkDeAcesso({ userId: c.userId, destino: `/collections/${c.collectionId}` });
+  if (!ok) throw new ProgramaError("O e-mail não pôde ser enviado agora. Tente de novo em instantes.", "UNAVAILABLE");
+  return { email: c.email };
 }
 
 // ─── Admin ───────────────────────────────────────────────────────────────────

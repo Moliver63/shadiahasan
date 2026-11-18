@@ -832,3 +832,19 @@ Conferido: os 4 pontos que chamam `checkUserHasAccess` passam o `id` da aula (`v
 - Home: `VitrineProgramas` logo após o topo, só no modo avulso e só com Programas à venda.
 
 **Fora do escopo, notado:** o topo da Home ainda fala em "Experiência em Realidade Virtual" e "experiências imersivas".
+
+### Comercial completo: catálogo, assinatura oculta no modo avulso e pendências da revisão (18/11/2026)
+
+- **Catálogo pedido aplicado sozinho:** `aplicarCatalogoInicial()` roda 20 s depois da subida e preenche preço e textos de `shared/catalogoSugerido.ts` só nos Programas que estão **sem preço e sem texto de venda** (título conferido). Nunca sobrescreve o que o admin salvou. Valores: Permita-se Ser Livre de R$ 597 por R$ 197; Código Interno, Pensamentos Automáticos e A Vida Responde de R$ 197 por R$ 57. Com a chave já em "Compra individual", **o site passa a vender assim que esta versão sobe**.
+- **Assinatura some no modo Compra individual** (quando `comercial.config.vendaAvulsa`): `/pricing` vira a página "Você escolhe o programa e paga uma vez só" (`PaginaProgramasAVenda`: vitrine, garantias, link "Ver minha assinatura" para quem já assina, teste de 1 aula); Minha Área, Sobre, FAQ da Home e a página do Programa trocam "planos" por "programas". Hook `useVendaAvulsa()`. Assinantes continuam com acesso e com `/my-subscription`.
+- **Divergências do PDF resolvidas pela regra "seguir as aulas reais":** módulos de Pensamentos Automáticos = introdução + 4 (como no site); Permita-se = 7 módulos de 3 aulas; "o perdão aos pais" volta, porque é o título real de uma aula do Módulo 2; o diário é descrito com "capítulo de fechamento" (o 5º módulo do PDF não é aula).
+- **Lembretes de Pix/boleto não pago** (compra sem conta e logada): `enviarLembretesProgramas()` na rotina de 10 min, 1 h e 7 h depois, no máximo 2, reservando no banco antes de enviar (`remindersSent`).
+- **Eventos do Asaas que faltavam:** `PAYMENT_AWAITING_CHARGEBACK_REVERSAL` devolve o acesso só se a revogação foi por chargeback; `PAYMENT_RESTORED` volta cancelada para pendente; `PAYMENT_PARTIALLY_REFUNDED` mantém o acesso (acordo); `PAYMENT_CHARGEBACK_DISPUTE` e `PAYMENT_REFUND_IN_PROGRESS` só registram. Reembolso comum não volta.
+- **Termos de Uso (seção 4):** compra individual (pagamento único, acesso vitalício, não dá acesso a outros programas), direito de arrependimento de 7 dias (art. 49 do CDC) e "mudança na forma de venda não afeta assinaturas nem compras". Pagamentos por Asaas e Stripe.
+- **Home:** topo sem "Experiência em Realidade Virtual"; o modo imersivo (Meta Quest, `VRViewer`) aparece como opcional.
+- **Admin:** "Reenviar acesso" em compra liberada (`comercial.reenviarAcesso`).
+- **Segurança:** `materials.listByLesson` só devolve material para quem tem acesso à aula (ou admin).
+- **SEO:** página do Programa emite `Course` com `Offer` (preço em BRL) quando está à venda.
+- **Celular:** conferido em 390 px (`/pricing`, página do Programa, diálogo de compra, tela de aguardando). O chat flutuante some com diálogo aberto e nas telas `/compra/*` (cobria o botão de pagar).
+
+**Ainda depende do proprietário:** marcar todos os eventos de Cobranças no webhook do Asaas; compra real de teste com estorno; confirmar com a Shadia que os preços "de" são referências reais; decidir a Hotmart.

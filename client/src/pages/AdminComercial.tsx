@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ExternalLink, Gift, Loader2, RefreshCw, Search, ShieldOff, Sparkles, Tag } from "lucide-react";
+import { ExternalLink, Gift, Loader2, Mail, RefreshCw, Search, ShieldOff, Sparkles, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import ModeloComercialCard from "@/components/programa/ModeloComercialCard";
@@ -82,6 +82,10 @@ export default function AdminComercial() {
       const msg = r?.resultado === "liberada" ? "Pagamento confirmado no Asaas. Programa liberado." : r?.resultado === "pendente" ? "O Asaas ainda não confirmou este pagamento." : "Cobrança não reconhecida.";
       toast.info(msg); atualizar();
     },
+    onError: (e) => toast.error(e.message),
+  });
+  const reenviarAcesso = trpc.comercial.reenviarAcesso.useMutation({
+    onSuccess: (r) => toast.success(`Link de acesso enviado para ${r?.email}.`),
     onError: (e) => toast.error(e.message),
   });
   const revogarM = trpc.comercial.revogar.useMutation({
@@ -215,6 +219,11 @@ export default function AdminComercial() {
                           {c.invoiceUrl && <a href={c.invoiceUrl} target="_blank" rel="noreferrer" className="inline-flex p-1.5 rounded hover:bg-muted" title="Abrir fatura"><ExternalLink className="h-4 w-4" /></a>}
                           {c.status === "pending" && c.origem === "asaas" && (
                             <Button variant="ghost" size="sm" disabled={conferir.isPending} onClick={() => conferir.mutate({ asaasPaymentId: c.asaasPaymentId })}>Conferir no Asaas</Button>
+                          )}
+                          {c.status === "active" && (
+                            <Button variant="ghost" size="sm" disabled={reenviarAcesso.isPending} onClick={() => reenviarAcesso.mutate({ compraId: c.id })} title="Manda de novo o e-mail com o link de acesso">
+                              <Mail className="h-4 w-4 mr-1" />Reenviar acesso
+                            </Button>
                           )}
                           {c.status === "active" && (
                             <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setRevogar(c)}><ShieldOff className="h-4 w-4 mr-1" />Revogar</Button>

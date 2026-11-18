@@ -119,6 +119,11 @@ async function startServer() {
     console.log(`Google OAuth: http://localhost:${port}/api/auth/google`);
     console.log(`Auth status:  http://localhost:${port}/api/auth/me\n`);
 
+    // Preço e textos pedidos para os Programas que ainda não têm preço; nunca sobrescreve
+    setTimeout(() => {
+      import('../programaVenda').then((m) => m.aplicarCatalogoInicial()).catch(() => undefined);
+    }, 20_000);
+
     // Corrige acentos quebrados nos planos ("BÃ¡sico" → "Básico"); idempotente
     setTimeout(() => {
       import('../textoCorrigido').then((m) => m.consertarPlanosNoBanco()).catch(() => undefined);

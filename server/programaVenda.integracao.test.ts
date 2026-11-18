@@ -44,6 +44,19 @@ vi.mock("./asaas", async (original) => {
   };
 });
 
+// E-mail simulado: guarda os lembretes enviados
+const lembretes: Array<{ email: string; what: string }> = [];
+vi.mock("./_core/email", async (original) => {
+  const real = await original<typeof import("./_core/email")>();
+  return {
+    ...real,
+    sendPaymentReminderEmail: vi.fn(async (email: string, _nome: string, o: { what: string }) => {
+      lembretes.push({ email, what: o.what });
+      return { success: true };
+    }),
+  };
+});
+
 type Mods = {
   db: typeof import("./db");
   pv: typeof import("./programaVenda");
@@ -312,5 +325,56 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
     expect(await m.pv.programasAVenda()).toEqual([]);
     await expect(m.pv.definirModeloComercial("avulso", ids.admin)).rejects.toThrow(/preço de pelo menos um programa/);
     await m.pv.definirModeloComercial("assinatura", ids.admin); // voltar sempre pode
+  });
+
+  it("catálogo inicial: preenche só programa sem preço e sem texto, e nunca sobrescreve", async () => {
+    await exec(S()`UPDATE "contentCollections" SET "priceCents" = NULL, "originalPriceCents" = NULL, "salesDescription" = NULL`);
+    await exec(S()`UPDATE "contentCollections" SET "salesDescription" = 'texto da Shadia' WHERE id = ${ids.p2}`);
+    expect(await m.pv.aplicarCatalogoInicial()).toBe(1);
+    const rows = await exec(S()`SELECT id, "priceCents", "originalPriceCents", "salesDescription" FROM "contentCollections" ORDER BY id`);
+    expect(rows[0]).toMatchObject({ priceCents: 19700, originalPriceCents: 59700 });
+    expect(rows[1]).toMatchObject({ priceCents: null, salesDescription: "texto da Shadia" }); // não mexeu
+    expect(await m.pv.aplicarCatalogoInicial()).toBe(0); // idempotente
+  });
+
+  it("lembrete de pagamento: dois envios no máximo, só para pendente, sem duplicar", async () => {
+    lembretes.length = 0;
+    await m.pv.definirModeloComercial("avulso", ids.admin);
+    await convidado({ email: "lembrete@teste.com" });
+    await exec(S()`UPDATE "programaConvidados" SET "createdAt" = now() - interval '2 hours'`);
+    expect(await m.pv.enviarLembretesProgramas()).toBe(1);
+    expect(await m.pv.enviarLembretesProgramas()).toBe(0); // segundo só depois de 7 h
+    await exec(S()`UPDATE "programaConvidados" SET "createdAt" = now() - interval '8 hours'`);
+    expect(await m.pv.enviarLembretesProgramas()).toBe(1);
+    expect(await m.pv.enviarLembretesProgramas()).toBe(0); // no máximo 2
+    expect(lembretes.map((l) => l.email)).toEqual(["lembrete@teste.com", "lembrete@teste.com"]);
+    expect(lembretes[0].what).toContain("Permita-se");
+  });
+
+  it("chargeback: tira o acesso; disputa ganha devolve; estorno parcial mantém", async () => {
+    await m.pv.definirModeloComercial("avulso", ids.admin);
+    const { paymentId } = await checkout();
+    await webhook("cb1", "PAYMENT_CONFIRMED", paymentId);
+    await webhook("cb2", "PAYMENT_CHARGEBACK_REQUESTED", paymentId);
+    expect(await temAcesso(ids.aluna, ids.l1, ids.curso1)).toBe(false);
+    await webhook("cb3", "PAYMENT_CHARGEBACK_DISPUTE", paymentId);
+    expect(await temAcesso(ids.aluna, ids.l1, ids.curso1)).toBe(false);
+    await webhook("cb4", "PAYMENT_AWAITING_CHARGEBACK_REVERSAL", paymentId);
+    expect(await temAcesso(ids.aluna, ids.l1, ids.curso1)).toBe(true);
+    await webhook("cb5", "PAYMENT_PARTIALLY_REFUNDED", paymentId);
+    expect(await temAcesso(ids.aluna, ids.l1, ids.curso1)).toBe(true);
+    // Reembolso comum (desistência) não volta com "reversão"
+    await webhook("cb6", "PAYMENT_REFUNDED", paymentId);
+    await webhook("cb7", "PAYMENT_AWAITING_CHARGEBACK_REVERSAL", paymentId);
+    expect(await temAcesso(ids.aluna, ids.l1, ids.curso1)).toBe(false);
+  });
+
+  it("cobrança excluída e restaurada volta a valer", async () => {
+    await m.pv.definirModeloComercial("avulso", ids.admin);
+    const { paymentId } = await checkout();
+    await webhook("r1", "PAYMENT_DELETED", paymentId);
+    await webhook("r2", "PAYMENT_RESTORED", paymentId);
+    await webhook("r3", "PAYMENT_RECEIVED", paymentId);
+    expect(await temAcesso(ids.aluna, ids.l1, ids.curso1)).toBe(true);
   });
 });

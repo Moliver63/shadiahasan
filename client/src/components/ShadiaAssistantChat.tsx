@@ -108,12 +108,17 @@ export function ShadiaAssistantChat() {
     return null;
   }
 
+  // Tela de pagamento: o avatar cobria o botão de pagar no celular
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/compra/")) {
+    return null;
+  }
+
   // Render collapsed tab for logged-in users
   if (isLoggedIn && !isExpanded) {
     return (
       <button
         onClick={handleClick}
-        className="fixed right-0 top-1/2 -translate-y-1/2 z-[9999] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-6 rounded-l-lg shadow-lg hover:shadow-xl transition-all hover:px-4 group"
+        className="chat-flutuante fixed right-0 top-1/2 -translate-y-1/2 z-[9999] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-6 rounded-l-lg shadow-lg hover:shadow-xl transition-all hover:px-4 group"
         aria-label="Abrir ajuda"
       >
         <div className="flex flex-col items-center gap-2">
@@ -131,7 +136,7 @@ export function ShadiaAssistantChat() {
 
   // Render full avatar (for non-logged-in users or when expanded)
   return (
-    <div className="fixed bottom-3 right-3 md:bottom-5 md:right-5 z-[9999] flex flex-col items-end gap-2 md:gap-3">
+    <div className="chat-flutuante fixed bottom-3 right-3 md:bottom-5 md:right-5 z-[9999] flex flex-col items-end gap-2 md:gap-3">
       {/* Chat Bubble with rotating messages - positioned above avatar */}
       {(showBubble || isExpanded) && (
         <div className="chat-bubble animate-fade-up max-w-[200px] md:max-w-xs mb-1 md:mb-2 relative">

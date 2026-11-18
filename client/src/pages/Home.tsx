@@ -38,8 +38,7 @@ export default function Home() {
         <div className="container relative z-10">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-sm font-medium">
-              <Glasses className="h-4 w-4" />
-              <span>Experiência em Realidade Virtual</span>
+              <span>Psicologia e Desenvolvimento Humano</span>
             </div>
             
             <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight">
@@ -50,7 +49,7 @@ export default function Home() {
             </h1>
             
             <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
-              Apoio individual para sua evolução pessoal. Juntos, vamos despertar seu potencial através de experiências imersivas que transformam.
+              Programas de autoconhecimento com a psicóloga Shadia Hasan. Aulas em vídeo para assistir no seu ritmo, pelo celular ou computador.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -148,9 +147,9 @@ export default function Home() {
               <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Glasses className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold">Imersão em Realidade Virtual</h3>
+              <h3 className="text-xl font-semibold">Modo imersivo (opcional)</h3>
               <p className="text-muted-foreground">
-                Viva experiências imersivas em 360° com Meta Quest. Um espaço seguro para sua expansão emocional e autoconhecimento.
+                Se tiver um Meta Quest, você também pode assistir às aulas em modo imersivo. É opcional: tudo funciona no celular e no computador.
               </p>
             </CardContent>
           </Card>
@@ -261,7 +260,7 @@ export default function Home() {
             <div>
               <h3 className="font-bold text-lg mb-4">Shadia Hasan</h3>
               <p className="text-sm text-muted-foreground">
-                Psicologia e Desenvolvimento Humano com experiências imersivas em realidade virtual.
+                Psicologia e Desenvolvimento Humano.
                 Transformando vidas através do autoconhecimento.
               </p>
               <p className="text-sm text-muted-foreground mt-3 font-medium">

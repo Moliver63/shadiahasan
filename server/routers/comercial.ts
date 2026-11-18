@@ -9,7 +9,7 @@ import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { isAsaasConfigured, AsaasError } from "../asaas";
 import { urlCanonica } from "../_core/seo";
 import {
-  ProgramaError, comprasDoAluno, programasAVenda, conferirCobranca, criarCheckoutPrograma, definirMetodosPagamento,
+  ProgramaError, comprasDoAluno, programasAVenda, reenviarAcessoCompra, conferirCobranca, criarCheckoutPrograma, definirMetodosPagamento,
   definirModeloComercial, historicoConfig, lerConfigComercial, liberarManual, listarComprasAdmin,
   programasComprados, resumoPorPrograma, revogarCompra,
 } from "../programaVenda";
@@ -257,6 +257,14 @@ export const comercialRouter = router({
     .mutation(async ({ input }) => {
       try {
         return { resultado: await conferirCobranca(input.asaasPaymentId) };
+      } catch (e) { erro(e); }
+    }),
+
+  reenviarAcesso: adminProcedure
+    .input(z.object({ compraId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      try {
+        return await reenviarAcessoCompra(input.compraId);
       } catch (e) { erro(e); }
     }),
 

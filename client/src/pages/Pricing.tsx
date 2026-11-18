@@ -10,6 +10,7 @@ import { isValidCpfCnpj, onlyDigits } from "@shared/br-document";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
+import PaginaProgramasAVenda from "@/components/programa/PaginaProgramasAVenda";
 import { getLoginUrl } from "@/const";
 import PublicHeader from "@/components/PublicHeader";
 import { trackCheckoutStart, trackEvent } from "@/components/Analytics";
@@ -192,6 +193,9 @@ export default function Pricing() {
     }
   };
 
+  // Modo "Compra individual": no lugar dos planos, os programas à venda
+  if (comercial?.vendaAvulsa) return <PaginaProgramasAVenda />;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
       <SEOHead {...getSEOMetaTags("/pricing")} />
@@ -220,33 +224,16 @@ export default function Pricing() {
         </div>
       </section>
 
-      {/* Modelo "Compra individual": cada programa tem preço próprio, sem mensalidade */}
-      {comercial?.vendaAvulsa && (
-        <section className="px-4 pb-10">
-          <div className="container mx-auto max-w-3xl">
-            <div className="flex flex-col gap-4 rounded-xl border border-primary/30 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-semibold text-lg">Prefere comprar só o programa que quer fazer?</p>
-                <p className="text-sm text-muted-foreground">Cada programa tem preço próprio, em pagamento único e sem mensalidade.</p>
-              </div>
-              <Link href="/courses">
-                <Button className="shrink-0">Ver programas</Button>
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Teste de 1 aula (Asaas) */}
       {providers?.asaas && trialInfo && (
         <section className="px-4 pb-10">
           <div className="container mx-auto max-w-3xl">
             <div className="flex flex-col gap-4 rounded-xl border border-purple-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="font-semibold text-lg">{comercial?.vendaAvulsa ? "Quer sentir antes de comprar?" : "Quer sentir antes de assinar?"}</p>
+                <p className="font-semibold text-lg">Quer sentir antes de assinar?</p>
                 <p className="text-sm text-muted-foreground">
                   Assista a 1 aula completa por {(trialInfo.priceCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}, pagamento único.
-                  {comercial?.vendaAvulsa ? "Se gostar, é só comprar o programa completo." : "Se gostar, é só assinar um plano mensal."}
+                  Se gostar, é só assinar um plano mensal.
                 </p>
               </div>
               <Link href="/courses">

@@ -1,3 +1,4 @@
+import { useVendaAvulsa } from "@/hooks/useVendaAvulsa";
 import { Button } from "@/components/ui/button";
 import {
   Accordion,
@@ -8,15 +9,21 @@ import {
 import { Link } from "wouter";
 
 export default function FAQSection() {
+  const { vendaAvulsa } = useVendaAvulsa();
   const faqs = [
     {
       question: "O que e a Shadia Hasan Platform?",
       answer: "E uma plataforma completa de psicologia e desenvolvimento humano que oferece cursos online, comunidade exclusiva, lives com especialistas e mentoria personalizada para sua transformacao interior.",
     },
-    {
-      question: "Como funciona a assinatura?",
-      answer: "Oferecemos planos mensais e anuais com acesso ilimitado a todos os cursos, lives e comunidade. Voce pode cancelar quando quiser, sem multas ou taxas adicionais.",
-    },
+    vendaAvulsa
+      ? {
+          question: "Como funciona a compra?",
+          answer: "Você escolhe o programa e paga uma vez só, por Pix ou cartão. Não há mensalidade. O acesso ao programa comprado é vitalício e fica na sua conta.",
+        }
+      : {
+          question: "Como funciona a assinatura?",
+          answer: "Oferecemos planos mensais e anuais com acesso ilimitado a todos os cursos, lives e comunidade. Voce pode cancelar quando quiser, sem multas ou taxas adicionais.",
+        },
     {
       question: "Os cursos tem certificado?",
       answer: "Sim! Todos os cursos oferecem certificado de conclusao digital apos voce completar 100% do conteudo e atividades propostas.",

@@ -1068,8 +1068,9 @@ export async function runBillingMaintenance(): Promise<void> {
     const { conferirTestesPendentes } = await import("./trial");
     await conferirTestesPendentes();
     // Mesma rede de segurança para a compra avulsa de Programas.
-    const { conferirComprasPendentes } = await import("./programaVenda");
+    const { conferirComprasPendentes, enviarLembretesProgramas } = await import("./programaVenda");
     await conferirComprasPendentes();
+    await enviarLembretesProgramas();
   } catch (e) {
     console.warn("[Asaas] rotina de cobrança falhou:", e instanceof Error ? e.message : e);
   } finally {

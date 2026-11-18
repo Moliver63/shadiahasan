@@ -5,8 +5,10 @@ import PublicHeader from "@/components/PublicHeader";
 import { Link } from "wouter";
 import { SEOHead } from "@/components/SEOHead";
 import { getSEOMetaTags } from "@/lib/seo-meta-tags";
+import { useVendaAvulsa } from "@/hooks/useVendaAvulsa";
 
 export default function About() {
+  const { vendaAvulsa } = useVendaAvulsa();
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <SEOHead {...getSEOMetaTags("/about")} />
@@ -222,11 +224,13 @@ export default function About() {
                 Ver Programas
               </Button>
             </Link>
-            <Link href="/pricing">
-              <Button size="lg" variant="outline" className="text-lg px-8">
-                Conhecer Planos
-              </Button>
-            </Link>
+            {!vendaAvulsa && (
+              <Link href="/pricing">
+                <Button size="lg" variant="outline" className="text-lg px-8">
+                  Conhecer Planos
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </section>

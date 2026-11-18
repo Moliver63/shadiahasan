@@ -12,6 +12,7 @@ import {
   exerciseResponses,
   userMaterialProgress,
   aiAnalyses,
+  lessons,
 } from "../../drizzle/schema";
 import { eq, and, asc, desc } from "drizzle-orm";
 
@@ -146,9 +147,18 @@ export const materialsRouter = router({
 
   listByLesson: protectedProcedure
     .input(z.object({ lessonId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return [];
+      // Material é parte da aula: só vê quem pode assistir a ela (plano, compra, teste) ou admin
+      const admin = ctx.user.role === "admin" || ctx.user.role === "superadmin";
+      if (!admin) {
+        const [aula] = await db.select({ id: lessons.id, courseId: lessons.courseId, isAccessRestricted: lessons.isAccessRestricted })
+          .from(lessons).where(eq(lessons.id, input.lessonId)).limit(1);
+        if (!aula) return [];
+        const { checkUserHasAccess } = await import("./videos");
+        if (!(await checkUserHasAccess(ctx.user.id, { id: aula.id, courseId: aula.courseId, isAccessRestricted: aula.isAccessRestricted ?? 0 }))) return [];
+      }
       return db.select().from(lessonMaterials)
         .where(and(eq(lessonMaterials.lessonId, input.lessonId), eq(lessonMaterials.isPublished, 1)))
         .orderBy(asc(lessonMaterials.order));

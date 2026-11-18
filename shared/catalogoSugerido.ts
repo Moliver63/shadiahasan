@@ -45,7 +45,7 @@ export const TEXTOS_SUGERIDOS: Record<number, TextoVenda> = {
     ].join("\n"),
     learnings: [
       "Módulo 1: entender como as crenças limitantes se formam e começar a ressignificá-las",
-      "Módulo 2: reconhecer as marcas da infância e olhar para a relação com seus pais",
+      "Módulo 2: reconhecer as marcas da infância, reconectar-se com a criança interior e trabalhar o perdão aos pais",
       "Módulo 3: entender a ferida da rejeição e aprender a acolher as próprias emoções",
       "Módulo 4: descobrir de onde vem o medo e montar estratégias para lidar com ele",
       "Módulo 5: perceber o apego ao passado e transformar sua história em aprendizado",

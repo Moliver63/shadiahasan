@@ -56,6 +56,36 @@ export function cursoSchema(c: { title: string; slug: string; description?: stri
   return out;
 }
 
+/** Programa (contentCollections) como Course; com preço quando está à venda. */
+export function programaSchema(p: { id: number; title: string; description?: string | null; coverUrl?: string | null; priceCents?: number | null }): Json | null {
+  const nome = textoLimpo(p.title, 120);
+  const descricao = textoLimpo(p.description);
+  if (!nome || !descricao) return null;
+  const url = urlAbsoluta(`/collections/${p.id}`);
+  const out: Json = {
+    "@context": "https://schema.org",
+    "@type": "Course",
+    name: nome,
+    description: descricao,
+    url,
+    inLanguage: "pt-BR",
+    provider: { "@type": "Organization", name: SITE_NOME, sameAs: SITE_URL },
+  };
+  if (p.coverUrl && /^https?:\/\//.test(p.coverUrl)) out.image = p.coverUrl;
+  if (typeof p.priceCents === "number" && p.priceCents > 0) {
+    out.offers = {
+      "@type": "Offer",
+      category: "Paid",
+      price: (p.priceCents / 100).toFixed(2),
+      priceCurrency: "BRL",
+      availability: "https://schema.org/InStock",
+      url,
+    };
+    out.hasCourseInstance = { "@type": "CourseInstance", courseMode: "Online", courseWorkload: "PT1H" };
+  }
+  return out;
+}
+
 export function faqSchema(itens: { q: string; a: string }[]): Json | null {
   const validos = itens.filter((i) => i.q?.trim() && i.a?.trim());
   if (!validos.length) return null;

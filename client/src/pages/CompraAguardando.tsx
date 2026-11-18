@@ -205,7 +205,7 @@ export default function CompraAguardando() {
           )}
         </>
       ) : (
-        <p className="mt-5 text-center text-base">Toque no botão abaixo para pagar com cartão ou boleto. Depois volte para esta tela.</p>
+        <p className="mt-5 text-center text-base">Toque no botão abaixo para abrir a página de pagamento. Depois volte para esta tela.</p>
       )}
 
       {dados.invoiceUrl && (

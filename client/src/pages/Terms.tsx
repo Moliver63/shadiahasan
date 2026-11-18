@@ -21,7 +21,7 @@ export default function Terms() {
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8 md:p-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Termos de Uso</h1>
-          <p className="text-sm text-gray-600 mb-8">Última atualização: 16 de fevereiro de 2026</p>
+          <p className="text-sm text-gray-600 mb-8">Última atualização: 18 de novembro de 2026</p>
 
           <div className="prose prose-lg max-w-none">
             <section className="mb-8">
@@ -37,7 +37,7 @@ export default function Terms() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">2. Descrição dos Serviços</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
-                A Plataforma oferece acesso a conteúdos educacionais, cursos, programas de transformação pessoal, experiências em realidade virtual, ebooks, certificados e uma comunidade de conexões conscientes. Os serviços são disponibilizados mediante diferentes planos de assinatura (Gratuito, Básico, Premium e VIP) ou compra avulsa de cursos.
+                A Plataforma oferece acesso a conteúdos educacionais, cursos, programas de transformação pessoal, experiências em realidade virtual, ebooks, certificados e uma comunidade de conexões conscientes. Os serviços são disponibilizados mediante diferentes planos de assinatura (Gratuito, Básico, Premium e VIP) ou compra individual de programas.
               </p>
               <p className="text-gray-700 leading-relaxed">
                 Reservamo-nos o direito de modificar, suspender ou descontinuar qualquer aspecto da Plataforma a qualquer momento, mediante aviso prévio aos usuários quando aplicável.
@@ -60,13 +60,22 @@ export default function Terms() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">4. Planos e Pagamentos</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
-                A Plataforma oferece planos de assinatura mensal com diferentes níveis de acesso. Os valores e benefícios de cada plano estão descritos na página de preços. O pagamento é processado de forma segura através da plataforma Stripe.
+                A Plataforma pode oferecer planos de assinatura mensal com diferentes níveis de acesso e a compra individual de programas, conforme o que estiver disponível no momento. Os valores e benefícios estão descritos na página de cada programa e na página de preços. Os pagamentos são processados por parceiros de pagamento (Asaas e Stripe); a Plataforma não armazena dados de cartão.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
                 As assinaturas são renovadas automaticamente no final de cada período de cobrança, a menos que você cancele antes da data de renovação. Você pode cancelar sua assinatura a qualquer momento através das configurações de sua conta.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Não oferecemos reembolsos para períodos de assinatura já pagos, exceto conforme exigido por lei. Em caso de compra avulsa de cursos, você terá acesso vitalício ao conteúdo adquirido.
+                Não oferecemos reembolsos para períodos de assinatura já pagos, exceto conforme exigido por lei.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>Compra individual de programas.</strong> Na compra individual, o pagamento é único (Pix, cartão de crédito ou boleto, conforme as formas disponíveis), sem mensalidade e sem renovação automática. O acesso ao programa comprado é liberado na sua conta assim que o pagamento é confirmado pelo parceiro de pagamento e é vitalício, enquanto a Plataforma estiver em funcionamento. A compra de um programa não dá acesso aos demais programas nem a benefícios de assinatura. Materiais de presente informados na página do programa fazem parte da compra.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>Direito de arrependimento.</strong> Você pode desistir da compra de um programa em até 7 (sete) dias contados da confirmação do pagamento, com devolução integral do valor, conforme o artigo 49 do Código de Defesa do Consumidor. Basta escrever para contato@shadiahasan.com. Após o reembolso, o acesso ao programa é encerrado. Em caso de contestação do pagamento junto ao banco ou à operadora do cartão, o acesso fica suspenso até a conclusão da contestação.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>Mudança na forma de venda.</strong> A Plataforma pode alternar entre a venda por assinatura e a venda individual de programas. Essa mudança não cancela assinaturas vigentes, não altera cobranças já feitas e não retira o acesso a programas já comprados.
               </p>
               <p className="text-gray-700 leading-relaxed">
                 Reservamo-nos o direito de alterar os preços dos planos mediante aviso prévio de 30 dias. As alterações não afetarão o período de cobrança atual.

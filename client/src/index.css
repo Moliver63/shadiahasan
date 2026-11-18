@@ -570,3 +570,8 @@
     }
   }
 }
+
+/* Diálogo aberto (Radix trava a rolagem do body): o chat flutuante não cobre o formulário */
+body[data-scroll-locked] .chat-flutuante {
+  display: none;
+}

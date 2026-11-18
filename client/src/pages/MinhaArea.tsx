@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { Layers } from "lucide-react";
+import { useVendaAvulsa } from "@/hooks/useVendaAvulsa";
 
 const brl = (centavos: number) => (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const data = (d: Date | string | null | undefined) =>
@@ -42,6 +43,7 @@ export default function MinhaArea() {
   const { data: area, isLoading, error } = trpc.areaAluno.resumo.useQuery(undefined, { enabled: isAuthenticated });
   const { data: minhasCompras = [] } = trpc.comercial.minhasCompras.useQuery(undefined, { enabled: isAuthenticated });
   const programasComprados = minhasCompras.filter((c) => c.status === "active");
+  const { vendaAvulsa } = useVendaAvulsa();
 
   if (loading) {
     return (
@@ -196,8 +198,8 @@ export default function MinhaArea() {
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-lg">Sem plano ativo</CardTitle></CardHeader>
                     <CardContent className="space-y-3 text-sm text-muted-foreground">
-                      <p>Com um plano você assiste aos cursos completos, no seu ritmo.</p>
-                      <Button asChild size="sm"><Link href="/pricing">Conhecer os planos</Link></Button>
+                      <p>{vendaAvulsa ? "Escolha um programa e assista completo, no seu ritmo, sem mensalidade." : "Com um plano você assiste aos cursos completos, no seu ritmo."}</p>
+                      <Button asChild size="sm"><Link href={vendaAvulsa ? "/courses" : "/pricing"}>{vendaAvulsa ? "Ver os programas" : "Conhecer os planos"}</Link></Button>
                     </CardContent>
                   </Card>
                 )}
@@ -219,7 +221,7 @@ export default function MinhaArea() {
                       <p className="font-medium text-foreground">{t.aulaTitulo}</p>
                       <p>{t.cursoTitulo}</p>
                       {t.status === "ativo" && t.expiraEm && <p>Disponível até {data(t.expiraEm)}.</p>}
-                      {t.status === "expirado" && <p>Gostou? Assine um plano para continuar o curso.</p>}
+                      {t.status === "expirado" && <p>{vendaAvulsa ? "Gostou? Compre o programa completo para continuar." : "Gostou? Assine um plano para continuar o curso."}</p>}
                       {t.status === "vencido" && <p>Essa cobrança venceu. Você pode gerar outra na página do curso.</p>}
                       <div className="flex flex-wrap gap-2 pt-2">
                         {t.status === "ativo" && (
@@ -230,8 +232,8 @@ export default function MinhaArea() {
                         )}
                         {(t.status === "expirado" || t.status === "vencido") && (
                           <Button asChild size="sm" variant="outline">
-                            <Link href={t.status === "expirado" ? "/pricing" : t.cursoSlug ? `/courses/${t.cursoSlug}` : "/courses"}>
-                              {t.status === "expirado" ? "Ver planos" : "Ir para o curso"}
+                            <Link href={t.status === "expirado" ? (vendaAvulsa ? "/courses" : "/pricing") : t.cursoSlug ? `/courses/${t.cursoSlug}` : "/courses"}>
+                              {t.status === "expirado" ? (vendaAvulsa ? "Ver os programas" : "Ver planos") : "Ir para o curso"}
                             </Link>
                           </Button>
                         )}

@@ -17,7 +17,8 @@ import { ArrowLeft, Award, BookOpen, Check, Clock, Download, Gift, Infinity as I
 import { Link, useParams, useLocation } from "wouter";
 import PublicHeader from "@/components/PublicHeader";
 import { SEOHead } from "@/components/SEOHead";
-import { textoLimpo } from "@/lib/jsonld";
+import { programaSchema, textoLimpo } from "@/lib/jsonld";
+import { JsonLd } from "@/components/JsonLd";
 import PrecoPrograma from "@/components/programa/PrecoPrograma";
 import ProgramaCheckoutDialog from "@/components/programa/ProgramaCheckoutDialog";
 import { linhas, paragrafos, precoVendavel } from "@shared/comercial";
@@ -126,6 +127,15 @@ export default function CollectionDetail() {
         </div>
       );
     }
+    if (comercial?.vendaAvulsa) {
+      // Modo Compra individual, mas este programa ainda não tem preço: leva aos que estão à venda
+      return (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">Este programa ainda não está disponível para compra.</p>
+          <Button className="w-full" size="lg" onClick={() => setLocation("/courses")}>Ver programas disponíveis</Button>
+        </div>
+      );
+    }
     return (
       <div className="space-y-2">
         <Button className="w-full" size="lg" onClick={() => setLocation("/pricing")}>Ver planos de assinatura</Button>
@@ -142,6 +152,7 @@ export default function CollectionDetail() {
         title={col.title}
         description={textoLimpo(col.headline || col.description || col.subtitle, 160) || `Programa ${col.title}, de Shadia Hasan.`}
       />
+      <JsonLd dados={programaSchema({ id, title: col.title, description: col.headline || col.description, coverUrl: col.coverUrl, priceCents: aVenda ? col.priceCents : null })} />
       <PublicHeader
         items={[
           { label: "Programas", href: "/courses" },
@@ -343,7 +354,7 @@ export default function CollectionDetail() {
                     Se você está passando por um momento difícil, procure acompanhamento profissional.
                   </AccordionContent>
                 </AccordionItem>
-                {comercial?.modelo === "assinatura" && (
+                {!comercial?.vendaAvulsa && (
                   <AccordionItem value="assinatura">
                     <AccordionTrigger>Como funciona a assinatura?</AccordionTrigger>
                     <AccordionContent>

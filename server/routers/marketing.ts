@@ -40,7 +40,7 @@ export async function mandarConfirmacao(email: string, nome: string | null | und
  * Usado por cadastro e compra da aula (caixa marcada = autorização). Nunca lança:
  * falha aqui não pode atrapalhar conta nem pagamento.
  */
-export async function registrarAutorizacao(p: { email: string; nome?: string | null; origem: "cadastro" | "compra-aula" | "compra-programa"; userId?: number | null }) {
+export async function registrarAutorizacao(p: { email: string; nome?: string | null; origem: "cadastro" | "compra-aula" | "compra-programa" | "diario-gratis"; userId?: number | null }) {
   try {
     const r = await registrarContato(p);
     if (r.enviarConfirmacao && r.token) await mandarConfirmacao(p.email, p.nome, r.token);

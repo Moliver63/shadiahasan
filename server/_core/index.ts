@@ -90,6 +90,9 @@ async function startServer() {
   // Presente do Programa (ex.: Diário da Transformação), só para quem tem o programa
   const presentes = await import('../routes/presentes');
   app.use('/api', presentes.default);
+  // Diário da Transformação online: /diario (grátis), /presentes/diario (presente) e APIs da carta/mapa
+  const diarioOnline = await import('../routes/diarioOnline');
+  app.use(diarioOnline.default);
 
   // tRPC API com rate limiting
   app.use(

@@ -10,14 +10,19 @@ export type Presente = {
   titulo: string;
   descricao: string;
   arquivo: string; // nome em server/assets/presentes
+  /** Versão online (página protegida) e exercício grátis público, quando houver. */
+  online?: string;
+  amostra?: string;
   paraPrograma: RegExp;
 };
 
 export const PRESENTES: Record<number, Presente> = {
   9: {
     titulo: "Diário da Transformação",
-    descricao: "Caderno em PDF da Shadia para responder ao fim de cada módulo, com um capítulo de fechamento, mapa dos pensamentos, uma semana de observação, carta para sua versão futura e plano de continuidade.",
+    descricao: "O diário da Shadia para responder ao fim de cada módulo, online ou em PDF: 5 capítulos guiados com a história da Júlia como exemplo, mapa dos pensamentos, uma semana de observação, carta para sua versão futura (que chega no seu e-mail seis meses depois) e plano de continuidade.",
     arquivo: "diario-da-transformacao.pdf",
+    online: "/presentes/diario",
+    amostra: "/diario",
     paraPrograma: /pensamentos\s+autom[áa]ticos/i,
   },
 };

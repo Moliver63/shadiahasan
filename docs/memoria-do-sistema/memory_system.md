@@ -848,3 +848,13 @@ Conferido: os 4 pontos que chamam `checkUserHasAccess` passam o `id` da aula (`v
 - **Celular:** conferido em 390 px (`/pricing`, página do Programa, diálogo de compra, tela de aguardando). O chat flutuante some com diálogo aberto e nas telas `/compra/*` (cobria o botão de pagar).
 
 **Ainda depende do proprietário:** marcar todos os eventos de Cobranças no webhook do Asaas; compra real de teste com estorno; confirmar com a Shadia que os preços "de" são referências reais; decidir a Hotmart.
+
+### Diário da Transformação online (18/11/2026)
+
+O protótipo interativo do Diário (artifact do Michel) virou parte do presente de Pensamentos Automáticos. Arquivo único `server/assets/presentes/diario-online.html` (imagens embutidas, three.js do cdnjs), servido por `server/routes/diarioOnline.ts` em dois modos (o servidor troca `__MODO__`):
+- **`/diario` (público, no sitemap):** exercício grátis "Desligue o piloto automático da mente", o Mapa dos pensamentos em 6 passos. No fim, mostra o diário completo como presente de quem entra no programa e oferece mandar o mapa por e-mail (`POST /api/diario/mapa`: só JSON, limite de 5/h por IP e 3/h por e-mail; novidades só com a caixa marcada, origem de marketing `diario-gratis`).
+- **`/presentes/diario` (presente):** sem login vai para o login e volta; sem direito (`podeReceberPresente`) volta para a página do Programa. Painel com 11 capítulos (abertura, 5 capítulos, mapa, semana de observação, carta, plano, encerramento), progresso e link para o PDF.
+- **Onde ficam as respostas:** na conta do aluno, tabela `diarioRespostas` (uma linha por aluno, JSON até 400 KB). O diário salva no aparelho na hora (`localStorage` "diario-sh:<userId>", chave por conta para não misturar alunos no mesmo navegador) e manda para a conta 1,2 s depois da última edição (`PUT /api/presentes/9/diario`, exige direito ao presente). Ao abrir (`GET`), vale a versão com `_editadoEm` mais recente: se a da conta for mais nova, substitui a do aparelho; se a do aparelho for mais nova (editou sem internet), sobe para a conta. Sem internet, avisa uma vez e reenvia quando a conexão volta. O exercício grátis `/diario` continua só no aparelho.
+- **Carta para a versão futura:** por clique, `POST /api/presentes/9/carta` (JSON, exige direito ao presente) guarda só o texto em `diarioCartas` (uma por aluno; reagendar substitui) para daqui a 6 meses. `enviarCartasDoDia()` na rotina de 10 min manda por e-mail e apaga o texto depois do envio.
+- Página do Programa: quem tem o presente vê "Abrir meu diário" e "Baixar PDF"; quem não tem vê "Fazer o 1º exercício grátis". Cada aula do Programa traz "Abrir diário".
+- Conferido em 390 px, sem rolagem lateral (abertura, mapa, capítulos e carta).

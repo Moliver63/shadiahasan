@@ -131,6 +131,7 @@ function Router() {
       {/* Páginas do servidor: só caem aqui se um service worker antigo interceptar */}
       <Route path={"/diario"} component={PaginaDoServidor} />
       <Route path={"/presentes/diario"} component={PaginaDoServidor} />
+      <Route path={"/avaliacao/:token"} component={PaginaDoServidor} />
       <Route path={"/courses"} component={Courses} />
       <Route path={"/courses/:slug"} component={CourseDetail} />
       <ProtectedRoute path={"/lesson/:id"} component={LessonView} />

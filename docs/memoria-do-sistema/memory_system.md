@@ -858,3 +858,15 @@ O protótipo interativo do Diário (artifact do Michel) virou parte do presente 
 - **Carta para a versão futura:** por clique, `POST /api/presentes/9/carta` (JSON, exige direito ao presente) guarda só o texto em `diarioCartas` (uma por aluno; reagendar substitui) para daqui a 6 meses. `enviarCartasDoDia()` na rotina de 10 min manda por e-mail e apaga o texto depois do envio.
 - Página do Programa: quem tem o presente vê "Abrir meu diário" e "Baixar PDF"; quem não tem vê "Fazer o 1º exercício grátis". Cada aula do Programa traz "Abrir diário".
 - Conferido em 390 px, sem rolagem lateral (abertura, mapa, capítulos e carta).
+
+### Super Avaliação do Diário (18/11/2026)
+
+Devolutiva escrita por IA sobre as respostas do Diário, vendida por R$ 15 (`PRECO_SUPER_AVALIACAO_CENTAVOS` em `shared/superAvaliacao.ts`). Regras puras em `shared/superAvaliacao.ts`; fluxo em `server/superAvaliacao.ts`; rotas em `server/routes/diarioOnline.ts`.
+- **Onde aparece:** no fim do exercício grátis (`/diario`), no painel do diário do aluno e no capítulo de encerramento. O cartão só aparece se `configAvaliacao().disponivel` (Asaas configurado, `BUILT_IN_FORGE_API_KEY` presente e Pix ou cartão ativos; boleto fica de fora). O botão só libera com material mínimo (exercício: 4 respostas e 25 palavras; diário: 6 respostas e 80 palavras).
+- **Compra:** nome, e-mail, CPF e caixa de ciência ("leitura educativa feita com IA, não substitui psicoterapia"). Sem conta para o exercício grátis; a avaliação do diário completo exige login com direito ao presente. Tabela `superAvaliacoes` (respostas em JSON, token do link em texto porque vai no e-mail de "pronta"). Cobrança Asaas com `externalReference = avaliacao:<id>`; limite de 8/h por IP e 5/dia por CPF. Novidades por e-mail só com caixa marcada (origem `super-avaliacao`).
+- **Pagamento → entrega:** webhook (antes do roteamento de programas em `processAsaasEvent`) ou a rotina de 10 min (`processarAvaliacoesPendentes`) marcam como paga; `gerarDevolutiva` chama `invokeLLM` pedindo JSON (abertura, padrões, forças, perguntas, passos, fechamento, cuidado). `lerDevolutiva` valida; se houver sinal de risco nas respostas (`temSinalDeRisco`), a devolutiva sempre abre com o bloco de cuidado e o CVV 188, mesmo se a IA esquecer. Pronta: e-mail com o link `/avaliacao/<token>` (página do servidor, noindex, botão "Salvar em PDF").
+- **Falha da IA:** volta para a fila e tenta de novo a cada 10 min; na 6ª falha estorna no Asaas e avisa a pessoa por e-mail. "generating" parado há mais de 10 min volta para a fila. Estorno ou chargeback no Asaas marcam como estornada.
+- **Admin:** cartão "Super Avaliações do Diário" em `/admin/comercial`, com status, erro e "Gerar de novo". Financeiro (`paymentHistory`, `planSlug = super-avaliacao`) só registra quando há conta, porque a tabela exige `userId`.
+- O service worker não intercepta `/avaliacao/*` (denylist no `vite.config.ts`); o app tem rota de reserva em `PaginaDoServidor`.
+- Termos de Uso (seção 4) e Política de Privacidade (seção 5) citam a Super Avaliação e o processamento por IA.
+

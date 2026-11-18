@@ -75,6 +75,9 @@ export default function Terms() {
                 <strong>Direito de arrependimento.</strong> Você pode desistir da compra de um programa em até 7 (sete) dias contados da confirmação do pagamento, com devolução integral do valor, conforme o artigo 49 do Código de Defesa do Consumidor. Basta escrever para contato@shadiahasan.com. Após o reembolso, o acesso ao programa é encerrado. Em caso de contestação do pagamento junto ao banco ou à operadora do cartão, o acesso fica suspenso até a conclusão da contestação.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>Super Avaliação do Diário.</strong> É uma devolutiva escrita, feita com inteligência artificial a partir das respostas que você enviou do Diário da Transformação, no método da Shadia Hasan. Tem caráter educativo: não é diagnóstico, não é atendimento psicológico e não substitui psicoterapia. O pagamento é único e a devolutiva fica disponível pelo link enviado ao seu e-mail. Se não for possível entregá-la, o valor é devolvido automaticamente. Você também pode pedir a devolução em até 7 (sete) dias pelo contato@shadiahasan.com.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
                 <strong>Mudança na forma de venda.</strong> A Plataforma pode alternar entre a venda por assinatura e a venda individual de programas. Essa mudança não cancela assinaturas vigentes, não altera cobranças já feitas e não retira o acesso a programas já comprados.
               </p>
               <p className="text-gray-700 leading-relaxed">

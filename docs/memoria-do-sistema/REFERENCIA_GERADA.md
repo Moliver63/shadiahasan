@@ -102,6 +102,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | `siteSettings` | `server/programaVenda.ts` |
 | `siteSettingsHistory` | `server/programaVenda.ts` |
 | `stripeWebhookEvents` | `server/db.ts` |
+| `superAvaliacoes` | `server/superAvaliacao.ts` |
 | `trialEntryLessons` | `server/trial.ts` |
 | `trialGuestCheckouts` | `server/trialGuest.ts` |
 | `trialPasses` | `server/trial.ts` |
@@ -114,6 +115,9 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 
 | Método | Caminho | Arquivo |
 |---|---|---|
+| GET | `/api/avaliacao/:token` | `server/routes/diarioOnline.ts` |
+| GET | `/api/avaliacao/config` | `server/routes/diarioOnline.ts` |
+| POST | `/api/avaliacao` | `server/routes/diarioOnline.ts` |
 | POST | `/api/diario/mapa` | `server/routes/diarioOnline.ts` |
 | GET | `/api/presentes/9/carta` | `server/routes/diarioOnline.ts` |
 | POST | `/api/presentes/9/carta` | `server/routes/diarioOnline.ts` |
@@ -121,6 +125,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | PUT | `/api/presentes/9/diario` | `server/routes/diarioOnline.ts` |
 | POST | `/apple/callback` | `server/auth/routes.ts` |
 | GET | `/apple` | `server/auth/routes.ts` |
+| GET | `/avaliacao/:token` | `server/routes/diarioOnline.ts` |
 | GET | `/certificados/:arquivo` | `server/routes/certificados.ts` |
 | GET | `/diario` | `server/routes/diarioOnline.ts` |
 | POST | `/enviar-link` | `server/auth/routes.ts` |
@@ -178,6 +183,7 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 | `/admin/testimonials` | `AdminTestimonials` | admin |
 | `/admin/users` | `AdminUsers` | admin |
 | `/autoavaliacao` | `Autoavaliacao` | público |
+| `/avaliacao/:token` | `PaginaDoServidor` | público |
 | `/certificado/:numero` | `CertificadoVerificar` | público |
 | `/certificates` | `MyCertificates` | logado |
 | `/checkout/success` | `CheckoutSuccess` | público |
@@ -213,4 +219,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-37 arquivos de teste, 292 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+39 arquivos de teste, 303 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

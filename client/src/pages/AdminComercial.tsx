@@ -19,6 +19,7 @@ import ModeloComercialCard from "@/components/programa/ModeloComercialCard";
 import { formatarReais, precoVendavel } from "@shared/comercial";
 import { textoSugeridoPara } from "@shared/catalogoSugerido";
 import VendaProgramaDialog from "@/components/programa/VendaProgramaDialog";
+import SuperAvaliacoesCard from "@/components/programa/SuperAvaliacoesCard";
 
 const STATUS: Record<string, { rotulo: string; classe: string }> = {
   active: { rotulo: "Liberado", classe: "bg-emerald-100 text-emerald-800" },
@@ -237,6 +238,8 @@ export default function AdminComercial() {
             </div>
           </CardContent>
         </Card>
+
+        <SuperAvaliacoesCard />
       </div>
 
       <VendaProgramaDialog col={vendaCol} onClose={() => setVendaCol(null)} onSaved={recarregarProgramas} />

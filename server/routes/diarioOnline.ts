@@ -38,13 +38,14 @@ function lerModelo(): string | null {
   return null;
 }
 
-function pagina(modo: "amostra" | "aluno", userId?: number): string | null {
+function pagina(modo: "amostra" | "aluno" | "avaliacao", userId?: number, token?: string): string | null {
   const html = lerModelo();
   if (!html) return null;
   const voltar = modo === "aluno" ? { url: `/collections/${PROGRAMA_DO_DIARIO}`, txt: "Voltar ao programa" } : { url: "/", txt: "Ir para o site" };
   return html
     .replace('"__MODO__"', JSON.stringify(modo))
     .replace('"__USUARIO__"', JSON.stringify(String(userId ?? "")))
+    .replace('"__TOKEN__"', JSON.stringify(String(token ?? "")))
     .replace("__VOLTAR_URL__", voltar.url)
     .replace("__VOLTAR_TXT__", voltar.txt);
 }
@@ -75,6 +76,67 @@ router.get("/presentes/diario", async (req, res) => {
   const html = pagina("aluno", u.id);
   if (!html) return res.status(404).send("Página não encontrada.");
   res.type("html").send(html);
+});
+
+// ── Super Avaliação (R$ 15) ──
+router.get("/avaliacao/:token", async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  const token = String(req.params.token || "");
+  if (!/^[A-Za-z0-9_-]{20,128}$/.test(token)) return res.status(404).send("Avaliação não encontrada.");
+  const html = pagina("avaliacao", undefined, token);
+  if (!html) return res.status(404).send("Página não encontrada.");
+  res.type("html").send(html);
+});
+
+router.get("/api/avaliacao/config", async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const sa = await import("../superAvaliacao");
+  const cfg = await sa.configAvaliacao().catch(() => ({ disponivel: false, precoCentavos: 0, metodos: [] }));
+  const u = await usuarioDe(req);
+  res.json({
+    ...cfg,
+    conta: u ? { nome: (u as any).name ?? "", email: (u as any).email ?? "" } : null,
+    minhas: u ? await sa.minhasAvaliacoes(u.id).catch(() => []) : [],
+  });
+});
+
+router.post("/api/avaliacao", async (req, res) => {
+  if (!req.is("application/json")) return res.status(415).json({ erro: "Formato inválido." });
+  const ip = String(req.headers["x-forwarded-for"] ?? req.ip ?? "").split(",")[0].trim();
+  if (!dentroDoLimite(`avaliacao-ip:${ip}`, 8)) return res.status(429).json({ erro: "Muitas tentativas seguidas. Tente de novo mais tarde." });
+  const sa = await import("../superAvaliacao");
+  const origem = req.body?.origem === "diario" ? "diario" : "amostra";
+  const u = await usuarioDe(req);
+  // A avaliação do diário completo é de quem tem o presente; a do exercício grátis é aberta
+  if (origem === "diario" && (!u || !(await podeReceberPresente(u.id, u.role, PROGRAMA_DO_DIARIO)))) {
+    return res.status(403).json({ erro: "Entre na sua conta para pedir a avaliação do diário." });
+  }
+  try {
+    const origin = `${req.protocol}://${req.get("host")}`;
+    const r = await sa.criarSuperAvaliacao({
+      nome: req.body?.nome, email: req.body?.email, cpfCnpj: req.body?.cpf, metodo: req.body?.metodo,
+      origem, respostas: req.body?.respostas, userId: u?.id ?? null, origin, ip,
+    });
+    if (req.body?.aceitaNovidades === true) {
+      const { registrarAutorizacao } = await import("../routers/marketing");
+      void registrarAutorizacao({ email: String(req.body?.email ?? "").trim().toLowerCase(), nome: req.body?.nome ?? null, origem: "super-avaliacao" });
+    }
+    res.json(r);
+  } catch (e) {
+    if (e instanceof sa.AvaliacaoError) return res.status(e.code === "BAD_REQUEST" ? 400 : e.code === "PRECONDITION_FAILED" ? 409 : 503).json({ erro: e.message });
+    console.error("[SuperAvaliação] pedido falhou:", e instanceof Error ? e.message : e);
+    res.status(500).json({ erro: "Não deu para gerar o pagamento agora." });
+  }
+});
+
+router.get("/api/avaliacao/:token", async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const sa = await import("../superAvaliacao");
+  const st = await sa.statusAvaliacao(String(req.params.token || ""), { conferirAgora: req.query.conferir === "1" });
+  if (!st) return res.status(404).json({ erro: "Avaliação não encontrada." });
+  res.json(st);
 });
 
 // ── Respostas do diário na conta ──

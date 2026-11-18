@@ -190,6 +190,7 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 | `/courses/:slug` | `CourseDetail` | público |
 | `/dashboard` | `AdminDashboard` | admin |
 | `/dashboard/referrals` | `UserReferrals` | logado |
+| `/diario` | `PaginaDoServidor` | público |
 | `/ebook/:id` | `EbookReader` | logado |
 | `/ebooks` | `Ebooks` | público |
 | `/edit-profile` | `EditProfile` | logado |
@@ -201,6 +202,7 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 | `/minha-area` | `MinhaArea` | logado |
 | `/my-courses` | `MyCourses` | logado |
 | `/my-subscription` | `MySubscription` | logado |
+| `/presentes/diario` | `PaginaDoServidor` | público |
 | `/pricing` | `Pricing` | público |
 | `/privacy` | `Privacy` | público |
 | `/profile` | `Profile` | logado |

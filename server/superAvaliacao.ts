@@ -100,6 +100,20 @@ export async function configAvaliacao(): Promise<{ disponivel: boolean; precoCen
   };
 }
 
+/** Linha no log da subida: diz se a oferta aparece e, se não, o que falta. */
+export async function registrarDisponibilidadeNoLog(): Promise<string> {
+  const cfg = await configAvaliacao();
+  const faltas: string[] = [];
+  if (!isAsaasConfigured()) faltas.push("Asaas não configurado");
+  if (!ENV.forgeApiKey) faltas.push("falta BUILT_IN_FORGE_API_KEY (chave da IA)");
+  if (cfg.metodos.length === 0) faltas.push("Pix e cartão desligados em Configurações > Modelo de Comercialização");
+  const linha = cfg.disponivel
+    ? `[SuperAvaliação] disponível: ${(cfg.precoCentavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}, ${cfg.metodos.join(" e ")}, IA em ${ENV.forgeApiUrl ? "URL própria" : "endereço padrão"}`
+    : `[SuperAvaliação] INDISPONÍVEL, o cartão não aparece no diário: ${faltas.join("; ")}`;
+  (cfg.disponivel ? console.log : console.warn)(linha);
+  return linha;
+}
+
 // ─── Compra ─────────────────────────────────────────────────────────────────
 
 export async function criarSuperAvaliacao(params: {

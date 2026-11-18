@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
 /**
- * Rotas servidas pelo servidor (/diario e /presentes/diario), fora do app React.
+ * Rotas servidas pelo servidor (/diario, /presentes/diario e /avaliacao/<token>), fora do app React.
  * Este componente só aparece quando um service worker antigo devolveu o index.html
  * no lugar da página real. Tira o service worker do caminho e recarrega uma vez;
  * o novo é registrado de novo na próxima página do site.
@@ -24,7 +24,7 @@ export default function PaginaDoServidor() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden />
-      <p className="text-muted-foreground">Abrindo seu diário…</p>
+      <p className="text-muted-foreground">Abrindo…</p>
       <a href={window.location.pathname} className="text-sm underline underline-offset-4">Se não abrir, toque aqui</a>
     </div>
   );

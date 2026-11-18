@@ -508,6 +508,16 @@ export async function processAsaasEvent(body: AsaasWebhookBody): Promise<void> {
       return;
     }
 
+    // Super Avaliação do Diário (externalReference "avaliacao:<id>"): compra de R$ 15, sem acesso a curso
+    const sa = await import("./superAvaliacao");
+    if (sa.ehEventoAvaliacao(body)) {
+      await sa.processarEventoAvaliacao(body);
+      await d
+        .update(asaasWebhookEvents)
+        .set({ status: "done", processedAt: new Date(), error: null })
+        .where(eq(asaasWebhookEvents.eventId, String(body.id)));
+      return;
+    }
     // Compra avulsa de Programa (externalReference "programa:..."): direito próprio, não mexe na assinatura
     const { ehEventoPrograma, processarEventoPrograma } = await import("./programaVenda");
     if (ehEventoPrograma(body)) {
@@ -1072,6 +1082,8 @@ export async function runBillingMaintenance(): Promise<void> {
     await conferirComprasPendentes();
     await enviarLembretesProgramas();
     await enviarCartasDoDia();
+    const { processarAvaliacoesPendentes } = await import("./superAvaliacao");
+    await processarAvaliacoesPendentes();
   } catch (e) {
     console.warn("[Asaas] rotina de cobrança falhou:", e instanceof Error ? e.message : e);
   } finally {

@@ -146,7 +146,12 @@ export default function Privacy() {
 
               <h3 className="text-xl font-semibold text-gray-800 mb-3">5.1. Prestadores de Serviços</h3>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Compartilhamos dados com prestadores de serviços que nos auxiliam a operar a Plataforma: Stripe (processamento de pagamentos), Resend (envio de e-mails transacionais), Cloudflare Stream (hospedagem de vídeos), Amazon S3 (armazenamento de arquivos), Google e Apple (autenticação OAuth). Esses prestadores são contratualmente obrigados a proteger seus dados e utilizá-los apenas para as finalidades especificadas.
+                Compartilhamos dados com prestadores de serviços que nos auxiliam a operar a Plataforma: Asaas e Stripe (processamento de pagamentos), Resend (envio de e-mails transacionais), Cloudflare Stream (hospedagem de vídeos), Amazon S3 (armazenamento de arquivos), Google e Apple (autenticação OAuth). Esses prestadores são contratualmente obrigados a proteger seus dados e utilizá-los apenas para as finalidades especificadas.
+              </p>
+
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Diário da Transformação e Super Avaliação</h3>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                As respostas que você escreve no Diário da Transformação ficam salvas na sua conta para você continuar de qualquer aparelho. Elas não são lidas pela equipe nem usadas para outra finalidade. Se você comprar uma Super Avaliação, as respostas que você escolheu enviar são processadas por um provedor de inteligência artificial apenas para escrever a sua devolutiva, e ficam guardadas junto com ela para que você possa abri-la pelo link recebido. Você pode pedir a exclusão a qualquer momento pelo contato@shadiahasan.com.
               </p>
 
               <h3 className="text-xl font-semibold text-gray-800 mb-3">5.2. Requisições Legais</h3>

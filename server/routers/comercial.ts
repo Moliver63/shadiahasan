@@ -292,4 +292,16 @@ export const comercialRouter = router({
         return { success: true };
       } catch (e) { erro(e); }
     }),
+  // Super Avaliação do Diário (server/superAvaliacao.ts)
+  avaliacoes: adminProcedure.query(async () => {
+    const { listarAvaliacoesAdmin } = await import("../superAvaliacao");
+    return listarAvaliacoesAdmin();
+  }),
+
+  gerarAvaliacaoDeNovo: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const { gerarDeNovoAdmin } = await import("../superAvaliacao");
+      return { pronta: await gerarDeNovoAdmin(input.id) };
+    }),
 });

@@ -129,6 +129,11 @@ async function startServer() {
       import('../programaVenda').then((m) => m.aplicarCatalogoInicial()).catch(() => undefined);
     }, 20_000);
 
+    // Diz no log se a Super Avaliação do Diário está à venda e, se não, o que falta
+    setTimeout(() => {
+      import('../superAvaliacao').then((m) => m.registrarDisponibilidadeNoLog()).catch(() => undefined);
+    }, 10_000);
+
     // Corrige acentos quebrados nos planos ("BÃ¡sico" → "Básico"); idempotente
     setTimeout(() => {
       import('../textoCorrigido').then((m) => m.consertarPlanosNoBanco()).catch(() => undefined);

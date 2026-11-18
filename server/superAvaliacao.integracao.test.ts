@@ -136,3 +136,18 @@ descrever("Super Avaliação (integração)", () => {
     expect((await sa.statusAvaliacao(r.token))!.status).toBe("estornada");
   });
 });
+
+descrever("Super Avaliação: linha no log da subida", () => {
+  it("diz que está disponível e, sem a chave da IA, diz o que falta", async () => {
+    const sa = await import("./superAvaliacao");
+    const { ENV } = await import("./_core/env");
+    expect(await sa.registrarDisponibilidadeNoLog()).toMatch(/disponível: R\$\s?15,00, pix e cartao/);
+    const chave = ENV.forgeApiKey;
+    (ENV as any).forgeApiKey = "";
+    try {
+      expect(await sa.registrarDisponibilidadeNoLog()).toMatch(/INDISPONÍVEL.*BUILT_IN_FORGE_API_KEY/);
+    } finally {
+      (ENV as any).forgeApiKey = chave;
+    }
+  });
+});

@@ -36,7 +36,17 @@ export default function ModeloComercialCard() {
   });
 
   const modelo = data?.modelo;
-  const comPreco = (programas as any[]).filter((p) => p.isActive === 1 && p.priceCents);
+  const comPreco = (programas as any[]).filter((p) => (data?.programasAVenda ?? []).includes(p.id));
+  const metodosLigados = data ? METODOS.filter((m) => data.metodos[m]) : [];
+  // O que precisa estar certo para a Compra individual vender de verdade
+  const checklist = [
+    { ok: !!data?.asaasConfigurado, texto: "Asaas conectado (chave da API)" },
+    { ok: !!data?.webhookConfigurado, texto: "Aviso de pagamento do Asaas (webhook) configurado" },
+    { ok: comPreco.length > 0, texto: comPreco.length > 0 ? `${comPreco.length} programa(s) com preço` : "Nenhum programa com preço" },
+    { ok: metodosLigados.length > 0, texto: metodosLigados.length > 0 ? `Formas de pagamento: ${metodosLigados.map((m) => NOME_METODO[m]).join(", ")}` : "Nenhuma forma de pagamento ligada" },
+  ];
+  const prontoParaVender = checklist.every((c) => c.ok);
+  const vendendoDeVerdade = modelo === "avulso" && prontoParaVender;
   const pendentesTotal = resumo.reduce((a, r) => a + r.pendentes, 0);
 
   function alternarMetodo(m: keyof MetodosAtivos, ligado: boolean) {
@@ -53,16 +63,35 @@ export default function ModeloComercialCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {data && (
+          <div className={cn(
+            "rounded-lg border px-4 py-3 text-sm",
+            vendendoDeVerdade ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : modelo === "avulso" ? "border-amber-300 bg-amber-50 text-amber-900"
+              : "border-sky-200 bg-sky-50 text-sky-900",
+          )}>
+            <p className="font-medium">
+              {vendendoDeVerdade
+                ? `Agora o site vende por Compra individual: ${comPreco.length} programa(s) à venda.`
+                : modelo === "avulso"
+                  ? "Compra individual ligada, mas nada está à venda. O site continua oferecendo só a assinatura até o item pendente abaixo ser resolvido."
+                  : "Agora o site vende por Assinatura (planos mensais)."}
+            </p>
+          </div>
+        )}
+
         <div role="radiogroup" aria-label="Modelo comercial" className="grid sm:grid-cols-2 gap-3">
           {OPCOES.map(({ valor, titulo, icone: Icone, texto }) => {
             const ativo = modelo === valor;
+            const bloqueado = valor === "avulso" && !ativo && comPreco.length === 0;
             return (
               <button
                 key={valor}
                 type="button"
                 role="radio"
                 aria-checked={ativo}
-                disabled={isLoading || definirModelo.isPending}
+                title={bloqueado ? "Defina o preço de pelo menos um programa antes" : undefined}
+                disabled={isLoading || definirModelo.isPending || bloqueado}
                 onClick={() => !ativo && setPendente(valor)}
                 className={cn(
                   "relative rounded-xl border p-4 text-left transition-all disabled:opacity-60",
@@ -73,21 +102,24 @@ export default function ModeloComercialCard() {
                 <Icone className={cn("h-5 w-5 mb-2", ativo ? "text-primary" : "text-muted-foreground")} />
                 <p className="font-medium">{titulo}</p>
                 <p className="text-sm text-muted-foreground mt-1">{texto}</p>
+                {bloqueado && <p className="text-xs text-amber-800 mt-2">Defina o preço de pelo menos um programa para liberar.</p>}
               </button>
             );
           })}
         </div>
 
-        {modelo === "avulso" && !data?.asaasConfigurado && (
-          <p className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />O Asaas não está configurado (ASAAS_API_KEY). Os preços não aparecem até a chave ser cadastrada.
-          </p>
-        )}
-        {modelo === "avulso" && comPreco.length === 0 && (
-          <p className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />Nenhum programa ativo tem preço. Defina em Agrupamentos, no botão de etiqueta.
-          </p>
-        )}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Pronto para vender?</p>
+          <ul className="grid sm:grid-cols-2 gap-2">
+            {checklist.map((c) => (
+              <li key={c.texto} className="flex items-start gap-2 text-sm">
+                {c.ok ? <Check className="h-4 w-4 mt-0.5 text-emerald-600 shrink-0" /> : <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 shrink-0" />}
+                <span className={c.ok ? "" : "text-amber-900"}>{c.texto}</span>
+              </li>
+            ))}
+          </ul>
+          {data?.asaasSandbox && <p className="text-xs text-amber-800">O Asaas está no ambiente de testes (sandbox): nenhuma cobrança é real.</p>}
+        </div>
 
         <div className="space-y-3">
           <p className="text-sm font-medium">Formas de pagamento da compra individual</p>

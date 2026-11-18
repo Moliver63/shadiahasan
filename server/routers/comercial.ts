@@ -9,7 +9,7 @@ import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { isAsaasConfigured, AsaasError } from "../asaas";
 import { urlCanonica } from "../_core/seo";
 import {
-  ProgramaError, comprasDoAluno, conferirCobranca, criarCheckoutPrograma, definirMetodosPagamento,
+  ProgramaError, comprasDoAluno, programasAVenda, conferirCobranca, criarCheckoutPrograma, definirMetodosPagamento,
   definirModeloComercial, historicoConfig, lerConfigComercial, liberarManual, listarComprasAdmin,
   programasComprados, resumoPorPrograma, revogarCompra,
 } from "../programaVenda";
@@ -81,11 +81,18 @@ export const comercialRouter = router({
   config: publicProcedure.query(async () => {
     const { modelo, metodos } = await lerConfigComercial();
     const asaas = isAsaasConfigured();
+    const aVenda = modelo === "avulso" && asaas ? await programasAVenda() : [];
+    const formas = METODOS.filter((m) => metodos[m]);
     return {
       modelo,
-      /** Só vende avulso com o modelo ligado E o Asaas configurado. */
-      vendaAvulsa: modelo === "avulso" && asaas,
-      metodos: METODOS.filter((m) => metodos[m]),
+      /**
+       * Só vende avulso com o modelo ligado, o Asaas configurado, alguma forma de
+       * pagamento e ao menos um Programa com preço. Se faltar algo, o site se
+       * comporta como no modelo assinatura (nunca oferece o que não dá para comprar).
+       */
+      vendaAvulsa: aVenda.length > 0 && formas.length > 0,
+      programasAVenda: formas.length > 0 ? aVenda : [],
+      metodos: formas,
     };
   }),
 
@@ -205,7 +212,15 @@ export const comercialRouter = router({
 
   adminConfig: adminProcedure.query(async () => {
     const { modelo, metodos } = await lerConfigComercial();
-    return { modelo, metodos, asaasConfigurado: isAsaasConfigured(), historico: await historicoConfig() };
+    return {
+      modelo,
+      metodos,
+      asaasConfigurado: isAsaasConfigured(),
+      webhookConfigurado: !!process.env.ASAAS_WEBHOOK_TOKEN,
+      asaasSandbox: /sandbox/i.test(process.env.ASAAS_BASE_URL || ""),
+      programasAVenda: await programasAVenda(),
+      historico: await historicoConfig(),
+    };
   }),
 
   definirModelo: adminProcedure

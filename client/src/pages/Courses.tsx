@@ -14,8 +14,8 @@ import { precoVendavel } from "@shared/comercial";
 
 type Filter = "all" | "collections" | "courses";
 
-function CollectionCard({ col, vendaAvulsa, comprado }: { col: any; vendaAvulsa: boolean; comprado: boolean }) {
-  const comPreco = vendaAvulsa && precoVendavel(col.priceCents);
+function CollectionCard({ col, aVenda, comprado }: { col: any; aVenda: boolean; comprado: boolean }) {
+  const comPreco = aVenda && precoVendavel(col.priceCents);
   return (
     <Link href={`/collections/${col.id}`}>
       <div className="flex flex-col gap-2 cursor-pointer">
@@ -75,7 +75,6 @@ export default function Courses() {
   const { isAuthenticated } = useAuth();
   const { data: comercial } = trpc.comercial.config.useQuery(undefined, { staleTime: 30_000 });
   const { data: meus = [] } = trpc.comercial.meusProgramas.useQuery(undefined, { enabled: isAuthenticated });
-  const vendaAvulsa = !!comercial?.vendaAvulsa;
 
   const showCollections = filter === "all" || filter === "collections";
   const showCourses     = filter === "all" || filter === "courses";
@@ -152,7 +151,7 @@ export default function Courses() {
         ) : hasContent ? (
           <div className="grid gap-4 sm:gap-6 grid-cols-2 md:grid-cols-3 lg:grid-cols-4" style={{ paddingBottom: "2rem" }}>
             {visibleCollections.map((col: any) => (
-              <CollectionCard key={`col-${col.id}`} col={col} vendaAvulsa={vendaAvulsa} comprado={meus.includes(col.id)} />
+              <CollectionCard key={`col-${col.id}`} col={col} aVenda={!!comercial?.programasAVenda?.includes(col.id)} comprado={meus.includes(col.id)} />
             ))}
             {visibleCourses.map((course) => (
               <CourseCard

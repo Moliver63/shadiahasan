@@ -59,7 +59,7 @@ export default function CollectionDetail() {
   }, [itens]);
 
   const jaComprou = meus.includes(id);
-  const aVenda = !!comercial?.vendaAvulsa && precoVendavel(col?.priceCents) && (comercial?.metodos.length ?? 0) > 0;
+  const aVenda = !!comercial?.programasAVenda?.includes(id) && precoVendavel(col?.priceCents) && (comercial?.metodos.length ?? 0) > 0;
 
   // Volta do login com intenção de compra (?comprar=1)
   useEffect(() => {

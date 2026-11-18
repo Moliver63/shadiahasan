@@ -7,14 +7,19 @@
  *   GET  /api/presentes/9/carta   carta agendada do aluno (data)
  *   POST /api/presentes/9/carta   agenda a carta para daqui a 6 meses
  *
- * As respostas do diário ficam no aparelho do aluno (localStorage). O servidor
- * só guarda a carta, por pedido explícito, até o envio.
+ *   GET  /api/presentes/9/diario  respostas do aluno salvas na conta
+ *   PUT  /api/presentes/9/diario  salva as respostas (o diário manda sozinho, 1,2 s depois de cada edição)
+ *
+ * As respostas ficam na conta (tabela diarioRespostas) e também no aparelho,
+ * como cópia para funcionar sem internet; ao abrir, vale a versão mais recente.
+ * A carta para a versão futura é guardada à parte, por pedido explícito, até o envio.
  */
 import { Router, type Request } from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { sdk } from "../_core/sdk";
-import { agendarCarta, cartaAgendada, podeReceberPresente, ProgramaError } from "../programaVenda";
+import express from "express";
+import { agendarCarta, cartaAgendada, lerDiario, podeReceberPresente, ProgramaError, salvarDiario } from "../programaVenda";
 import { presenteDoPrograma } from "../../shared/presentes";
 
 const PROGRAMA_DO_DIARIO = 9;
@@ -33,11 +38,15 @@ function lerModelo(): string | null {
   return null;
 }
 
-function pagina(modo: "amostra" | "aluno"): string | null {
+function pagina(modo: "amostra" | "aluno", userId?: number): string | null {
   const html = lerModelo();
   if (!html) return null;
   const voltar = modo === "aluno" ? { url: `/collections/${PROGRAMA_DO_DIARIO}`, txt: "Voltar ao programa" } : { url: "/", txt: "Ir para o site" };
-  return html.replace('"__MODO__"', JSON.stringify(modo)).replace("__VOLTAR_URL__", voltar.url).replace("__VOLTAR_TXT__", voltar.txt);
+  return html
+    .replace('"__MODO__"', JSON.stringify(modo))
+    .replace('"__USUARIO__"', JSON.stringify(String(userId ?? "")))
+    .replace("__VOLTAR_URL__", voltar.url)
+    .replace("__VOLTAR_TXT__", voltar.txt);
 }
 
 async function usuarioDe(req: Request) {
@@ -63,9 +72,33 @@ router.get("/presentes/diario", async (req, res) => {
   if (!presenteDoPrograma(PROGRAMA_DO_DIARIO) || !(await podeReceberPresente(u.id, u.role, PROGRAMA_DO_DIARIO))) {
     return res.redirect(302, `/collections/${PROGRAMA_DO_DIARIO}`);
   }
-  const html = pagina("aluno");
+  const html = pagina("aluno", u.id);
   if (!html) return res.status(404).send("Página não encontrada.");
   res.type("html").send(html);
+});
+
+// ── Respostas do diário na conta ──
+router.get("/api/presentes/9/diario", async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const u = await usuarioDe(req);
+  if (!u) return res.status(401).json({ erro: "Entre na sua conta." });
+  if (!(await podeReceberPresente(u.id, u.role, PROGRAMA_DO_DIARIO))) return res.status(403).json({ erro: "O diário é um presente de quem tem o programa." });
+  res.json({ dados: await lerDiario(u.id) });
+});
+
+// O diário inteiro vai de uma vez; o limite próprio (500 KB) cobre o teto de 400 KB do conteúdo
+router.put("/api/presentes/9/diario", express.json({ limit: "500kb" }), async (req, res) => {
+  if (!req.is("application/json")) return res.status(415).json({ erro: "Formato inválido." });
+  const u = await usuarioDe(req);
+  if (!u) return res.status(401).json({ erro: "Entre na sua conta." });
+  if (!(await podeReceberPresente(u.id, u.role, PROGRAMA_DO_DIARIO))) return res.status(403).json({ erro: "O diário é um presente de quem tem o programa." });
+  try {
+    await salvarDiario(u.id, req.body?.dados);
+    res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof ProgramaError ? e.message : "Não deu para salvar agora.";
+    res.status(e instanceof ProgramaError && e.code === "BAD_REQUEST" ? 400 : 500).json({ erro: msg });
+  }
 });
 
 // ── Carta para a versão futura ──

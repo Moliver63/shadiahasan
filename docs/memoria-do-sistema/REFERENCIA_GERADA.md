@@ -84,6 +84,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | `courseGroupLessons` | `server/routers/groups.ts` |
 | `courseGroups` | `server/routers/groups.ts` |
 | `diarioCartas` | `server/programaVenda.ts` |
+| `diarioRespostas` | `server/programaVenda.ts` |
 | `emailAvisosEnviados` | `server/emailAvisos.ts` |
 | `emailCaixas` | `server/caixaEmail.ts` |
 | `emailEnviados` | `server/caixaEmail.ts` |
@@ -116,6 +117,8 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | POST | `/api/diario/mapa` | `server/routes/diarioOnline.ts` |
 | GET | `/api/presentes/9/carta` | `server/routes/diarioOnline.ts` |
 | POST | `/api/presentes/9/carta` | `server/routes/diarioOnline.ts` |
+| GET | `/api/presentes/9/diario` | `server/routes/diarioOnline.ts` |
+| PUT | `/api/presentes/9/diario` | `server/routes/diarioOnline.ts` |
 | POST | `/apple/callback` | `server/auth/routes.ts` |
 | GET | `/apple` | `server/auth/routes.ts` |
 | GET | `/certificados/:arquivo` | `server/routes/certificados.ts` |
@@ -208,4 +211,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-37 arquivos de teste, 291 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+37 arquivos de teste, 292 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

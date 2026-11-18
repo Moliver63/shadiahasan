@@ -142,6 +142,14 @@ export function garantirSchemaComercial(): Promise<boolean> {
         // Lembretes de pagamento pendente (1 h e 7 h depois), como no teste de 1 aula
         await d.execute(sql`ALTER TABLE "programaConvidados" ADD COLUMN IF NOT EXISTS "remindersSent" integer NOT NULL DEFAULT 0`);
         await d.execute(sql`ALTER TABLE "programaCompras" ADD COLUMN IF NOT EXISTS "remindersSent" integer NOT NULL DEFAULT 0`);
+        // Respostas do Diário da Transformação online, na conta do aluno (uma linha por aluno)
+        await d.execute(sql`
+          CREATE TABLE IF NOT EXISTS "diarioRespostas" (
+            "userId" integer PRIMARY KEY,
+            "dados" text NOT NULL,
+            "updatedAt" timestamp NOT NULL DEFAULT now()
+          )
+        `);
         // Carta para a versão futura (Diário da Transformação online): só o texto, só até o envio
         await d.execute(sql`
           CREATE TABLE IF NOT EXISTS "diarioCartas" (
@@ -1187,6 +1195,29 @@ export async function reenviarAcessoCompra(compraId: number): Promise<{ email: s
   const ok = await enviarLinkDeAcesso({ userId: c.userId, destino: `/collections/${c.collectionId}` });
   if (!ok) throw new ProgramaError("O e-mail não pôde ser enviado agora. Tente de novo em instantes.", "UNAVAILABLE");
   return { email: c.email };
+}
+
+// ─── Diário online: respostas na conta ───────────────────────────────────────
+
+export const LIMITE_DIARIO_BYTES = 400_000;
+
+export async function lerDiario(userId: number): Promise<unknown | null> {
+  if (!(await garantirSchemaComercial())) return null;
+  const [r] = await consulta<{ dados: string }>(sql`SELECT "dados" FROM "diarioRespostas" WHERE "userId" = ${userId} LIMIT 1`);
+  if (!r) return null;
+  try { return JSON.parse(r.dados); } catch { return null; }
+}
+
+/** Grava o diário inteiro do aluno. Só aceita objeto JSON e até ~400 KB. */
+export async function salvarDiario(userId: number, dados: unknown): Promise<void> {
+  if (!dados || typeof dados !== "object" || Array.isArray(dados)) throw new ProgramaError("Formato inválido.", "BAD_REQUEST");
+  const texto = JSON.stringify(dados);
+  if (Buffer.byteLength(texto, "utf8") > LIMITE_DIARIO_BYTES) throw new ProgramaError("O diário ficou grande demais para salvar. Fale com a gente.", "BAD_REQUEST");
+  if (!(await garantirSchemaComercial())) throw new ProgramaError("Banco indisponível.", "UNAVAILABLE");
+  await consulta(sql`
+    INSERT INTO "diarioRespostas" ("userId", "dados", "updatedAt") VALUES (${userId}, ${texto}, now())
+    ON CONFLICT ("userId") DO UPDATE SET "dados" = EXCLUDED."dados", "updatedAt" = now()
+  `);
 }
 
 // ─── Diário online: carta para a versão futura ───────────────────────────────

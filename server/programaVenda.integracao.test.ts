@@ -105,7 +105,7 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
     await exec(S()`ALTER TABLE "contentCollections" DROP COLUMN IF EXISTS "priceCents", DROP COLUMN IF EXISTS "originalPriceCents",
       DROP COLUMN IF EXISTS "headline", DROP COLUMN IF EXISTS "salesDescription", DROP COLUMN IF EXISTS "forWhom",
       DROP COLUMN IF EXISTS "learnings", DROP COLUMN IF EXISTS "ctaText"`);
-    await exec(S()`DROP TABLE IF EXISTS "programaCompras", "programaConvidados", "diarioCartas", "siteSettings", "siteSettingsHistory"`);
+    await exec(S()`DROP TABLE IF EXISTS "programaCompras", "programaConvidados", "diarioCartas", "diarioRespostas", "siteSettings", "siteSettingsHistory"`);
     expect(await m.pv.garantirSchemaComercial()).toBe(true);
     expect(await m.asaas.ensureAsaasSchema()).toBe(true);
   });
@@ -113,7 +113,7 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
   beforeEach(async () => {
     chamadas.length = 0;
     cobrancas.clear();
-    await exec(S()`TRUNCATE "programaCompras", "programaConvidados", "diarioCartas", "siteSettings", "siteSettingsHistory", "asaasWebhookEvents", "payment_history",
+    await exec(S()`TRUNCATE "programaCompras", "programaConvidados", "diarioCartas", "diarioRespostas", "siteSettings", "siteSettingsHistory", "asaasWebhookEvents", "payment_history",
       "contentCollectionItems", "contentCollections", subscriptions, enrollments, lessons, courses, users RESTART IDENTITY CASCADE`);
     const u = await exec(S()`INSERT INTO users (email, name) VALUES ('aluna@teste.com', 'Aluna Teste'), ('assinante@teste.com', 'Assinante'), ('admin@teste.com', 'Admin') RETURNING id`);
     [ids.aluna, ids.assinante, ids.admin] = u.map((r) => r.id);
@@ -398,5 +398,15 @@ descrever("venda avulsa de Programas (Postgres real)", () => {
     expect(c.texto).toBeNull();
     expect(c.enviadaEm).not.toBeNull();
     expect(await m.pv.enviarCartasDoDia()).toBe(0); // não reenvia
+  });
+
+  it("diário na conta: salva, lê de volta, separa por aluno e recusa formato errado", async () => {
+    expect(await m.pv.lerDiario(ids.aluna)).toBeNull();
+    await m.pv.salvarDiario(ids.aluna, { a: { "m1:q0": "Não sou suficiente" }, done: { inicio: true }, _editadoEm: 1 });
+    await m.pv.salvarDiario(ids.aluna, { a: { "m1:q0": "Não sou suficiente, mas estou aprendendo" }, done: {}, _editadoEm: 2 });
+    expect(await m.pv.lerDiario(ids.aluna)).toMatchObject({ a: { "m1:q0": "Não sou suficiente, mas estou aprendendo" }, _editadoEm: 2 });
+    expect(await m.pv.lerDiario(ids.assinante)).toBeNull();
+    await expect(m.pv.salvarDiario(ids.aluna, "texto" as any)).rejects.toThrow(/Formato/);
+    await expect(m.pv.salvarDiario(ids.aluna, { a: { x: "a".repeat(500_000) } })).rejects.toThrow(/grande demais/);
   });
 });

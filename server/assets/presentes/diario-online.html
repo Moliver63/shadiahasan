@@ -308,10 +308,51 @@ const CAPS = [
 
 
 /* ---------- estado ---------- */
+/* No diário do aluno, as respostas ficam na conta (servidor) e também no aparelho,
+   como cópia para funcionar sem internet. A chave local é por usuário: no mesmo
+   navegador, uma conta nunca vê nem envia as respostas de outra. */
+const USUARIO = "__USUARIO__";
+const CHAVE = MODO==="aluno" ? "diario-sh:"+USUARIO : "diario-sh";
+const API_DIARIO = "/api/presentes/9/diario";
 let S = {};
-try{ S = JSON.parse(localStorage.getItem("diario-sh")||"{}") }catch(e){}
-S.a=S.a||{}; S.done=S.done||{}; S.amostra=S.amostra||{}; S.step=S.step||0;
-function save(){ try{ localStorage.setItem("diario-sh",JSON.stringify(S)) }catch(e){} }
+try{ S = JSON.parse(localStorage.getItem(CHAVE)||"{}") }catch(e){}
+function normalizar(){ S.a=S.a||{}; S.done=S.done||{}; S.amostra=S.amostra||{}; S.step=S.step||0; }
+normalizar();
+let envio=null, avisouFalha=false;
+function save(){
+  S._editadoEm=Date.now();
+  try{ localStorage.setItem(CHAVE,JSON.stringify(S)) }catch(e){}
+  if(MODO==="aluno"){ clearTimeout(envio); envio=setTimeout(enviarParaConta,1200); }
+}
+async function enviarParaConta(){
+  try{
+    const r=await fetch(API_DIARIO,{method:"PUT",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({dados:S})});
+    if(!r.ok) throw new Error();
+    avisouFalha=false; marcarConta(true);
+  }catch(e){
+    marcarConta(false);
+    if(!avisouFalha){avisouFalha=true;toast("Sem conexão: suas respostas ficam neste aparelho e vão para a conta quando a internet voltar")}
+  }
+}
+function marcarConta(ok){ const el=document.getElementById("statusConta"); if(el) el.textContent=ok?"Salvo na sua conta":"Salvo neste aparelho"; }
+/* Ao abrir: vale a versão mais recente entre a conta e o aparelho. */
+async function sincronizar(){
+  if(MODO!=="aluno") return;
+  try{
+    const r=await fetch(API_DIARIO,{credentials:"same-origin"});
+    if(!r.ok) return;
+    const j=await r.json();
+    const daConta=j&&j.dados;
+    if(daConta && (daConta._editadoEm||0) > (S._editadoEm||0)){
+      S=daConta; normalizar();
+      try{ localStorage.setItem(CHAVE,JSON.stringify(S)) }catch(e){}
+      if(cur) renderCap(); else renderDash();
+    } else if((S._editadoEm||0) > ((daConta&&daConta._editadoEm)||0)){
+      enviarParaConta();
+    }
+  }catch(e){}
+}
+addEventListener("online",()=>{ if(MODO==="aluno") enviarParaConta() });
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const app=$("#app");
@@ -544,7 +585,7 @@ function renderDash(){
     <div class="row" id="rmods"><h3>Os 5 capítulos <small>um para cada etapa do programa</small></h3><div class="rail">${mods.map((c,j)=>`<button class="top10" data-id="${c.id}"><span class="n">${j+1}</span>${tileHTML(c).replace('<button class="tile" data-id="'+c.id+'">','<span class="tile">').replace(/<\/button>$/,"</span>")}</button>`).join("")}</div></div>
     <div class="row"><h3>Ferramentas para a vida toda</h3><div class="rail">${tools.map(c=>tileHTML(c)).join("")}</div></div>
     <div class="row"><h3>Abertura e encerramento</h3><div class="rail">${[CAPS[0],CAPS[CAPS.length-1]].map(c=>tileHTML(c)).join("")}</div></div>
-    <p class="muted" style="font-size:13.5px">Prefere papel? <a href="${PDF_URL}" style="color:var(--tx)">Baixe a versão em PDF</a> para imprimir. Suas respostas ficam salvas só neste aparelho e navegador.</p>
+    <p class="muted" style="font-size:13.5px">Prefere papel? <a href="${PDF_URL}" style="color:var(--tx)">Baixe a versão em PDF</a> para imprimir. Suas respostas ficam salvas na sua conta: dá para continuar em outro celular ou no computador.</p>
   </div></section>`;
   mountScene($("#gl"));
   $("#go").onclick=()=>openCap(nxt.id);
@@ -589,7 +630,7 @@ function renderCap(){
       <div class="foot"><button class="btn btn-glass" id="prevc" ${idx?"":"disabled"}>← Anterior</button><button class="btn btn-fire" id="donec">${S.done[c.id]?"Concluído ✓ · Próximo":nextC?"Concluir e seguir →":"Concluir o diário"}</button></div>
     </div>
     <aside class="side">
-      <div class="glass" style="display:flex;gap:14px;align-items:center"><div class="ring" id="cring" style="--p:${pc}"><span>${pc}%</span></div><div style="font-size:13.5px" class="muted">deste capítulo<br><span style="color:var(--tx)">Tudo é salvo sozinho</span></div></div>
+      <div class="glass" style="display:flex;gap:14px;align-items:center"><div class="ring" id="cring" style="--p:${pc}"><span>${pc}%</span></div><div style="font-size:13.5px" class="muted">deste capítulo<br><span style="color:var(--tx)" id="statusConta">Salvo na sua conta</span></div></div>
       <div class="glass toc">${CAPS.map((x,j)=>{const xp=pctOf(x);return `<button data-go="${x.id}" class="${x.id===c.id?"cur":""}"><span class="d ${S.done[x.id]?"done":xp?"half":""}">${S.done[x.id]?"✓":""}</span>${x.t}</button>`}).join("")}</div>
     </aside>
   </div></div></section></div>`;
@@ -636,7 +677,7 @@ function route(){
   if(MODO==="aluno"){cur=null;renderDash()} else { (S.step>0&&S.step<MAP_STEPS.length&&S.started)?renderStep():S.step>=MAP_STEPS.length?renderAmostraFim():renderIntro() }
   scrollTo({top:0});
 }
-addEventListener("hashchange",route); route();
+addEventListener("hashchange",route); route(); sincronizar();
 </script>
 </body>
 </html>

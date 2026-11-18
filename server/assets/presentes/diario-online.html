@@ -285,7 +285,9 @@ a{color:inherit}
 .av-list.forcas li{border-left-color:var(--sage)}
 .av-foot{display:flex;flex-wrap:wrap;gap:10px;margin-top:40px}
 @media print{.top,.av-foot,.toast,.burst{display:none!important}html,body{background:#fff;color:#111}.av-item,.av-list li{background:#f6f2f4;color:#111}.av .lede{color:#222}}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* Movimento reduzido (Windows com "efeitos de animação" desligados, por exemplo): sem animação,
+   mas o que nasce invisível para animar (.reveal) precisa aparecer já pronto */
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.reveal{opacity:1!important;transform:none!important}.spin{animation:sa-spin 1.2s linear infinite!important}}
 </style>
 </head>
 <body>

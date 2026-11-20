@@ -213,7 +213,7 @@ html,body{margin:0}img{max-width:100%}
   <div class="wrap">
     <a class="brand" href="#inicio"><img src="/midia/cursos/logo.png" alt=""><span>Shadia Hasan</span></a>
     <nav class="nav" aria-label="Seções"><a href="#temas">Cursos</a><a href="#teste">Teste de uma aula</a><a href="#planos">Planos</a><a href="#shadia">Shadia</a></nav>
-    <a class="btn btn-fire btn-sm" href="/#experimente-uma-aula">Começar</a>
+    <a class="btn btn-fire btn-sm" href="/?comprar=pensamentos-automaticos#experimente-uma-aula">Começar</a>
   </div>
 </header>
 
@@ -345,7 +345,7 @@ html,body{margin:0}img{max-width:100%}
   <div class="wrap">
     <h2>Comece por <em>uma aula</em></h2>
     <p>Escolha o tema, assista no seu ritmo e decida depois se quer continuar.</p>
-    <a class="btn btn-fire" href="/#experimente-uma-aula">Escolher minha aula · R$ 19,90</a>
+    <a class="btn btn-fire" href="/?comprar=pensamentos-automaticos#experimente-uma-aula">Escolher minha aula · R$ 19,90</a>
   </div>
 </section>
 </main>
@@ -357,6 +357,7 @@ html,body{margin:0}img{max-width:100%}
 var DIAS_DE_ACESSO = 7;
 document.querySelectorAll('[data-dias]').forEach(function(el){ el.textContent = DIAS_DE_ACESSO; });
 
+function slug(t){return t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');}
 var CURSOS = [
   {n:"5", un:"aulas", img:"/midia/cursos/pensamentos.jpg", t:"Pensamentos Automáticos", d:"Identifique, compreenda e transforme padrões que sabotam a sua vida.", chips:["1h45 de conteúdo"],
    l:["Introdução","O piloto automático da mente","De onde vêm seus pensamentos","Pensamentos e emoções, o que vem primeiro?","Reprogramando a mente: como interromper padrões automáticos"],
@@ -378,7 +379,7 @@ document.getElementById('themes').innerHTML = CURSOS.map(function(c){
     '<div class="chips"><span class="chip">'+c.n+' '+c.un+'</span>'+c.chips.map(function(x){return '<span class="chip">'+x+'</span>';}).join('')+'</div>'+
     '<p class="desc">'+c.d+'</p>'+
     '<details class="ex"><summary>O que você vai ver</summary><ul>'+c.l.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul></details></div>'+
-    '<div class="entry"><small>Aula de entrada: <b>'+c.e+'</b> ('+c.m+')</small><a class="btn btn-fire" href="/#experimente-uma-aula">Começar por R$ 19,90</a></div>'+
+    '<div class="entry"><small>Aula de entrada: <b>'+c.e+'</b> ('+c.m+')</small><a class="btn btn-fire" href="/?comprar='+slug(c.t)+'#experimente-uma-aula">Começar por R$ 19,90</a></div>'+
   '</article>';
 }).join('');
 
@@ -446,9 +447,12 @@ if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: re
     if (m && !/(?:^|;\s*)_fbc=/.test(document.cookie)) {
       document.cookie = "_fbc=fb.1." + Date.now() + "." + m[1] + "; path=/; max-age=7776000; SameSite=Lax";
     }
-    var links = document.querySelectorAll('a[href^="/#"]');
+    var links = document.querySelectorAll('a[href^="/#"], a[href^="/?"]');
+    var entrada = new URLSearchParams(q);
     for (var i = 0; i < links.length; i++) {
-      links[i].setAttribute("href", "/" + q + links[i].getAttribute("href").slice(1));
+      var u = new URL(links[i].getAttribute("href"), location.origin);
+      entrada.forEach(function (v, k) { if (!u.searchParams.has(k)) u.searchParams.set(k, v); });
+      links[i].setAttribute("href", u.pathname + u.search + u.hash);
     }
   } catch (e) {}
 })();

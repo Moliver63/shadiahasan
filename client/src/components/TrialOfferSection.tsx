@@ -10,6 +10,7 @@ import ConviteShadiaVideo from "@/components/ConviteShadiaVideo";
 import { trackViewContent } from "@/components/Analytics";
 import { getLoginUrl } from "@/const";
 import { guardarIntencao, lerIntencao, limparIntencao, veioDaOferta } from "@/lib/trialIntent";
+import { acharEntrada } from "@/lib/comprarDireto";
 
 /**
  * Oferta de degustação: 1 aula completa por um valor único (Asaas).
@@ -21,7 +22,7 @@ export default function TrialOfferSection() {
   const { data: comercial } = trpc.comercial.config.useQuery(undefined, { staleTime: 30_000 });
   const vendaAvulsa = !!comercial?.vendaAvulsa;
   const { data: entries } = trpc.trial.entryLessons.useQuery();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const { data: diagnostics } = trpc.trial.adminDiagnose.useQuery(undefined, {
     enabled: isAdmin && !!entries && entries.length === 0,
@@ -79,6 +80,24 @@ export default function TrialOfferSection() {
     document.getElementById("experimente-uma-aula")?.scrollIntoView({ behavior: "smooth", block: "start" });
     if (aula !== null) setPayLessonId(aula);
   }, [isAuthenticated, info, entries]);
+
+  /**
+   * Compra direta vinda da página /cursos (`?comprar=<curso>`): abre o pagamento da aula de
+   * entrada desse curso assim que a oferta carrega. Sem o curso na lista (ou sem Asaas),
+   * só mostra a oferta, como antes.
+   */
+  const abriuCompraDireta = useRef(false);
+  useEffect(() => {
+    if (abriuCompraDireta.current || authLoading || !info || !entries) return;
+    const alvo = acharEntrada(entries, window.location.search);
+    if (!alvo) return;
+    abriuCompraDireta.current = true;
+    if (!info.enabled) return;
+    document.getElementById("experimente-uma-aula")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!isAuthenticated && info.compraSemConta) setGuestLessonId(alvo.lessonId);
+    else if (!isAuthenticated) { guardarIntencao(alvo.lessonId); window.location.href = getLoginUrl(); }
+    else setPayLessonId(alvo.lessonId);
+  }, [authLoading, isAuthenticated, info, entries]);
 
   if (!info || !entries) return null;
 

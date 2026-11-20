@@ -436,5 +436,22 @@ if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: re
   })();
 })();
 </script>
+<script>
+/* Anuncio da Meta: leva fbclid e utm_* da URL de entrada para a oferta (home), senao a atribuicao se perde no clique. */
+(function () {
+  try {
+    var q = location.search;
+    if (!q) return;
+    var m = q.match(/[?&]fbclid=([^&]+)/);
+    if (m && !/(?:^|;\s*)_fbc=/.test(document.cookie)) {
+      document.cookie = "_fbc=fb.1." + Date.now() + "." + m[1] + "; path=/; max-age=7776000; SameSite=Lax";
+    }
+    var links = document.querySelectorAll('a[href^="/#"]');
+    for (var i = 0; i < links.length; i++) {
+      links[i].setAttribute("href", "/" + q + links[i].getAttribute("href").slice(1));
+    }
+  } catch (e) {}
+})();
+</script>
 </body>
 </html>

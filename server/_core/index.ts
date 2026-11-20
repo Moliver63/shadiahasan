@@ -92,6 +92,9 @@ async function startServer() {
   // de lá engoliria /api/presentes/9/diario e /api/presentes/9/carta.
   const diarioOnline = await import('../routes/diarioOnline');
   app.use(diarioOnline.default);
+  // Página de vendas dos cursos (pública)
+  const cursosPagina = await import('../routes/cursosPagina');
+  app.use(cursosPagina.default);
   // Presente do Programa (PDF do Diário), só para quem tem o programa
   const presentes = await import('../routes/presentes');
   app.use('/api', presentes.default);

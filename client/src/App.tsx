@@ -130,6 +130,7 @@ function Router() {
       <Route path={"/compra/programa"} component={CompraAguardando} />
       {/* Páginas do servidor: só caem aqui se um service worker antigo interceptar */}
       <Route path={"/diario"} component={PaginaDoServidor} />
+      <Route path={"/cursos"} component={PaginaDoServidor} />
       <Route path={"/presentes/diario"} component={PaginaDoServidor} />
       <Route path={"/avaliacao/:token"} component={PaginaDoServidor} />
       <Route path={"/courses"} component={Courses} />

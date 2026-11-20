@@ -127,6 +127,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | GET | `/apple` | `server/auth/routes.ts` |
 | GET | `/avaliacao/:token` | `server/routes/diarioOnline.ts` |
 | GET | `/certificados/:arquivo` | `server/routes/certificados.ts` |
+| GET | `/cursos` | `server/routes/cursosPagina.ts` |
 | GET | `/diario` | `server/routes/diarioOnline.ts` |
 | POST | `/enviar-link` | `server/auth/routes.ts` |
 | GET | `/google/callback` | `server/auth/routes.ts` |
@@ -194,6 +195,7 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 | `/contact` | `Contact` | público |
 | `/courses` | `Courses` | público |
 | `/courses/:slug` | `CourseDetail` | público |
+| `/cursos` | `PaginaDoServidor` | público |
 | `/dashboard` | `AdminDashboard` | admin |
 | `/dashboard/referrals` | `UserReferrals` | logado |
 | `/diario` | `PaginaDoServidor` | público |
@@ -219,4 +221,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-39 arquivos de teste, 304 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+40 arquivos de teste, 306 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

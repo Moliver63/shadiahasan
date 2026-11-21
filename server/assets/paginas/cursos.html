@@ -106,7 +106,8 @@ section.s{position:relative;padding-block:clamp(64px,9vw,110px)}
 .entry{margin-top:auto;border-top:1px solid var(--line);padding:16px 26px 22px;display:grid;gap:12px}
 .entry small{color:var(--tx3);font-size:12.5px;line-height:1.5}
 .entry small b{color:var(--tx);font-weight:600}
-.entry .btn{width:100%}
+.entry .btn{width:100%;box-sizing:border-box}
+.entry .btn-outline{font-size:13.5px}
 
 /* linha do tempo */
 .split{display:grid;grid-template-columns:1fr 1fr;gap:clamp(28px,6vw,80px);align-items:center}
@@ -223,7 +224,7 @@ html,body{margin:0}img{max-width:100%}
   <div class="wrap">
     <a class="brand" href="#inicio"><img src="/midia/cursos/logo.png" alt=""><span>Shadia Hasan</span></a>
     <nav class="nav" aria-label="Seções"><a href="#temas">Cursos</a><a href="#teste">Teste de uma aula</a><a href="#planos">Preços</a><a href="#shadia">Shadia</a></nav>
-    <a class="btn btn-fire btn-sm" href="/?comprar=pensamentos-automaticos#experimente-uma-aula">Começar</a>
+    <a class="btn btn-fire btn-sm" href="#planos">Comprar curso</a>
   </div>
 </header>
 
@@ -234,8 +235,8 @@ html,body{margin:0}img{max-width:100%}
   <div class="wrap">
     <div class="kicker reveal">Cursos da psicóloga Shadia Hasan</div>
     <h1 class="reveal" style="animation-delay:.1s">Escolha por onde <em>começar a se entender</em></h1>
-    <p class="lede reveal" style="animation-delay:.2s">Quatro cursos sobre pensamentos, emoções e escolhas. Você assiste a uma aula por R$ 19,90 antes de decidir se quer continuar.</p>
-    <div class="badges reveal" style="animation-delay:.28s"><span class="badge">1 AULA</span><span>R$ 19,90</span><span class="dot"></span><span>Pagamento único</span><span class="dot"></span><span>Pix, boleto ou cartão</span></div>
+    <p class="lede reveal" style="animation-delay:.2s">Quatro cursos sobre pensamentos, emoções e escolhas. Leve o curso completo com preço de Black Friday, ou conheça antes com uma aula por R$ 19,90.</p>
+    <div class="badges reveal" style="animation-delay:.28s"><span class="badge">BLACK FRIDAY</span><span>Curso completo</span><span class="dot"></span><span>Pagamento único</span><span class="dot"></span><span>Pix, boleto ou cartão</span></div>
     <div class="ctas reveal" style="animation-delay:.36s">
       <a class="btn btn-play" href="#temas"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Escolher meu tema</a>
       <a class="btn btn-glass" href="#planos">Ver os preços</a>
@@ -330,9 +331,9 @@ html,body{margin:0}img{max-width:100%}
 
 <section class="s final grain">
   <div class="wrap">
-    <h2>Comece por <em>uma aula</em></h2>
-    <p>Escolha o tema, assista no seu ritmo e decida depois se quer continuar.</p>
-    <a class="btn btn-fire" href="/?comprar=pensamentos-automaticos#experimente-uma-aula">Escolher minha aula · R$ 19,90</a>
+    <h2>Escolha o seu <em>curso</em></h2>
+    <p>Pagamento único, sem mensalidade. Se preferir conhecer antes, comece por uma aula de R$ 19,90.</p>
+    <a class="btn btn-fire" href="#planos">Ver preços dos cursos</a>
   </div>
 </section>
 </main>
@@ -359,17 +360,6 @@ var CURSOS = [
    l:["O problema não é o problema","Pensamento cria a postura interna","Corrigir o pensamento não é negar a realidade","Quando você se organiza por dentro, a vida responde"],
    e:"A vida responde ao que você pensa", m:"6 min"}
 ];
-document.getElementById('themes').innerHTML = CURSOS.map(function(c){
-  return '<article class="tile">'+
-    '<div class="pic"><div class="blur" style="background-image:url('+c.img+')"></div><img src="'+c.img+'" alt="Capa do curso '+c.t+'" loading="lazy"></div>'+
-    '<div class="body"><div class="stat"><span class="big" aria-hidden="true">'+c.n+'</span><span class="un">'+c.un+'</span></div><h3>'+c.t+'</h3>'+
-    '<div class="chips"><span class="chip">'+c.n+' '+c.un+'</span>'+c.chips.map(function(x){return '<span class="chip">'+x+'</span>';}).join('')+'</div>'+
-    '<p class="desc">'+c.d+'</p>'+
-    '<details class="ex"><summary>O que você vai ver</summary><ul>'+c.l.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul></details></div>'+
-    '<div class="entry"><small>Aula de entrada: <b>'+c.e+'</b> ('+c.m+')</small><a class="btn btn-fire" href="/?comprar='+slug(c.t)+'#experimente-uma-aula">Começar por R$ 19,90</a></div>'+
-  '</article>';
-}).join('');
-
 /* Preços por curso (Black Friday). Valores de referência abaixo; se a API pública responder, usa os atuais. */
 var PRECOS = {
   "Pensamentos Automáticos":{id:9,p:5700,o:19700},
@@ -378,6 +368,25 @@ var PRECOS = {
   "A vida responde ao que você pensa":{id:8,p:5700,o:19700}
 };
 function brl(c){return 'R$ '+(c/100).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+,)/g,'.');}
+
+function renderTiles(){
+document.getElementById('themes').innerHTML = CURSOS.map(function(c){
+  var x = PRECOS[c.t];
+  return '<article class="tile">'+
+    '<div class="pic"><div class="blur" style="background-image:url('+c.img+')"></div><img src="'+c.img+'" alt="Capa do curso '+c.t+'" loading="lazy"></div>'+
+    '<div class="body"><div class="stat"><span class="big" aria-hidden="true">'+c.n+'</span><span class="un">'+c.un+'</span></div><h3>'+c.t+'</h3>'+
+    '<div class="chips"><span class="chip">'+c.n+' '+c.un+'</span>'+c.chips.map(function(x){return '<span class="chip">'+x+'</span>';}).join('')+'</div>'+
+    '<p class="desc">'+c.d+'</p>'+
+    '<details class="ex"><summary>O que você vai ver</summary><ul>'+c.l.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul></details></div>'+
+    '<div class="entry">'+(x?'<a class="btn btn-fire" href="/collections/'+x.id+'">Comprar curso completo · '+brl(x.p)+'</a>':'')+
+      '<a class="btn btn-outline" href="/?comprar='+slug(c.t)+'#experimente-uma-aula">Ou teste uma aula por R$\u00a019,90</a>'+
+      '<small>Aula de entrada: <b>'+c.e+'</b> ('+c.m+')</small></div>'+
+  '</article>';
+}).join('');
+if (window.__atribuir) window.__atribuir();
+}
+renderTiles();
+
 function renderPrecos(){
   document.getElementById('precos').innerHTML = CURSOS.map(function(c){
     var x = PRECOS[c.t]; if(!x) return '';
@@ -407,7 +416,7 @@ try{
       var x = PRECOS[k.title];
       if(x && x.id===k.id && typeof k.priceCents==='number' && k.priceCents>0){ x.p=k.priceCents; x.o=k.originalPriceCents||null; }
     });
-    renderPrecos();
+    renderPrecos(); renderTiles();
   }).catch(function(){});
 }catch(e){}
 

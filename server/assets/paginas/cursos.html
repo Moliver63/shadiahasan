@@ -145,7 +145,7 @@ section.s{position:relative;padding-block:clamp(64px,9vw,110px)}
 @keyframes sh{50%{transform:scale(.88);opacity:.7}}
 
 /* planos */
-.plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:stretch}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;align-items:stretch}
 .plan{position:relative;border-radius:20px;padding:28px;background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);display:flex;flex-direction:column;gap:14px;min-width:0}
 .plan.hl{background:linear-gradient(160deg,rgba(224,112,58,.2),rgba(139,95,168,.12));border-color:rgba(240,162,106,.5);box-shadow:0 30px 80px rgba(224,112,58,.12)}
 .plan .tag{position:absolute;top:-12px;left:28px;background:var(--grad);color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;border-radius:999px;padding:4px 12px}
@@ -212,7 +212,7 @@ html,body{margin:0}img{max-width:100%}
 <header class="top" id="top">
   <div class="wrap">
     <a class="brand" href="#inicio"><img src="/midia/cursos/logo.png" alt=""><span>Shadia Hasan</span></a>
-    <nav class="nav" aria-label="Seções"><a href="#temas">Cursos</a><a href="#teste">Teste de uma aula</a><a href="#planos">Planos</a><a href="#shadia">Shadia</a></nav>
+    <nav class="nav" aria-label="Seções"><a href="#temas">Cursos</a><a href="#teste">Teste de uma aula</a><a href="#planos">Preços</a><a href="#shadia">Shadia</a></nav>
     <a class="btn btn-fire btn-sm" href="/?comprar=pensamentos-automaticos#experimente-uma-aula">Começar</a>
   </div>
 </header>
@@ -228,7 +228,7 @@ html,body{margin:0}img{max-width:100%}
     <div class="badges reveal" style="animation-delay:.28s"><span class="badge">1 AULA</span><span>R$ 19,90</span><span class="dot"></span><span>Pagamento único</span><span class="dot"></span><span>Pix, boleto ou cartão</span></div>
     <div class="ctas reveal" style="animation-delay:.36s">
       <a class="btn btn-play" href="#temas"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Escolher meu tema</a>
-      <a class="btn btn-glass" href="#planos">Ver os planos</a>
+      <a class="btn btn-glass" href="#planos">Ver os preços</a>
     </div>
   </div>
 </section>
@@ -256,7 +256,7 @@ html,body{margin:0}img{max-width:100%}
       <div class="nd" data-n="1"><small>Você escolhe</small><div class="v">O curso que mais chamou a sua atenção e a aula de entrada dele.</div></div>
       <div class="nd" data-n="2"><small>Você paga</small><div class="v">R$ 19,90 uma vez. Não precisa criar conta antes: ela nasce quando o pagamento é confirmado.</div></div>
       <div class="nd turn" data-n="3"><small>A aula abre</small><div class="v">Assim que o pagamento é confirmado. Você assiste por <span data-dias>7</span> dias, no seu ritmo.</div></div>
-      <div class="nd" data-n="4"><small>Você decide</small><div class="v">Gostou? Assine um plano e siga adiante. Não gostou? Não há mais nada a fazer.</div></div>
+      <div class="nd" data-n="4"><small>Você decide</small><div class="v">Gostou? Leve o curso completo, com pagamento único. Não gostou? Não há mais nada a fazer.</div></div>
     </div>
   </div>
 </section>
@@ -284,35 +284,12 @@ html,body{margin:0}img{max-width:100%}
 <section class="s" id="planos">
   <div class="wrap">
     <div class="head">
-      <p class="kicker">Para ir além da primeira aula</p>
-      <h2>Planos mensais com acesso aos cursos</h2>
-      <p>Quando quiser continuar, escolha o plano que cabe na sua rotina. A assinatura é mensal.</p>
+      <p class="kicker">Oferta de Black Friday</p>
+      <h2>Escolha o curso e pague uma vez só</h2>
+      <p>Sem mensalidade. Você compra o curso que faz sentido agora e assiste no seu ritmo, pelo celular ou computador.</p>
     </div>
-    <div class="plans">
-      <div class="plan">
-        <h3>Básico</h3>
-        <p class="pr">R$ 49,90<small>/ mês</small></p>
-        <p class="d">Mais recursos para sua transformação pessoal.</p>
-        <ul><li>Até 3 cursos simultâneos</li><li>Todos os conteúdos da plataforma</li><li>Certificados de conclusão</li><li>Experiência VR completa</li><li>Material complementar em PDF</li><li>Suporte prioritário</li><li>Lives exclusivas</li></ul>
-        <a class="btn btn-glass" href="/#experimente-uma-aula">Assinar Básico</a>
-      </div>
-      <div class="plan hl">
-        <span class="tag">Acesso ilimitado</span>
-        <h3>Premium</h3>
-        <p class="pr">R$ 99,90<small>/ mês</small></p>
-        <p class="d">Apoio completo para sua evolução consciente.</p>
-        <ul><li>Acesso ilimitado a todos os cursos</li><li>Todos os conteúdos da plataforma</li><li>Certificados de conclusão</li><li>Experiência VR completa</li><li>Material complementar completo</li><li>Suporte prioritário via WhatsApp</li><li>Lives mensais com Shadia</li></ul>
-        <a class="btn btn-fire" href="/#experimente-uma-aula">Assinar Premium</a>
-      </div>
-      <div class="plan">
-        <h3>VIP</h3>
-        <p class="pr">R$ 299,90<small>/ mês</small></p>
-        <p class="d">Atenção individual dedicada para você.</p>
-        <ul><li>Tudo do plano Premium</li><li>Sessão individual mensal com Shadia</li><li>Grupo VIP exclusivo no WhatsApp</li><li>Acesso antecipado a novos cursos</li><li>Conteúdos exclusivos VIP</li><li>Plano de desenvolvimento personalizado</li><li>Certificado especial VIP</li></ul>
-        <a class="btn btn-glass" href="/#experimente-uma-aula">Assinar VIP</a>
-      </div>
-    </div>
-    <p class="fine">Também existe um plano gratuito, com 1 curso e conteúdos básicos.</p>
+    <div class="plans" id="precos"></div>
+    <p class="fine">Prefere conhecer antes? Comece por uma aula de entrada, por R$ 19,90, em qualquer curso acima.</p>
   </div>
 </section>
 
@@ -323,7 +300,7 @@ html,body{margin:0}img{max-width:100%}
       <p class="kicker">Quem conduz</p>
       <h2 style="font-size:clamp(40px,6vw,76px);margin:10px 0 18px">Shadia Hasan</h2>
       <p>Psicóloga. Nos cursos, ela ajuda você a notar os padrões que se repetem, entender de onde eles vêm e começar a escolher de outro jeito.</p>
-      <div class="vr"><p><b>Realidade virtual no método.</b> A experiência em VR faz parte da jornada e está nos planos Básico, Premium e VIP.</p></div>
+      <div class="vr"><p><b>Realidade virtual no método.</b> A experiência em VR faz parte da jornada.</p></div>
       <div class="care"><b>Com cuidado</b>Os cursos são conteúdo educativo e de desenvolvimento pessoal. Não substituem acompanhamento médico ou psicológico, e os resultados variam de pessoa para pessoa.</div>
     </div>
   </div>
@@ -337,7 +314,7 @@ html,body{margin:0}img{max-width:100%}
     <details><summary>Preciso ter conta para comprar?</summary><p>Não. Você paga primeiro e a conta é criada quando o pagamento é confirmado. Você recebe o link de acesso.</p></details>
     <details><summary>Como pago?</summary><p>Por Pix, boleto ou cartão.</p></details>
     <details><summary>O teste renova sozinho?</summary><p>Não. É um pagamento único, sem renovação.</p></details>
-    <details><summary>E se eu quiser continuar depois?</summary><p>Você pode assinar um dos planos mensais e acessar mais conteúdo.</p></details>
+    <details><summary>E se eu quiser continuar depois?</summary><p>Você pode comprar o curso completo, com pagamento único e sem mensalidade.</p></details>
   </div>
 </section>
 
@@ -382,6 +359,44 @@ document.getElementById('themes').innerHTML = CURSOS.map(function(c){
     '<div class="entry"><small>Aula de entrada: <b>'+c.e+'</b> ('+c.m+')</small><a class="btn btn-fire" href="/?comprar='+slug(c.t)+'#experimente-uma-aula">Começar por R$ 19,90</a></div>'+
   '</article>';
 }).join('');
+
+/* Preços por curso (Black Friday). Valores de referência abaixo; se a API pública responder, usa os atuais. */
+var PRECOS = {
+  "Pensamentos Automáticos":{id:9,p:5700,o:19700},
+  "Jornada Permita-se SER LIVRE":{id:1,p:19700,o:59700},
+  "Jornada do Código Interno":{id:2,p:5700,o:19700},
+  "A vida responde ao que você pensa":{id:8,p:5700,o:19700}
+};
+function brl(c){return 'R$ '+(c/100).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+,)/g,'.');}
+function renderPrecos(){
+  document.getElementById('precos').innerHTML = CURSOS.map(function(c){
+    var x = PRECOS[c.t]; if(!x) return '';
+    var off = x.o && x.o > x.p ? Math.round((1 - x.p/x.o)*100) : null;
+    return '<div class="plan'+(c.t==="Jornada Permita-se SER LIVRE"?' hl':'')+'">'+
+      (off?'<span class="tag">'+off+'% off</span>':'')+
+      '<h3 style="font-size:26px">'+c.t+'</h3>'+
+      '<p class="d">'+c.d+'</p>'+
+      (off?'<p class="d" style="margin:0">de <s>'+brl(x.o)+'</s></p>':'')+
+      '<p class="pr" style="font-size:40px;white-space:nowrap">'+brl(x.p)+'</p>'+
+      '<p class="d" style="margin:0">Pagamento único, sem mensalidade</p>'+
+      '<a class="btn btn-fire" style="margin-top:auto" href="/collections/'+x.id+'">Quero este curso</a>'+
+      '<a class="btn btn-glass" href="/?comprar='+slug(c.t)+'#experimente-uma-aula">Testar uma aula por R$ 19,90</a>'+
+    '</div>';
+  }).join('');
+  if (window.__atribuir) window.__atribuir();
+}
+renderPrecos();
+try{
+  fetch('/api/trpc/collections.list').then(function(r){return r.json();}).then(function(j){
+    var lista = j && j.result && j.result.data && (j.result.data.json || j.result.data);
+    if(!Array.isArray(lista)) return;
+    lista.forEach(function(k){
+      var x = PRECOS[k.title];
+      if(x && x.id===k.id && typeof k.priceCents==='number' && k.priceCents>0){ x.p=k.priceCents; x.o=k.originalPriceCents||null; }
+    });
+    renderPrecos();
+  }).catch(function(){});
+}catch(e){}
 
 /* barra sólida ao rolar */
 var top_ = document.getElementById('top');
@@ -447,13 +462,16 @@ if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: re
     if (m && !/(?:^|;\s*)_fbc=/.test(document.cookie)) {
       document.cookie = "_fbc=fb.1." + Date.now() + "." + m[1] + "; path=/; max-age=7776000; SameSite=Lax";
     }
-    var links = document.querySelectorAll('a[href^="/#"], a[href^="/?"]');
     var entrada = new URLSearchParams(q);
-    for (var i = 0; i < links.length; i++) {
-      var u = new URL(links[i].getAttribute("href"), location.origin);
-      entrada.forEach(function (v, k) { if (!u.searchParams.has(k)) u.searchParams.set(k, v); });
-      links[i].setAttribute("href", u.pathname + u.search + u.hash);
-    }
+    window.__atribuir = function () {
+      var links = document.querySelectorAll('a[href^="/#"], a[href^="/?"], a[href^="/collections/"]');
+      for (var i = 0; i < links.length; i++) {
+        var u = new URL(links[i].getAttribute("href"), location.origin);
+        entrada.forEach(function (v, k) { if (!u.searchParams.has(k)) u.searchParams.set(k, v); });
+        links[i].setAttribute("href", u.pathname + u.search + u.hash);
+      }
+    };
+    window.__atribuir();
   } catch (e) {}
 })();
 </script>

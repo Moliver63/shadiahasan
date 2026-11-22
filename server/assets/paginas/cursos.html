@@ -103,6 +103,13 @@ section.s{position:relative;padding-block:clamp(64px,9vw,110px)}
 .ex summary:before{content:"+";display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:rgba(201,167,224,.2);transition:transform .3s;flex:none}
 .ex[open] summary:before{transform:rotate(45deg)}
 .ex ul{margin:0;padding:0 16px 14px 36px;color:#e4d6ee;font-family:var(--serif);font-size:19px;font-style:italic;line-height:1.4;display:grid;gap:3px}
+.bf{display:grid;gap:6px}
+.bf-tag{justify-self:start;background:var(--grad);color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;border-radius:999px;padding:4px 12px}
+.bf-row{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.bf-de{color:#c9bcc6;font-size:15px}
+.bf-de s{text-decoration-thickness:2px;text-decoration-color:#e0703a}
+.bf-por{font-family:var(--serif);font-weight:700;font-size:44px;line-height:1;white-space:nowrap;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#f0a26a}
+.bf-sub{color:var(--tx3);font-size:12.5px}
 .entry{margin-top:auto;border-top:1px solid var(--line);padding:16px 26px 22px;display:grid;gap:12px}
 .entry small{color:var(--tx3);font-size:12.5px;line-height:1.5}
 .entry small b{color:var(--tx);font-weight:600}
@@ -369,6 +376,12 @@ var PRECOS = {
 };
 function brl(c){return 'R$ '+(c/100).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+,)/g,'.');}
 
+function bfPreco(x){
+  var off = x.o && x.o > x.p ? Math.round((1 - x.p/x.o)*100) : null;
+  return '<div class="bf"><span class="bf-tag">Black Friday'+(off?' · '+off+'% off':'')+'</span>'+
+    '<div class="bf-row">'+(x.o&&x.o>x.p?'<span class="bf-de">custava <s>'+brl(x.o)+'</s></span>':'')+'<span class="bf-por">'+brl(x.p)+'</span></div>'+
+    '<span class="bf-sub">Pagamento único, sem mensalidade</span></div>';
+}
 function renderTiles(){
 document.getElementById('themes').innerHTML = CURSOS.map(function(c){
   var x = PRECOS[c.t];
@@ -378,7 +391,7 @@ document.getElementById('themes').innerHTML = CURSOS.map(function(c){
     '<div class="chips"><span class="chip">'+c.n+' '+c.un+'</span>'+c.chips.map(function(x){return '<span class="chip">'+x+'</span>';}).join('')+'</div>'+
     '<p class="desc">'+c.d+'</p>'+
     '<details class="ex"><summary>O que você vai ver</summary><ul>'+c.l.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul></details></div>'+
-    '<div class="entry">'+(x?'<a class="btn btn-fire" href="/collections/'+x.id+'">Comprar curso completo · '+brl(x.p)+'</a>':'')+
+    '<div class="entry">'+(x?bfPreco(x):'')+(x?'<a class="btn btn-fire" href="/collections/'+x.id+'">Comprar curso completo · '+brl(x.p)+'</a>':'')+
       '<a class="btn btn-outline" href="/?comprar='+slug(c.t)+'#experimente-uma-aula">Ou teste uma aula por R$\u00a019,90</a>'+
       '<small>Aula de entrada: <b>'+c.e+'</b> ('+c.m+')</small></div>'+
   '</article>';
@@ -392,12 +405,9 @@ function renderPrecos(){
     var x = PRECOS[c.t]; if(!x) return '';
     var off = x.o && x.o > x.p ? Math.round((1 - x.p/x.o)*100) : null;
     return '<div class="plan'+(c.t==="Jornada Permita-se SER LIVRE"?' hl':'')+'">'+
-      (off?'<span class="tag">'+off+'% off</span>':'')+
       '<h3 style="font-size:26px">'+c.t+'</h3>'+
       '<p class="d">'+c.d+'</p>'+
-      (off?'<p class="d" style="margin:0">de <s>'+brl(x.o)+'</s></p>':'')+
-      '<p class="pr" style="font-size:40px;white-space:nowrap">'+brl(x.p)+'</p>'+
-      '<p class="d" style="margin:0">Pagamento único, sem mensalidade</p>'+
+      bfPreco(x)+
       '<div class="ops"><div class="opt full"><span class="lbl">Curso completo</span>'+
         '<a class="btn btn-fire" href="/collections/'+x.id+'">Comprar curso completo</a></div>'+
       '<div class="ou"><span>ou</span></div>'+

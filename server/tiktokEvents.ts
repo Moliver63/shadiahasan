@@ -156,6 +156,8 @@ export async function enviarCompraTikTok(
       method: "POST",
       headers: { "Content-Type": "application/json", "Access-Token": token },
       body: JSON.stringify(montarCorpoCompra(compra, pixelId, agora)),
+      // Sem resposta em 10s o webhook do Asaas nao pode ficar pendurado: a reserva e liberada e o reprocessamento tenta de novo.
+      signal: AbortSignal.timeout(10_000),
     });
     const texto = await resposta.text();
     let json: any = null;
@@ -282,7 +284,9 @@ export async function enviarCompraConfirmadaTikTok(
     }, fetchImpl);
 
     if (r.ok) {
-      await d.execute(sql`UPDATE "tiktokPurchases" SET "sentAt" = now(), "lastCode" = ${r.codigo ?? 0}, "lastError" = NULL WHERE "paymentId" = ${paymentId}`);
+      if (process.env.TIKTOK_EVENTS_TEST_CODE) console.warn("[TikTok] ATENCAO: TIKTOK_EVENTS_TEST_CODE esta definido; este Purchase foi para Test Events e NAO conta como conversao. Remova a variavel em producao.");
+      // O TikTok ja aceitou: se gravar o sentAt falhar, ainda assim e "enviado" (o event_id deduplica um reenvio).
+      await d.execute(sql`UPDATE "tiktokPurchases" SET "sentAt" = now(), "lastCode" = ${r.codigo ?? 0}, "lastError" = NULL WHERE "paymentId" = ${paymentId}`).catch((e: unknown) => console.warn("[TikTok] sentAt nao gravado:", e instanceof Error ? e.message : e));
       console.log(`[TikTok] Purchase aceito: cobrança ${paymentId}${linha.ttclid || linha.ttp ? "" : " (sem ttclid/_ttp: pode não ser atribuído)"}`);
       return "enviado";
     }

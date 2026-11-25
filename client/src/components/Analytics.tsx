@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { capturarAtribuicaoNaEntrada, novoEventId } from "@/lib/metaAttribution";
 import { safeLocalStorageGet } from "@/lib/safeStorage";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { TIKTOK_PIXEL_ID, iniciarTikTokPixel, tiktokPageView, tiktokTrack } from "@/lib/tiktokPixel";
 
 /**
  * Analytics — GA4 + Meta Pixel + Microsoft Clarity
@@ -67,6 +68,11 @@ function sendGA4(...args: unknown[]) {
 
 function sendMeta(...args: unknown[]) {
   if (hasAnalyticsConsent()) window.fbq?.(...args);
+}
+
+/** TikTok: só com consentimento, e só ViewContent/InitiateCheckout/PageView. Purchase vem do servidor. */
+function sendTikTok(evento: "ViewContent" | "InitiateCheckout", params: Record<string, unknown>, eventId?: string) {
+  if (hasAnalyticsConsent() && TIKTOK_PIXEL_ID) tiktokTrack(evento, params, eventId);
 }
 
 function loadMetaPixel(id: string) {
@@ -150,6 +156,12 @@ export default function Analytics() {
       if (granted && GA4_ID) loadGA4(GA4_ID);
       if (granted && META_PIXEL_ID) loadMetaPixel(META_PIXEL_ID);
       if (granted && CLARITY_ID) loadClarity(CLARITY_ID);
+      if (granted && TIKTOK_PIXEL_ID) {
+        iniciarTikTokPixel(TIKTOK_PIXEL_ID);
+        window.ttq?.enableCookie?.();
+      }
+      // Quem aceitou e depois recusou: o Pixel já carregado para de gravar cookie e de enviar.
+      if (!granted) window.ttq?.disableCookie?.();
       if (window.clarity) {
         window.clarity("consentv2", {
           ad_Storage: "denied",
@@ -173,6 +185,7 @@ export default function Analytics() {
       return;
     }
     sendMeta("track", "PageView");
+    if (hasAnalyticsConsent() && TIKTOK_PIXEL_ID) tiktokPageView();
     // GA4: sem page_view manual. A "medição otimizada" do GA4 (ligada por
     // padrão no fluxo de dados) já registra a troca de tela pelo histórico do
     // navegador; mandar aqui também contava cada página duas vezes.
@@ -217,6 +230,12 @@ export function trackViewContent({ contentId, contentName, value, currency = "BR
     value,
     currency,
   });
+  sendTikTok("ViewContent", {
+    content_type: "product",
+    contents: [{ content_id: contentId, content_type: "product", ...(contentName ? { content_name: contentName } : {}) }],
+    value,
+    currency,
+  });
 }
 
 /**
@@ -249,6 +268,16 @@ export function trackInitiateCheckout({
       currency,
     },
     { eventID: eventId },
+  );
+  sendTikTok(
+    "InitiateCheckout",
+    {
+      content_type: "product",
+      contents: [{ content_id: contentId, content_type: "product", ...(contentName ? { content_name: contentName } : {}) }],
+      value,
+      currency,
+    },
+    eventId,
   );
   return eventId;
 }

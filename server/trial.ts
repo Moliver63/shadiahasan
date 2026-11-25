@@ -22,6 +22,7 @@
 
 import { and, desc, eq, sql } from "drizzle-orm";
 import * as db from "./db";
+import { enviarCompraConfirmadaTikTok, registrarAtribuicaoTikTok } from "./tiktokEvents";
 import { contentCollections, contentCollectionItems, courses, lessons, paymentHistory, trialPasses, trialEntryLessons, asaasAccounts } from "../drizzle/schema";
 import {
   AsaasError,
@@ -456,6 +457,10 @@ export async function createTrialCheckout(params: {
     /** GA4 (só com consentimento): ver server/ga4.ts */
     ga4ClientId?: string | null;
     ga4SessionId?: string | null;
+    /** TikTok (só com consentimento): ver server/tiktokEvents.ts */
+    ttclid?: string | null;
+    ttp?: string | null;
+    tiktokConsent?: boolean | null;
   } | null;
 }): Promise<{ url: string; paymentId: string }> {
   if (!isAsaasConfigured()) throw new TrialError("Pagamento via Asaas não está disponível no momento.", "PRECONDITION_FAILED");
@@ -584,6 +589,8 @@ export async function createTrialCheckout(params: {
     } catch (e) {
       console.warn("[Trial] atribuição não gravada:", e instanceof Error ? e.message : e);
     }
+    // TikTok: só registra se a pessoa aceitou cookies de análise (LGPD). Nunca lança.
+    await registrarAtribuicaoTikTok(d, payment.id, "trial", a);
   }
 
   console.log(`[Trial] cobrança criada: ${payment.id} user ${params.userId} aula ${lesson.id}`);
@@ -704,6 +711,7 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
       // os dois pra mesma cobrança, e a Meta não pode contar duas compras.
       if (firstActivation) await enviarCompraParaMeta(pass.id, paymentId);
       if (firstActivation) await enviarCompraParaGA4(pass.id, paymentId);
+      if (firstActivation) await enviarCompraParaTikTok(pass.id, paymentId);
       if (guest) await (await import("./trialGuest")).concluirCompra(paymentId);
       // Depois de concluirCompra: na compra sem conta, é ali que o aluno ganha conta.
       if (firstActivation) await avisarVendaAoAdmin(pass.id, paymentId, payment.billingType, !!guest);
@@ -854,6 +862,37 @@ async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<
     }
   } catch (e) {
     console.warn("[Trial→Meta] falha ao enviar Purchase:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Purchase no TikTok pela Events API (ver server/tiktokEvents.ts). Mesmas
+ * garantias do envio para a Meta: nunca atrapalha a venda, uma vez por
+ * cobrança, e só se a pessoa aceitou cookies de análise na hora da compra.
+ */
+async function enviarCompraParaTikTok(passId: number, paymentId: string): Promise<void> {
+  try {
+    const d = await db.getDb();
+    if (!d) return;
+    const { rows } = (await d.execute(sql`
+      SELECT p."lessonId", p."userId", p."amountCents", p."paidAt", l."title" AS "lessonTitle", u."email" AS "userEmail"
+        FROM "trialPasses" p
+        LEFT JOIN "lessons" l ON l."id" = p."lessonId"
+        LEFT JOIN "users" u ON u."id" = p."userId"
+       WHERE p."id" = ${passId} LIMIT 1
+    `)) as unknown as { rows: Record<string, any>[] };
+    const linha = rows?.[0];
+    if (!linha) return;
+    await enviarCompraConfirmadaTikTok(d, paymentId, {
+      value: Number(linha.amountCents || 0) / 100,
+      contentId: `lesson:${linha.lessonId}`,
+      contentName: linha.lessonTitle || "Teste de 1 aula",
+      email: linha.userEmail,
+      externalId: String(linha.userId),
+      eventTime: linha.paidAt ? Math.floor(new Date(linha.paidAt).getTime() / 1000) : undefined,
+    });
+  } catch (e) {
+    console.warn("[Trial→TikTok] falha ao enviar Purchase:", e instanceof Error ? e.message : e);
   }
 }
 

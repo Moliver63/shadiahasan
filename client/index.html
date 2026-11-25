@@ -101,6 +101,61 @@
       })();
     </script>
 
+    <!--
+      TikTok Pixel: mesmo critério do Meta acima. Só nasce com consentimento
+      de cookies de análise já salvo e com VITE_TIKTOK_PIXEL_ID definido no
+      build; sem um dos dois o bloco não faz nada. Aqui saem só o Pixel e o
+      PageView de entrada. ViewContent e InitiateCheckout vêm do
+      Analytics.tsx, e o Purchase vem do servidor (Events API), nunca daqui.
+    -->
+    <script>
+      (function () {
+        var id = "%VITE_TIKTOK_PIXEL_ID%";
+        if (!id || id.charAt(0) === "%") return;
+        try {
+          var consent = JSON.parse(localStorage.getItem("cookie-consent") || "null");
+          if (!consent || consent.analytics !== true) return;
+        } catch (_) {
+          return;
+        }
+        if (window.ttq) return;
+        !(function (w, d, t) {
+          w.TiktokAnalyticsObject = t;
+          var ttq = (w[t] = w[t] || []);
+          ttq.methods = ["page", "track", "identify", "instances", "debug", "on", "off", "once", "ready", "alias", "group", "enableCookie", "disableCookie", "holdConsent", "revokeConsent", "grantConsent"];
+          ttq.setAndDefer = function (o, m) {
+            o[m] = function () { o.push([m].concat(Array.prototype.slice.call(arguments, 0))); };
+          };
+          for (var i = 0; i < ttq.methods.length; i++) ttq.setAndDefer(ttq, ttq.methods[i]);
+          ttq.instance = function (n) {
+            var inst = (ttq._i && ttq._i[n]) || [];
+            for (var k = 0; k < ttq.methods.length; k++) ttq.setAndDefer(inst, ttq.methods[k]);
+            return inst;
+          };
+          ttq.load = function (e, opts) {
+            var u = "https://analytics.tiktok.com/i18n/pixel/events.js";
+            ttq._i = ttq._i || {};
+            ttq._i[e] = [];
+            ttq._i[e]._u = u;
+            ttq._t = ttq._t || {};
+            ttq._t[e] = +new Date();
+            ttq._o = ttq._o || {};
+            ttq._o[e] = opts || {};
+            var s = d.createElement("script");
+            s.type = "text/javascript";
+            s.async = true;
+            s.src = u + "?sdkid=" + e + "&lib=" + t;
+            var f = d.getElementsByTagName("script")[0];
+            f.parentNode.insertBefore(s, f);
+          };
+          ttq.load(id);
+          ttq.page();
+        })(window, document, "ttq");
+        // O Analytics.tsx não deve iniciar de novo nem repetir o PageView de entrada.
+        window.__tiktokPixelBooted = true;
+      })();
+    </script>
+
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />

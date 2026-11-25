@@ -35,6 +35,7 @@
  * (login antes de pagar). Sem a variável, fica ligado.
  */
 
+import { registrarAtribuicaoTikTok } from "./tiktokEvents";
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { integer, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
@@ -243,6 +244,10 @@ export type AtribuicaoDaCompra = {
   clientUserAgent?: string | null;
   ga4ClientId?: string | null;
   ga4SessionId?: string | null;
+  /** TikTok (só com consentimento): ver server/tiktokEvents.ts */
+  ttclid?: string | null;
+  ttp?: string | null;
+  tiktokConsent?: boolean | null;
 };
 
 export type PixDaCompra = { imagemBase64: string; copiaECola: string } | null;
@@ -368,6 +373,9 @@ export async function criarCompraDeConvidado(params: {
       .update(trialGuestCheckouts)
       .set({ asaasCustomerId: customer.id, asaasPaymentId: payment.id, invoiceUrl: payment.invoiceUrl, status: "pending", updatedAt: new Date() })
       .where(eq(trialGuestCheckouts.id, compra.id));
+
+    // TikTok: só registra com consentimento (LGPD). Nunca lança nem atrasa a compra.
+    await registrarAtribuicaoTikTok(d as any, payment.id, "trial", params.atribuicao);
 
     console.log(`[TrialGuest] compra ${compra.id} criada: cobrança ${payment.id} aula ${lesson.id}${existente ? " (e-mail já tem conta)" : ""}`);
     return {

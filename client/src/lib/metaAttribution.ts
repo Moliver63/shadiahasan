@@ -20,6 +20,7 @@
  * Nada aqui identifica a pessoa. São identificadores de clique e de navegador.
  */
 import { idsGA4Atuais } from "@/lib/ga4Ids";
+import { safeLocalStorageGet } from "@/lib/safeStorage";
 
 const CHAVE_SESSAO = "shadia:meta-attr";
 
@@ -36,7 +37,37 @@ export type AtribuicaoMeta = {
   /** GA4, só com consentimento (ver lib/ga4Ids.ts). Não é gravado na sessão. */
   ga4ClientId?: string;
   ga4SessionId?: string;
+  /**
+   * TikTok. Só existem com consentimento de cookies de análise (LGPD). O
+   * `ttclid` vem da URL do anúncio; `ttp` é o cookie `_ttp` que o Pixel grava.
+   */
+  ttclid?: string;
+  ttp?: string;
+  /** Verdadeiro só quando a pessoa aceitou os cookies de análise. Sem isso o servidor não envia nada ao TikTok. */
+  tiktokConsent?: boolean;
 };
+
+/**
+ * O `ttclid` chega na URL do anúncio antes de a pessoa responder ao banner.
+ * Sem consentimento ele fica só em memória (some ao recarregar a página) e só
+ * vai para a sessão depois que a pessoa aceita.
+ */
+let ttclidPendente: string | undefined;
+
+function consentiuAnalise(): boolean {
+  try {
+    return JSON.parse(safeLocalStorageGet("cookie-consent") || "null")?.analytics === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Só para teste: limpa o ttclid guardado em memória entre cenários. */
+export function _reiniciarTikTokParaTeste(): void {
+  ttclidPendente = undefined;
+}
+
+const TTCLID_VALIDO = /^[\w.\-~%]{1,256}$/;
 
 function lerCookie(nome: string): string | undefined {
   if (typeof document === "undefined") return undefined;
@@ -98,6 +129,9 @@ export function capturarAtribuicaoNaEntrada(): void {
     landingUrl: guardado.landingUrl ?? window.location.href,
   };
   if (!novo.fbc && fbclid) novo.fbc = fbcDeFbclid(fbclid);
+  const ttclid = params.get("ttclid");
+  if (ttclid && TTCLID_VALIDO.test(ttclid)) ttclidPendente = ttclid;
+  if (consentiuAnalise() && !novo.ttclid && ttclidPendente) novo.ttclid = ttclidPendente;
   gravarSessao(novo);
 }
 
@@ -109,8 +143,17 @@ export function atribuicaoAtual(): AtribuicaoMeta {
   const guardado = lerSessao();
   const fbp = lerCookie("_fbp");
   const fbcDoCookie = lerCookie("_fbc");
+  const consentiu = consentiuAnalise();
+  const ttclid = consentiu ? guardado.ttclid ?? ttclidPendente : undefined;
+  const ttp = consentiu ? lerCookie("_ttp") : undefined;
+  // Sem consentimento, nada do TikTok sai do navegador, nem o que estava na sessão.
+  const { ttclid: _t1, ttp: _t2, tiktokConsent: _t3, ...base } = guardado;
+  if (consentiu && ttclid && !guardado.ttclid) gravarSessao({ ...guardado, ttclid });
   return {
-    ...guardado,
+    ...base,
+    ...(consentiu ? { tiktokConsent: true } : {}),
+    ...(ttclid ? { ttclid } : {}),
+    ...(ttp ? { ttp } : {}),
     ...(fbp ? { fbp } : {}),
     // O cookie escrito pelo pixel vale mais que o nosso, montado do fbclid.
     ...(fbcDoCookie ? { fbc: fbcDoCookie } : {}),

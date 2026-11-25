@@ -23,6 +23,7 @@
 
 import { eq, sql } from "drizzle-orm";
 import * as db from "./db";
+import { enviarCompraConfirmadaTikTok, registrarAtribuicaoTikTok } from "./tiktokEvents";
 import { paymentHistory } from "../drizzle/schema";
 import { AsaasError, asaasRequest, ensureAsaasSchema, isAsaasConfigured, todayInSaoPaulo, type AsaasWebhookBody } from "./asaas";
 import { isValidCpfCnpj, onlyDigits } from "../shared/br-document";
@@ -506,6 +507,8 @@ export type Atribuicao = {
   utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null; utmContent?: string | null;
   landingUrl?: string | null; clientIp?: string | null; clientUserAgent?: string | null;
   ga4ClientId?: string | null; ga4SessionId?: string | null;
+  /** TikTok (só com consentimento): ver server/tiktokEvents.ts */
+  ttclid?: string | null; ttp?: string | null; tiktokConsent?: boolean | null;
 };
 
 /** Grava a origem do visitante na compra. Falha aqui nunca impede a venda. */
@@ -524,6 +527,17 @@ async function gravarAtribuicao(paymentId: string, a?: Atribuicao | null): Promi
     `);
   } catch (e) {
     console.warn("[Programa] atribuição não gravada:", e instanceof Error ? e.message : e);
+  }
+  await registrarTikTokDaCompra(paymentId, a);
+}
+
+/** TikTok: só com consentimento (LGPD). Nunca lança. */
+async function registrarTikTokDaCompra(paymentId: string, a?: Atribuicao | null): Promise<void> {
+  try {
+    const d = await db.getDb();
+    if (d) await registrarAtribuicaoTikTok(d as any, paymentId, "programa", a);
+  } catch (e) {
+    console.warn("[Programa→TikTok] atribuição não gravada:", e instanceof Error ? e.message : e);
   }
 }
 
@@ -634,6 +648,7 @@ export async function processarEventoPrograma(body: AsaasWebhookBody): Promise<v
         // Uma vez por cobrança: CONFIRMED e RECEIVED chegam os dois e a Meta não pode contar duas compras.
         await enviarCompraParaMeta(compra.id, paymentId, prog?.title);
         await enviarCompraParaGA4(compra.id, paymentId, prog?.title);
+        await enviarCompraParaTikTok(compra.id, paymentId, prog?.title);
         await avisarCompraLiberada(compra, prog?.title ?? "seu programa", pago, payment.billingType, contaNova);
       }
       return;
@@ -814,6 +829,29 @@ async function enviarCompraParaMeta(compraId: number, paymentId: string, titulo?
   }
 }
 
+async function enviarCompraParaTikTok(compraId: number, paymentId: string, titulo?: string): Promise<void> {
+  try {
+    const d = await db.getDb();
+    if (!d) return;
+    const [l] = await consulta<any>(sql`
+      SELECT pc."collectionId", pc."userId", pc."amountCents", pc."paidAt", u."email" AS "userEmail"
+        FROM "programaCompras" pc LEFT JOIN "users" u ON u."id" = pc."userId"
+       WHERE pc."id" = ${compraId} LIMIT 1
+    `);
+    if (!l) return;
+    await enviarCompraConfirmadaTikTok(d as any, paymentId, {
+      value: Number(l.amountCents || 0) / 100,
+      contentId: `programa:${l.collectionId}`,
+      contentName: titulo || "Programa",
+      email: l.userEmail,
+      externalId: String(l.userId),
+      eventTime: l.paidAt ? Math.floor(new Date(l.paidAt).getTime() / 1000) : undefined,
+    });
+  } catch (e) {
+    console.warn("[Programa→TikTok] falha ao enviar Purchase:", e instanceof Error ? e.message : e);
+  }
+}
+
 async function enviarCompraParaGA4(compraId: number, paymentId: string, titulo?: string): Promise<void> {
   try {
     const { ga4ServidorConfigurado, enviarCompraGA4 } = await import("./ga4");
@@ -961,6 +999,7 @@ export async function criarCompraConvidado(params: {
       UPDATE "programaConvidados" SET "asaasCustomerId" = ${customer.id}, "asaasPaymentId" = ${payment.id}, "invoiceUrl" = ${payment.invoiceUrl},
              "status" = 'pending', "updatedAt" = now() WHERE "id" = ${conv.id}
     `);
+    await registrarTikTokDaCompra(payment.id, params.atribuicao);
     console.log(`[Programa] compra sem conta ${conv.id}: cobrança ${payment.id} programa ${programa.id}${conta ? " (e-mail já tem conta)" : ""}`);
     return {
       token,

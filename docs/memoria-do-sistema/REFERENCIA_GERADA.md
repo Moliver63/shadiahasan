@@ -54,6 +54,9 @@
 | `STRIPE_PROD_VIP` | `shared/stripe-config.ts` | sim |
 | `STRIPE_SECRET_KEY` | `server/routes/stripe-webhook.ts`, `server/stripe.ts` | sim |
 | `STRIPE_WEBHOOK_SECRET` | `server/_core/stripe-webhook.ts`, `server/routes/stripe-webhook.ts` | sim |
+| `TIKTOK_EVENTS_ACCESS_TOKEN` | `server/tiktokEvents.ts` | **não** |
+| `TIKTOK_EVENTS_TEST_CODE` | `server/tiktokEvents.ts` | **não** |
+| `TIKTOK_PIXEL_ID` | `server/tiktokEvents.ts` | **não** |
 | `VITE_ANALYTICS_ENDPOINT` | `client/src/main.tsx` | **não** |
 | `VITE_ANALYTICS_WEBSITE_ID` | `client/src/main.tsx` | **não** |
 | `VITE_APP_ID` | `server/_core/env.ts` | sim |
@@ -62,8 +65,9 @@
 | `VITE_FRONTEND_FORGE_API_URL` | `client/src/components/Map.tsx` | sim |
 | `VITE_GA4_ID` | `client/src/components/Analytics.tsx`, `client/src/lib/ga4Ids.ts` e mais 1 | **não** |
 | `VITE_META_PIXEL_ID` | `client/src/components/Analytics.tsx`, `client/src/pages/AdminAnalytics.tsx` | **não** |
+| `VITE_TIKTOK_PIXEL_ID` | `client/src/lib/tiktokPixel.ts` | **não** |
 
-55 variáveis; 21 sem entrada no `.env.example`. Variáveis do Render que não estão no código (ou o contrário) aparecem aqui como diferença a investigar.
+59 variáveis; 25 sem entrada no `.env.example`. Variáveis do Render que não estão no código (ou o contrário) aparecem aqui como diferença a investigar.
 
 ## Tabelas criadas em tempo de execução
 
@@ -103,6 +107,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 | `siteSettingsHistory` | `server/programaVenda.ts` |
 | `stripeWebhookEvents` | `server/db.ts` |
 | `superAvaliacoes` | `server/superAvaliacao.ts` |
+| `tiktokPurchases` | `server/tiktokEvents.ts` |
 | `trialEntryLessons` | `server/trial.ts` |
 | `trialGuestCheckouts` | `server/trialGuest.ts` |
 | `trialPasses` | `server/trial.ts` |
@@ -221,4 +226,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-41 arquivos de teste, 312 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+42 arquivos de teste, 333 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

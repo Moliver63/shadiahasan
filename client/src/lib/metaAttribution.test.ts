@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { atribuicaoAtual, capturarAtribuicaoNaEntrada, novoEventId } from "./metaAttribution";
+import { _reiniciarTikTokParaTeste, atribuicaoAtual, capturarAtribuicaoNaEntrada, novoEventId } from "./metaAttribution";
 
 /**
  * Captura de origem do visitante (24/10).
@@ -33,6 +33,7 @@ function montarAmbiente({ cookie, url }: Dubles) {
 }
 
 beforeEach(() => {
+  _reiniciarTikTokParaTeste();
   montarAmbiente({ cookie: "", url: "https://shadiahasan.com/" });
 });
 
@@ -120,5 +121,52 @@ describe("event id", () => {
     const b = novoEventId("ic");
     expect(a).not.toBe(b);
     expect(a.startsWith("ic.")).toBe(true);
+  });
+});
+
+describe("TikTok: ttclid e _ttp só com consentimento (LGPD)", () => {
+  function comConsentimento(analytics: boolean | null) {
+    const w = (globalThis as any).window;
+    w.localStorage = {
+      getItem: (k: string) => (k === "cookie-consent" && analytics !== null ? JSON.stringify({ essential: true, analytics }) : null),
+    };
+  }
+
+  it("sem consentimento nada do TikTok sai do navegador", () => {
+    montarAmbiente({ cookie: "_ttp=ttp-abc", url: "https://shadiahasan.com/cursos?ttclid=E.C.P.abc&utm_source=tiktok" });
+    comConsentimento(null);
+    capturarAtribuicaoNaEntrada();
+    const a = atribuicaoAtual();
+    expect(a.ttclid).toBeUndefined();
+    expect(a.ttp).toBeUndefined();
+    expect(a.tiktokConsent).toBeUndefined();
+    expect(a.utmSource).toBe("tiktok"); // UTM segue o comportamento já existente
+  });
+
+  it("com consentimento envia ttclid, _ttp e a marca de consentimento", () => {
+    montarAmbiente({ cookie: "_ttp=ttp-abc", url: "https://shadiahasan.com/cursos?ttclid=E.C.P.abc" });
+    comConsentimento(true);
+    capturarAtribuicaoNaEntrada();
+    const a = atribuicaoAtual();
+    expect(a).toMatchObject({ ttclid: "E.C.P.abc", ttp: "ttp-abc", tiktokConsent: true });
+  });
+
+  it("quem aceitou depois de chegar não perde o ttclid; quem recusou depois não o envia", () => {
+    montarAmbiente({ cookie: "", url: "https://shadiahasan.com/?ttclid=E.C.P.zzz" });
+    comConsentimento(null);
+    capturarAtribuicaoNaEntrada();
+    comConsentimento(true);
+    expect(atribuicaoAtual().ttclid).toBe("E.C.P.zzz");
+    comConsentimento(false);
+    const depois = atribuicaoAtual();
+    expect(depois.ttclid).toBeUndefined();
+    expect(depois.tiktokConsent).toBeUndefined();
+  });
+
+  it("ttclid com caracteres estranhos é ignorado", () => {
+    montarAmbiente({ cookie: "", url: "https://shadiahasan.com/?ttclid=%3Cscript%3E" });
+    comConsentimento(true);
+    capturarAtribuicaoNaEntrada();
+    expect(atribuicaoAtual().ttclid).toBeUndefined();
   });
 });

@@ -39,6 +39,9 @@ const atribuicaoSchema = z
     landingUrl: z.string().max(2048).optional(),
     ga4ClientId: z.string().regex(/^\d{1,20}\.\d{1,20}$/).optional().catch(undefined),
     ga4SessionId: z.string().regex(/^\d{6,20}$/).optional().catch(undefined),
+    ttclid: z.string().max(256).regex(/^[\w.\-~%]+$/).optional().catch(undefined),
+    ttp: z.string().max(256).regex(/^[\w.\-~%]+$/).optional().catch(undefined),
+    tiktokConsent: z.boolean().optional().catch(undefined),
   })
   .partial()
   .optional();

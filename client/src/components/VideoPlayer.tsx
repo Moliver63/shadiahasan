@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { chaveDoManifesto } from "@/lib/videoChave";
+import { ehSomenteAudio, usarHlsNativo } from "@/lib/videoSuporte";
 import {
   AlertCircle,
   Languages,
@@ -132,6 +133,8 @@ export default function VideoPlayer({
   const [selectedAudioTrack, setSelectedAudioTrack] = useState("0");
   const [isAudioOnly, setIsAudioOnly] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // "Tentar novamente" incrementa e o efeito do vídeo recria o player
+  const [tentativa, setTentativa] = useState(0);
 
   const youtubeId = getYouTubeId(src);
   const chaveVideo = chaveDoManifesto(src);
@@ -209,9 +212,16 @@ export default function VideoPlayer({
 
     const srcInicial = srcRef.current;
     fonteCarregadaRef.current = srcInicial;
+    let desmontado = false;
+    let pedidosUrlNativo = 0;
+    const SEM_SUPORTE = "Este navegador não consegue reproduzir o vídeo. Atualize o sistema do aparelho ou abra o site no Safari ou no Chrome.";
+    const tocarNativo = () => {
+      video.src = srcInicial;
+    };
     if (srcInicial.includes(".m3u8")) {
-      if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = srcInicial;
+      const temNativo = Boolean(video.canPlayType("application/vnd.apple.mpegurl"));
+      if (usarHlsNativo(temNativo, navigator.vendor)) {
+        tocarNativo();
         if (autoPlayRef.current) video.addEventListener("canplay", () => {
           void video.play()
             .then(() => fadeInAudio(video, () => setIsMuted(false)))
@@ -219,8 +229,13 @@ export default function VideoPlayer({
         }, { once: true });
       } else {
         void import("hls.js").then((module) => {
+          if (desmontado) return;
           const Hls = module.default;
-          if (!Hls.isSupported()) return;
+          if (!Hls.isSupported()) {
+            if (temNativo) tocarNativo();
+            else setLoadError(SEM_SUPORTE);
+            return;
+          }
 
           const hls = new Hls({ maxBufferLength: 30, manifestLoadingMaxRetry: 4, levelLoadingMaxRetry: 4, fragLoadingMaxRetry: 6 });
           hlsRef.current = hls;
@@ -313,7 +328,8 @@ export default function VideoPlayer({
             setSelectedAudioTrack(String(data.id ?? 0));
           });
 
-
+        }).catch(() => {
+          if (!desmontado) setLoadError("Não foi possível carregar o player. Verifique sua conexão e tente novamente.");
         });
       }
     } else {
@@ -345,11 +361,11 @@ export default function VideoPlayer({
     const handleLoadedMetadata = () => {
       setDuration(video.duration || 0);
       syncNativeAudioTracks();
-      // Detecta MP4 só-áudio: videoWidth=0 significa sem stream de vídeo
-      if (video.videoWidth === 0 && video.duration > 0) {
-        setIsAudioOnly(true);
-      }
+      conferirImagem();
     };
+    // Só arquivo direto pode ser "só áudio". Em HLS (Safari/iPad) a largura ainda é 0 neste
+    // momento e só chega depois, no evento "resize": esconder o vídeo aqui deixava a tela sem imagem.
+    const conferirImagem = () => setIsAudioOnly(ehSomenteAudio(srcInicial, video.videoWidth, video.duration));
 
     const handleVideoError = () => {
       const err = video.error;
@@ -360,7 +376,14 @@ export default function VideoPlayer({
         ? "Erro de rede ao carregar o vídeo. Verifique sua conexão."
         : "Erro ao carregar o vídeo. Tente novamente.";
       // Link vencido no player nativo (Safari): pede um novo antes de mostrar o erro
-      if (err.code === MediaError.MEDIA_ERR_NETWORK && novaUrlRef.current) { novaUrlRef.current(); return; }
+      if (err.code === MediaError.MEDIA_ERR_NETWORK && novaUrlRef.current && pedidosUrlNativo < 1) {
+        pedidosUrlNativo++;
+        novaUrlRef.current();
+        // Se o link não mudar, o efeito de troca de fonte não roda: mostra o erro em vez de travar
+        const falhou = video.src;
+        setTimeout(() => { if (!desmontado && video.src === falhou && video.error) setLoadError(msg); }, 6000);
+        return;
+      }
       setLoadError(msg);
     };
 
@@ -382,8 +405,11 @@ export default function VideoPlayer({
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
     video.addEventListener("ended", handleEnded);
+    video.addEventListener("resize", conferirImagem);
 
     return () => {
+      desmontado = true;
+      video.removeEventListener("resize", conferirImagem);
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("seeking", handleSeeking);
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
@@ -397,7 +423,7 @@ export default function VideoPlayer({
         clearTimeout(hideControlsTimeout.current);
       }
     };
-  }, [chaveVideo, youtubeId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chaveVideo, youtubeId, tentativa]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Link novo do MESMO vídeo (token renovado): troca a fonte e continua do ponto atual, sem recriar o player
   useEffect(() => {
@@ -626,7 +652,7 @@ export default function VideoPlayer({
           <AlertCircle className="h-10 w-10 text-destructive shrink-0" />
           <p className="text-white/90 text-sm font-medium">{loadError}</p>
           <button
-            onClick={() => { setLoadError(null); }}
+            onClick={() => { setLoadError(null); setTentativa((n) => n + 1); }}
             className="mt-2 px-4 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs transition-colors"
           >
             Tentar novamente

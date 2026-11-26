@@ -870,3 +870,13 @@ Devolutiva escrita por IA sobre as respostas do Diário, vendida por R$ 15 (`PRE
 - O service worker não intercepta `/avaliacao/*` (denylist no `vite.config.ts`); o app tem rota de reserva em `PaginaDoServidor`.
 - Termos de Uso (seção 4) e Política de Privacidade (seção 5) citam a Super Avaliação e o processamento por IA.
 
+
+### iPad: aula tocando sem imagem (26/11/2026)
+
+**Sintoma:** no iPad (Safari) a aula tocava o som e mostrava as barras de "áudio" no lugar do vídeo (aula 45).
+
+**Causa:** o player marcava "só áudio" quando `videoWidth === 0` no `loadedmetadata` e escondia o `<video>`. No HLS nativo da Apple a largura pode chegar depois (evento `resize`), e a marca nunca era revista.
+
+**Correção** (`client/src/lib/videoSuporte.ts`, `VideoPlayer.tsx`): HLS nunca vira "só áudio"; arquivo direto é reavaliado no `resize`; HLS nativo só na Apple (os demais usam hls.js); navegador sem suporte e falha ao carregar o hls.js mostram mensagem; "Tentar novamente" recria o player; erro de rede no player nativo deixa de ficar parado sem aviso.
+
+**Testes:** `videoSuporte.test.ts` (3). Comportamento conferido em Chromium, com o iPad **simulado** (largura atrasada); falta confirmar em aparelho Apple real. Para reverter: `git revert` do commit.

@@ -22,6 +22,7 @@
 
 import { and, desc, eq, sql } from "drizzle-orm";
 import * as db from "./db";
+import { dataDePagamentoAsaas } from "./dataPagamentoAsaas";
 import { enviarCompraConfirmadaTikTok, registrarAtribuicaoTikTok } from "./tiktokEvents";
 import { contentCollections, contentCollectionItems, courses, lessons, paymentHistory, trialPasses, trialEntryLessons, asaasAccounts } from "../drizzle/schema";
 import {
@@ -701,7 +702,7 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
         providerStatus: body.event,
         paymentUrl: payment.invoiceUrl || pass.invoiceUrl,
         dueDate: payment.dueDate || pass.dueDate,
-        paidAt: payment.paymentDate ? new Date(payment.paymentDate) : new Date(),
+        paidAt: dataDePagamentoAsaas(payment.paymentDate),
         refundedAmount: 0,
         planSlug: "trial",
         description: `Teste de 1 aula (Asaas) — aula ${pass.lessonId}`,

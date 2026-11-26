@@ -18,6 +18,7 @@
 
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import * as db from "./db";
+import { dataDePagamentoAsaas } from "./dataPagamentoAsaas";
 import { asaasAccounts, asaasWebhookEvents, paymentHistory, subscriptionPlans, subscriptions, trialPasses, users } from "../drizzle/schema";
 import { getPlanDisplayName, type PlanSlug } from "../shared/stripe-config";
 import { isValidCpfCnpj, onlyDigits } from "../shared/br-document";
@@ -413,7 +414,7 @@ async function activate(account: typeof asaasAccounts.$inferSelect, body: AsaasW
       providerStatus: payment.status || body.event || "PAYMENT_RECEIVED",
       paymentUrl: payment.invoiceUrl,
       dueDate: payment.dueDate || null,
-      paidAt: payment.paymentDate ? new Date(payment.paymentDate) : new Date(),
+      paidAt: dataDePagamentoAsaas(payment.paymentDate),
       providerSubscriptionId: account.asaasSubscriptionId,
       planSlug,
       description: `Assinatura ${getPlanDisplayName(planSlug)} (Asaas)`,

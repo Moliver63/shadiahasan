@@ -226,4 +226,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-43 arquivos de teste, 336 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+44 arquivos de teste, 337 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

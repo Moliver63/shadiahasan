@@ -880,3 +880,13 @@ Devolutiva escrita por IA sobre as respostas do Diário, vendida por R$ 15 (`PRE
 **Correção** (`client/src/lib/videoSuporte.ts`, `VideoPlayer.tsx`): HLS nunca vira "só áudio"; arquivo direto é reavaliado no `resize`; HLS nativo só na Apple (os demais usam hls.js); navegador sem suporte e falha ao carregar o hls.js mostram mensagem; "Tentar novamente" recria o player; erro de rede no player nativo deixa de ficar parado sem aviso.
 
 **Testes:** `videoSuporte.test.ts` (3). Comportamento conferido em Chromium, com o iPad **simulado** (largura atrasada); falta confirmar em aparelho Apple real. Para reverter: `git revert` do commit.
+
+## E-mail de acesso não chegava (28/11/2026)
+
+Caso: compra do teste em 26/11 14:38 (`pay_8la5ok6lgkf1oxrt`, feita sem login, com e-mail que já tinha conta; log: "compra 4 criada ... (e-mail já tem conta)"). O Resend recusou o envio: `The gmail.com domain is not verified`, ou seja, o remetente em produção era um endereço @gmail.com.
+
+1. Render: `FROM_EMAIL` passou a ser `Shadia Hasan <noreply@shadiahasan.com>` (28/11, 09:34). O remetente precisa ser do domínio verificado no Resend; nunca usar @gmail.com.
+2. Compra logada (`trial:<userId>:<aulaId>`) não enviava e-mail nenhum ao aluno. Agora `processTrialEvent` chama `enviarEmailDeAcesso` na primeira ativação de um passe nunca pago (`server/trialEmailLogado.test.ts`, roda com `TEST_DATABASE_URL`). Compra sem conta segue por `concluirCompra`.
+
+Pendente: confirmar um envio aceito pelo Resend em produção; `EMAIL_AVISOS_ADMIN` não configurado (aviso de venda não sai).
+

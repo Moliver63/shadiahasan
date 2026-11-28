@@ -713,6 +713,9 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
       if (firstActivation) await enviarCompraParaGA4(pass.id, paymentId);
       if (firstActivation) await enviarCompraParaTikTok(pass.id, paymentId);
       if (guest) await (await import("./trialGuest")).concluirCompra(paymentId);
+      // Compra logada: o mesmo e-mail "Sua aula está liberada". Na compra sem
+      // conta quem manda é concluirCompra. `paidAt` vazio = nunca foi paga antes.
+      else if (firstActivation && !pass.paidAt) await avisarAlunoQueLiberou(pass.userId, pass.lessonId);
       // Depois de concluirCompra: na compra sem conta, é ali que o aluno ganha conta.
       if (firstActivation) await avisarVendaAoAdmin(pass.id, paymentId, payment.billingType, !!guest);
       return;
@@ -751,6 +754,16 @@ export async function processTrialEvent(body: AsaasWebhookBody): Promise<void> {
 
     default:
       console.log(`[Trial] evento sem ação: ${body.event}`);
+  }
+}
+
+/** E-mail de acesso para quem comprou já logado (28/11/2026). Nunca atrapalha a venda. */
+async function avisarAlunoQueLiberou(userId: number, lessonId: number): Promise<void> {
+  try {
+    const { enviarEmailDeAcesso } = await import("./trialGuestEmail");
+    await enviarEmailDeAcesso({ userId, lessonId, contaNova: false });
+  } catch (e) {
+    console.warn("[Trial] e-mail de acesso não enviado:", e instanceof Error ? e.message : e);
   }
 }
 

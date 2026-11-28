@@ -1,3 +1,4 @@
+import { trackCadastro } from "@/components/Analytics";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ export default function Signup() {
 
   const registerMutation = trpc.auth.register.useMutation({
     onSuccess: () => {
+      trackCadastro("email");
       setSuccess(true);
       setIsLoading(false);
     },

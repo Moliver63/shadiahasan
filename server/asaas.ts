@@ -1084,6 +1084,9 @@ export async function runBillingMaintenance(): Promise<void> {
     await enviarCartasDoDia();
     const { processarAvaliacoesPendentes } = await import("./superAvaliacao");
     await processarAvaliacoesPendentes();
+    // Conversões de vendas pagas que não chegaram à Meta, GA4 ou TikTok.
+    const { reenviarConversoesPendentes } = await import("./conversoes");
+    await reenviarConversoesPendentes();
   } catch (e) {
     console.warn("[Asaas] rotina de cobrança falhou:", e instanceof Error ? e.message : e);
   } finally {

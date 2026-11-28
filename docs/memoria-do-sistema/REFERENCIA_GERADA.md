@@ -60,11 +60,11 @@
 | `VITE_ANALYTICS_ENDPOINT` | `client/src/main.tsx` | **não** |
 | `VITE_ANALYTICS_WEBSITE_ID` | `client/src/main.tsx` | **não** |
 | `VITE_APP_ID` | `server/_core/env.ts` | sim |
-| `VITE_CLARITY_ID` | `client/src/components/Analytics.tsx`, `client/src/pages/AdminAnalytics.tsx` | **não** |
+| `VITE_CLARITY_ID` | `client/src/components/Analytics.tsx`, `client/src/components/analytics/PainelMarketing.tsx` e mais 1 | **não** |
 | `VITE_FRONTEND_FORGE_API_KEY` | `client/src/components/Map.tsx` | sim |
 | `VITE_FRONTEND_FORGE_API_URL` | `client/src/components/Map.tsx` | sim |
-| `VITE_GA4_ID` | `client/src/components/Analytics.tsx`, `client/src/lib/ga4Ids.ts` e mais 1 | **não** |
-| `VITE_META_PIXEL_ID` | `client/src/components/Analytics.tsx`, `client/src/pages/AdminAnalytics.tsx` | **não** |
+| `VITE_GA4_ID` | `client/src/components/Analytics.tsx`, `client/src/components/analytics/PainelMarketing.tsx` e mais 1 | **não** |
+| `VITE_META_PIXEL_ID` | `client/src/components/Analytics.tsx`, `client/src/components/analytics/PainelMarketing.tsx` e mais 1 | **não** |
 | `VITE_TIKTOK_PIXEL_ID` | `client/src/lib/tiktokPixel.ts` | **não** |
 
 59 variáveis; 25 sem entrada no `.env.example`. Variáveis do Render que não estão no código (ou o contrário) aparecem aqui como diferença a investigar.
@@ -114,7 +114,7 @@ Criadas por `CREATE TABLE IF NOT EXISTS` na primeira chamada (fora do `drizzle/s
 
 ## Routers tRPC (`server/routers.ts`)
 
-`acessos`, `admin`, `adminManagement`, `ai`, `appointments`, `areaAluno`, `auth`, `badges`, `caixaEmail`, `certificados`, `certificates`, `collections`, `comercial`, `community`, `courseGroups`, `courses`, `ebooks`, `enrollments`, `leads`, `lessons`, `marketing`, `materials`, `messaging`, `plans`, `profile`, `profiles`, `referrals`, `reviews`, `subscriptionManagement`, `subscriptions`, `system`, `testimonials`, `trial`, `videos`
+`acessos`, `admin`, `adminManagement`, `ai`, `appointments`, `areaAluno`, `auth`, `badges`, `caixaEmail`, `certificados`, `certificates`, `collections`, `comercial`, `community`, `conversoes`, `courseGroups`, `courses`, `ebooks`, `enrollments`, `leads`, `lessons`, `marketing`, `materials`, `messaging`, `plans`, `profile`, `profiles`, `referrals`, `reviews`, `subscriptionManagement`, `subscriptions`, `system`, `testimonials`, `trial`, `videos`
 
 ## Rotas HTTP do servidor (Express)
 
@@ -226,4 +226,4 @@ Os prefixos (`/api`, `/api/auth`) vêm de `server/_core/index.ts`.
 
 ## Testes
 
-44 arquivos de teste, 337 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.
+47 arquivos de teste, 344 casos declarados (`it`/`test`). Para o resultado real, rode `pnpm test`.

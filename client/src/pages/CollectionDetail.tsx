@@ -6,7 +6,7 @@
  * (checkout Asaas). Modelo "assinatura": convite para os planos, como antes.
  * Quem já comprou vê "Começar agora". Nada aqui libera acesso.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,7 +22,7 @@ import { JsonLd } from "@/components/JsonLd";
 import PrecoPrograma from "@/components/programa/PrecoPrograma";
 import ProgramaCheckoutDialog from "@/components/programa/ProgramaCheckoutDialog";
 import { linhas, paragrafos, precoVendavel } from "@shared/comercial";
-import { trackEvent } from "@/components/Analytics";
+import { trackEvent, trackViewContent } from "@/components/Analytics";
 
 const FOTO_SHADIA = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663117104978/xzKfSOAtqexRDupD.jpeg";
 
@@ -61,6 +61,14 @@ export default function CollectionDetail() {
 
   const jaComprou = meus.includes(id);
   const aVenda = !!comercial?.programasAVenda?.includes(id) && precoVendavel(col?.priceCents) && (comercial?.metodos.length ?? 0) > 0;
+
+  // ViewContent da página de venda do Programa (uma vez por Programa aberto).
+  const programaVisto = useRef(0);
+  useEffect(() => {
+    if (!aVenda || programaVisto.current === id || !col?.priceCents) return;
+    programaVisto.current = id;
+    trackViewContent({ contentId: `programa:${id}`, contentName: col.title, value: col.priceCents / 100 });
+  }, [aVenda, id, col?.priceCents, col?.title]);
 
   // Volta do login com intenção de compra (?comprar=1)
   useEffect(() => {

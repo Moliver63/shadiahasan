@@ -20,10 +20,13 @@ const original = {
   sessionStorage: (globalThis as any).sessionStorage,
 };
 
-function montarAmbiente({ cookie, url }: Dubles) {
+function montarAmbiente({ cookie, url }: Dubles, aceitou = true) {
   const loja = new Map<string, string>();
   (globalThis as any).document = { cookie };
-  (globalThis as any).window = { location: { search: new URL(url).search, href: url } };
+  (globalThis as any).window = {
+    location: { search: new URL(url).search, href: url },
+    localStorage: { getItem: (k: string) => (k === "cookie-consent" && aceitou ? JSON.stringify({ analytics: true }) : null) },
+  };
   (globalThis as any).sessionStorage = {
     getItem: (k: string) => loja.get(k) ?? null,
     setItem: (k: string, v: string) => void loja.set(k, v),
@@ -112,6 +115,17 @@ describe("leitura dos cookies do pixel", () => {
     };
     expect(() => capturarAtribuicaoNaEntrada()).not.toThrow();
     expect(() => atribuicaoAtual()).not.toThrow();
+  });
+});
+
+describe("Meta: _fbp e _fbc só com consentimento (LGPD)", () => {
+  it("sem aceite não saem do navegador, mesmo com cookie antigo ou fbclid na URL", () => {
+    montarAmbiente({ cookie: "_fbp=fb.1.1.2; _fbc=fb.1.1.c", url: "https://shadiahasan.com/?fbclid=X&utm_source=meta" }, false);
+    capturarAtribuicaoNaEntrada();
+    const a = atribuicaoAtual();
+    expect(a.fbp).toBeUndefined();
+    expect(a.fbc).toBeUndefined();
+    expect(a.utmSource).toBe("meta");
   });
 });
 

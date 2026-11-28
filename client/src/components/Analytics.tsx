@@ -298,6 +298,12 @@ export function trackLead(source: string) {
   sendMeta("track", "Lead", { source });
 }
 
+/** Conta criada: evento padrão nas duas plataformas (conta como conversão). */
+export function trackCadastro(metodo: "email") {
+  sendGA4("event", "sign_up", { method: metodo });
+  sendMeta("track", "CompleteRegistration", { method: metodo });
+}
+
 /**
  * Compra confirmada, para o GA4. O pagamento acontece no Asaas e é confirmado
  * no servidor; a tela de "aguardando" é o único lugar onde o comprador ainda

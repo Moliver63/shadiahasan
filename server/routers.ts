@@ -12,6 +12,7 @@ import { contentCollectionsRouter } from "./routers/collections";
 import { trialRouter } from "./routers/trial";
 import { comercialRouter } from "./routers/comercial";
 import { acessosRouter } from "./routers/acessos";
+import { conversoesRouter } from "./routers/conversoes";
 import { certificadosRouter } from "./routers/certificados";
 import { marketingRouter, registrarAutorizacao } from "./routers/marketing";
 import { emitirParaAulasConcluidas, lerConcluidas } from "./certificados";
@@ -2092,6 +2093,7 @@ export const appRouter = router({
   comercial: comercialRouter,
   // Gráfico de acessos (GA4, Meta, Clarity) no painel Analytics
   acessos: acessosRouter,
+  conversoes: conversoesRouter,
   // Certificados por aula e geral do Programa (PDF em /api/certificados/<numero>.pdf)
   certificados: certificadosRouter,
   marketing: marketingRouter,

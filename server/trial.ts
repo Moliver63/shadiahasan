@@ -821,7 +821,7 @@ async function avisarVendaAoAdmin(passId: number, paymentId: string, billingType
  *     Sem eles o evento ainda é enviado, porque compra confirmada é dado real,
  *     mas a Meta pode não ligar à campanha — e é melhor ter o número do que não.
  */
-async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<void> {
+export async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<void> {
   try {
     const { capiConfigurado, enviarCompra } = await import("./metaCapi");
     if (!capiConfigurado()) return;
@@ -832,6 +832,7 @@ async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<
     const { rows } = (await d.execute(sql`
       SELECT p."lessonId", p."userId", p."amountCents", p."fbp", p."fbc",
              p."landingUrl", p."clientIp", p."clientUserAgent", p."capiPurchaseSentAt",
+             EXTRACT(EPOCH FROM p."paidAt")::bigint AS "pagoEm",
              l."title" AS "lessonTitle", u."email" AS "userEmail"
         FROM "trialPasses" p
         LEFT JOIN "lessons" l ON l."id" = p."lessonId"
@@ -841,6 +842,8 @@ async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<
     `)) as unknown as { rows: Record<string, any>[] };
     const linha = rows?.[0];
     if (!linha) return;
+    // Sem aceite de cookies de análise não há _fbp/_fbc, e nada vai para a Meta (LGPD).
+    if (!linha.fbp && !linha.fbc) return;
     if (linha.capiPurchaseSentAt) {
       console.log(`[Trial→Meta] Purchase já enviado para ${paymentId}; ignorado`);
       return;
@@ -848,6 +851,7 @@ async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<
 
     const resultado = await enviarCompra({
       eventId: paymentId,
+      eventTime: linha.pagoEm ? Number(linha.pagoEm) : undefined,
       value: Number(linha.amountCents || 0) / 100,
       currency: "BRL",
       contentIds: [`lesson:${linha.lessonId}`],
@@ -865,10 +869,7 @@ async function enviarCompraParaMeta(passId: number, paymentId: string): Promise<
 
     if (resultado.ok) {
       await d.execute(sql`UPDATE "trialPasses" SET "capiPurchaseSentAt" = now() WHERE "id" = ${passId}`);
-      console.log(
-        `[Trial→Meta] Purchase aceito: cobrança ${paymentId}, eventos recebidos ${resultado.eventsReceived ?? "?"}` +
-          `${linha.fbp || linha.fbc ? "" : " (sem _fbp/_fbc: pode não ser atribuído à campanha)"}`,
-      );
+      console.log(`[Trial→Meta] Purchase aceito: cobrança ${paymentId}, eventos recebidos ${resultado.eventsReceived ?? "?"}`);
     } else {
       // Sem marcar como enviado: o reprocessamento na subida tenta de novo.
       console.warn(`[Trial→Meta] Purchase recusado (${resultado.status ?? "sem status"}): ${resultado.erro}`);
@@ -915,7 +916,7 @@ async function enviarCompraParaTikTok(passId: number, paymentId: string): Promis
  * (`ga4PurchaseSentAt`), e só com o client_id que o navegador mandou porque a
  * pessoa aceitou cookies de análise.
  */
-async function enviarCompraParaGA4(passId: number, paymentId: string): Promise<void> {
+export async function enviarCompraParaGA4(passId: number, paymentId: string): Promise<void> {
   try {
     const { ga4ServidorConfigurado, enviarCompraGA4 } = await import("./ga4");
     if (!ga4ServidorConfigurado()) return;
@@ -923,6 +924,7 @@ async function enviarCompraParaGA4(passId: number, paymentId: string): Promise<v
     if (!d) return;
     const { rows } = (await d.execute(sql`
       SELECT p."userId", p."lessonId", p."amountCents", p."ga4ClientId", p."ga4SessionId", p."ga4PurchaseSentAt",
+             EXTRACT(EPOCH FROM p."paidAt")::bigint AS "pagoEm",
              l."title" AS "lessonTitle"
         FROM "trialPasses" p
         LEFT JOIN "lessons" l ON l."id" = p."lessonId"
@@ -939,6 +941,7 @@ async function enviarCompraParaGA4(passId: number, paymentId: string): Promise<v
       valor: Number(linha.amountCents || 0) / 100,
       itemId: `lesson:${linha.lessonId}`,
       itemNome: linha.lessonTitle || "Teste de 1 aula",
+      pagoEm: linha.pagoEm ? Number(linha.pagoEm) : null,
     });
     if (ok) {
       await d.execute(sql`UPDATE "trialPasses" SET "ga4PurchaseSentAt" = now() WHERE "id" = ${passId}`);

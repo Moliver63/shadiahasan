@@ -17,7 +17,7 @@
  * - UTMs: guardadas na sessão porque o clique cai numa página e a compra
  *   começa em outra; sem guardar, a origem se perde na primeira navegação.
  *
- * Nada aqui identifica a pessoa. São identificadores de clique e de navegador.
+ * `_fbp` e `_fbc` só saem do navegador com os cookies de análise aceitos.
  */
 import { idsGA4Atuais } from "@/lib/ga4Ids";
 import { safeLocalStorageGet } from "@/lib/safeStorage";
@@ -147,16 +147,19 @@ export function atribuicaoAtual(): AtribuicaoMeta {
   const ttclid = consentiu ? guardado.ttclid ?? ttclidPendente : undefined;
   const ttp = consentiu ? lerCookie("_ttp") : undefined;
   // Sem consentimento, nada do TikTok sai do navegador, nem o que estava na sessão.
-  const { ttclid: _t1, ttp: _t2, tiktokConsent: _t3, ...base } = guardado;
+  // O mesmo vale para _fbp/_fbc (28/11/2026): é por eles que o servidor sabe
+  // que pode mandar a compra à Meta.
+  const { ttclid: _t1, ttp: _t2, tiktokConsent: _t3, fbp: _f1, fbc: fbcDaSessao, ...base } = guardado;
+  const fbc = consentiu ? fbcDoCookie ?? fbcDaSessao : undefined;
   if (consentiu && ttclid && !guardado.ttclid) gravarSessao({ ...guardado, ttclid });
   return {
     ...base,
     ...(consentiu ? { tiktokConsent: true } : {}),
     ...(ttclid ? { ttclid } : {}),
     ...(ttp ? { ttp } : {}),
-    ...(fbp ? { fbp } : {}),
+    ...(consentiu && fbp ? { fbp } : {}),
     // O cookie escrito pelo pixel vale mais que o nosso, montado do fbclid.
-    ...(fbcDoCookie ? { fbc: fbcDoCookie } : {}),
+    ...(fbc ? { fbc } : {}),
     // Para o servidor mandar a compra ao GA4 quando o Pix cair
     ...idsGA4Atuais(),
   };

@@ -7,7 +7,7 @@ import { z } from "zod";
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { enviarEmail } from "../_core/email";
 import {
-  criarLimitador, emailValido, ORIGENS, registrarContato, resumoContatos, ROTULO_ORIGEM, TEXTO_CONSENTIMENTO,
+  contatoPendente, criarLimitador, emailValido, listarContatos, marcarConfirmacao, ORIGENS, podeReenviarConfirmacao, registrarContato, resumoContatos, ROTULO_ORIGEM, TEXTO_CONSENTIMENTO,
 } from "../marketing";
 import { montarEmailCampanha, montarEmailConfirmacao } from "../marketingEmail";
 import { calcularResultado, PERFIS } from "../../shared/autoavaliacao";
@@ -30,10 +30,15 @@ function ipDe(req: any): string {
 export async function mandarConfirmacao(email: string, nome: string | null | undefined, token: string, resultado?: { titulo: string; resumo: string }) {
   try {
     const m = montarEmailConfirmacao({ email, nome, token, resultado });
-    await enviarEmail({ para: email, assunto: m.assunto, html: m.html, texto: m.texto, departamento: "psicologa" });
+    const r = await enviarEmail({ para: email, assunto: m.assunto, html: m.html, texto: m.texto, departamento: "psicologa" });
+    if (r.success) return true;
+    console.warn(`[Marketing] confirmação não enviada: ${r.error}`);
   } catch (e) {
     console.warn("[Marketing] confirmação não enviada:", e instanceof Error ? e.message : e);
   }
+  // Não saiu: o contato não pode constar como "já avisado" (libera novo pedido na hora).
+  await marcarConfirmacao(token, false).catch(() => undefined);
+  return false;
 }
 
 /**
@@ -115,6 +120,19 @@ export const marketingRouter = router({
   resumo: adminProcedure.query(async () => {
     const r = await resumoContatos();
     return { ...r, porOrigem: r.porOrigem.map((o) => ({ ...o, rotulo: (ROTULO_ORIGEM as Record<string, string>)[o.origem] ?? o.origem })) };
+  }),
+
+  contatos: adminProcedure.query(async () =>
+    (await listarContatos()).map((c) => ({ ...c, rotulo: (ROTULO_ORIGEM as Record<string, string>)[c.origem] ?? c.origem }))),
+
+  /** Manda de novo o "confirme sua inscrição" a quem ainda está pendente (um por vez). */
+  reenviarConfirmacao: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => {
+    const c = await contatoPendente(input.id);
+    if (!c) throw new TRPCError({ code: "BAD_REQUEST", message: "Este contato não está aguardando confirmação." });
+    if (!podeReenviarConfirmacao(c.confirmacaoEnviadaEm)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Já foi enviado há menos de 10 minutos." });
+    if (!(await mandarConfirmacao(c.email, c.nome, c.token))) throw new TRPCError({ code: "BAD_REQUEST", message: "O e-mail não saiu. Veja o log do servidor." });
+    await marcarConfirmacao(c.token, true);
+    return { ok: true };
   }),
 
   origens: adminProcedure.query(() => ORIGENS.map((o) => ({ id: o, rotulo: ROTULO_ORIGEM[o] }))),

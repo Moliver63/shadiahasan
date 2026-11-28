@@ -890,3 +890,19 @@ Caso: compra do teste em 26/11 14:38 (`pay_8la5ok6lgkf1oxrt`, feita sem login, c
 
 Pendente: confirmar um envio aceito pelo Resend em produção; `EMAIL_AVISOS_ADMIN` não configurado (aviso de venda não sai).
 
+
+## Analytics & Marketing: auditoria e correções (28/11/2026)
+
+**Achados em produção:** as 3 vendas do teste estavam sem envio de compra para Meta e GA4 (causa provável: `META_PIXEL_ID`, `META_CAPI_ACCESS_TOKEN` e `GA4_API_SECRET` ausentes; o envio sai em silêncio); nenhuma venda com UTM; as 5 variáveis de leitura do gráfico de acessos ausentes; confirmação de e-mail recusada pelo Resend ficava marcada como enviada.
+
+**Mudanças:**
+- `server/conversoes.ts`: a rotina de 10 min reenvia compras pagas que não chegaram à Meta (até 6 dias, com `_fbp`/`_fbc`), ao GA4 (até 71 h, com client_id) e ao TikTok (até 5 tentativas), com a data real do pagamento.
+- `/admin/analytics`: vendas por origem (banco), situação do envio por venda, gerador de link UTM, rastreadores ligados (só sim/não), contatos com reenvio de confirmação e CSV. Saiu a lista antiga de `leads`; totais de alunos seguem no Dashboard.
+- `marketing.ts`: falha no envio da confirmação é registrada como não enviada.
+- Eventos novos no navegador: `ViewContent` na página do Programa à venda; `sign_up`/`CompleteRegistration` no cadastro por e-mail.
+
+**Testes:** `conversoes.test.ts`, `conversoes.integracao.test.ts`, `campanhaLink.test.ts`. O banco de teste precisa estar em UTC (como o do Render).
+
+**Pendente:** variáveis acima no Render; Stripe, Super Avaliação e cadastro Google sem conversão; confirmar em produção o primeiro envio aceito.
+
+**LGPD (decidido em 28/11):** a compra só vai à Meta com `_fbp`/`_fbc`, que o navegador só envia com os cookies de análise aceitos (`metaAttribution.ts`).

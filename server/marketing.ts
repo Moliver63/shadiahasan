@@ -309,3 +309,41 @@ export async function resumoContatos(): Promise<{ ativos: number; pendentes: num
   `));
   return { ativos: Number(t.ativos), pendentes: Number(t.pendentes), descadastrados: Number(t.descadastrados), porOrigem: o.map((x) => ({ origem: x.origem, ativos: Number(x.ativos) })) };
 }
+
+// ─── Painel: lista de contatos e reenvio da confirmação ─────────────────────
+
+export type SituacaoContato = "confirmado" | "pendente" | "cancelado";
+
+export async function listarContatos(limite = 1000): Promise<{ id: number; email: string; nome: string | null; origem: string; situacao: SituacaoContato; criadoEm: Date }[]> {
+  if (!(await garantirTabelasMarketing())) return [];
+  const d = await db.getDb();
+  if (!d) return [];
+  const r = linhasDe(await d.execute(sql`
+    SELECT "id","email","nome","origem","confirmadoEm","descadastradoEm","criadoEm"
+    FROM "marketingContatos" ORDER BY "criadoEm" DESC LIMIT ${limite}
+  `));
+  return r.map((c) => ({
+    id: Number(c.id), email: c.email, nome: c.nome, origem: c.origem, criadoEm: new Date(c.criadoEm),
+    situacao: c.descadastradoEm ? "cancelado" : c.confirmadoEm ? "confirmado" : "pendente",
+  }));
+}
+
+export async function contatoPendente(id: number): Promise<{ email: string; nome: string | null; token: string; confirmacaoEnviadaEm: Date | null } | null> {
+  if (!(await garantirTabelasMarketing())) return null;
+  const d = await db.getDb();
+  if (!d) return null;
+  const c = linhasDe(await d.execute(sql`
+    SELECT "email","nome","token","confirmacaoEnviadaEm" FROM "marketingContatos"
+    WHERE "id" = ${id} AND "confirmadoEm" IS NULL AND "descadastradoEm" IS NULL
+  `))[0];
+  if (!c) return null;
+  return { email: c.email, nome: c.nome, token: c.token, confirmacaoEnviadaEm: c.confirmacaoEnviadaEm ? new Date(c.confirmacaoEnviadaEm) : null };
+}
+
+/** Registra se o e-mail de confirmação saiu. */
+export async function marcarConfirmacao(token: string, enviada: boolean): Promise<void> {
+  const d = await db.getDb();
+  if (!d) return;
+  await d.execute(sql`UPDATE "marketingContatos" SET "confirmacaoEnviadaEm" = ${enviada ? sql`now()` : null} WHERE "token" = ${token}`);
+}
+

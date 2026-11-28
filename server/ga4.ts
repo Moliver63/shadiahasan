@@ -42,11 +42,14 @@ export type CompraGA4 = {
   valor: number;
   itemId: string;
   itemNome: string;
+  /** segundos desde a época: quando o pagamento foi confirmado */
+  pagoEm?: number | null;
 };
 
 export function montarCorpo(c: CompraGA4) {
   return {
     client_id: c.clientId,
+    ...(c.pagoEm ? { timestamp_micros: c.pagoEm * 1_000_000 } : {}),
     ...(c.userId ? { user_id: String(c.userId) } : {}),
     consent: { ad_user_data: "DENIED", ad_personalization: "DENIED" },
     events: [

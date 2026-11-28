@@ -797,19 +797,22 @@ async function avisarCompraLiberada(compra: Compra, titulo: string, centavos: nu
 // Mesmo desenho do teste de 1 aula (trial.ts): uma vez por cobrança, nunca
 // atrapalha a venda, e sem marcar como enviado quando a Meta recusa.
 
-async function enviarCompraParaMeta(compraId: number, paymentId: string, titulo?: string): Promise<void> {
+export async function enviarCompraParaMeta(compraId: number, paymentId: string, titulo?: string): Promise<void> {
   try {
     const { capiConfigurado, enviarCompra } = await import("./metaCapi");
     if (!capiConfigurado()) return;
     const [l] = await consulta<any>(sql`
       SELECT pc."collectionId", pc."userId", pc."amountCents", pc."fbp", pc."fbc", pc."landingUrl", pc."clientIp",
-             pc."clientUserAgent", pc."capiPurchaseSentAt", u."email" AS "userEmail"
+             pc."clientUserAgent", pc."capiPurchaseSentAt", u."email" AS "userEmail",
+             EXTRACT(EPOCH FROM pc."paidAt")::bigint AS "pagoEm"
         FROM "programaCompras" pc LEFT JOIN "users" u ON u."id" = pc."userId"
        WHERE pc."id" = ${compraId} LIMIT 1
     `);
-    if (!l || l.capiPurchaseSentAt) return;
+    // Sem _fbp/_fbc não houve aceite de cookies de análise: nada vai para a Meta (LGPD).
+    if (!l || l.capiPurchaseSentAt || (!l.fbp && !l.fbc)) return;
     const r = await enviarCompra({
       eventId: paymentId,
+      eventTime: l.pagoEm ? Number(l.pagoEm) : undefined,
       value: Number(l.amountCents || 0) / 100,
       currency: "BRL",
       contentIds: [`programa:${l.collectionId}`],
@@ -820,7 +823,7 @@ async function enviarCompraParaMeta(compraId: number, paymentId: string, titulo?
     });
     if (r.ok) {
       await consulta(sql`UPDATE "programaCompras" SET "capiPurchaseSentAt" = now() WHERE "id" = ${compraId}`);
-      console.log(`[Programa→Meta] Purchase aceito: ${paymentId}${l.fbp || l.fbc ? "" : " (sem _fbp/_fbc)"}`);
+      console.log(`[Programa→Meta] Purchase aceito: ${paymentId}`);
     } else {
       console.warn(`[Programa→Meta] Purchase recusado (${r.status ?? "sem status"}): ${r.erro}`);
     }
@@ -829,7 +832,7 @@ async function enviarCompraParaMeta(compraId: number, paymentId: string, titulo?
   }
 }
 
-async function enviarCompraParaTikTok(compraId: number, paymentId: string, titulo?: string): Promise<void> {
+export async function enviarCompraParaTikTok(compraId: number, paymentId: string, titulo?: string): Promise<void> {
   try {
     const d = await db.getDb();
     if (!d) return;
@@ -852,12 +855,13 @@ async function enviarCompraParaTikTok(compraId: number, paymentId: string, titul
   }
 }
 
-async function enviarCompraParaGA4(compraId: number, paymentId: string, titulo?: string): Promise<void> {
+export async function enviarCompraParaGA4(compraId: number, paymentId: string, titulo?: string): Promise<void> {
   try {
     const { ga4ServidorConfigurado, enviarCompraGA4 } = await import("./ga4");
     if (!ga4ServidorConfigurado()) return;
     const [l] = await consulta<any>(sql`
-      SELECT "userId", "collectionId", "amountCents", "ga4ClientId", "ga4SessionId", "ga4PurchaseSentAt"
+      SELECT "userId", "collectionId", "amountCents", "ga4ClientId", "ga4SessionId", "ga4PurchaseSentAt",
+             EXTRACT(EPOCH FROM "paidAt")::bigint AS "pagoEm"
         FROM "programaCompras" WHERE "id" = ${compraId} LIMIT 1
     `);
     if (!l || l.ga4PurchaseSentAt || !l.ga4ClientId) return;
@@ -869,6 +873,7 @@ async function enviarCompraParaGA4(compraId: number, paymentId: string, titulo?:
       valor: Number(l.amountCents || 0) / 100,
       itemId: `programa:${l.collectionId}`,
       itemNome: titulo || "Programa",
+      pagoEm: l.pagoEm ? Number(l.pagoEm) : null,
     });
     if (ok) await consulta(sql`UPDATE "programaCompras" SET "ga4PurchaseSentAt" = now() WHERE "id" = ${compraId}`);
   } catch (e) {
